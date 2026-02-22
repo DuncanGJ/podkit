@@ -4,11 +4,13 @@ title: Implement podkit sync command
 status: To Do
 assignee: []
 created_date: '2026-02-22 19:23'
+updated_date: '2026-02-22 22:16'
 labels: []
 milestone: 'M2: Core Sync (v0.2.0)'
 dependencies:
   - TASK-021
   - TASK-006
+  - TASK-032
 priority: medium
 ---
 

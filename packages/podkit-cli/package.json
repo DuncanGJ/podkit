@@ -20,7 +20,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@podkit/core": "workspace:*"
+    "@podkit/core": "workspace:*",
+    "commander": "^14.0.3"
   },
   "devDependencies": {
     "@types/bun": "latest"

@@ -4,11 +4,13 @@ title: Implement podkit status command
 status: To Do
 assignee: []
 created_date: '2026-02-22 19:09'
+updated_date: '2026-02-22 22:16'
 labels: []
 milestone: 'M1: Foundation (v0.1.0)'
 dependencies:
   - TASK-006
   - TASK-009
+  - TASK-032
 priority: medium
 ---
 

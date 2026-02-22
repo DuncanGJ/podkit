@@ -252,7 +252,6 @@ export async function addTrack(
  * @returns Verification result (does not throw on invalid database)
  */
 export async function verify(path: string): Promise<VerifyResult> {
-  const command = `gpod-tool verify ${path} --json`;
   const result = await $`gpod-tool verify ${path} --json`.nothrow().quiet();
   const stdout = result.stdout.toString();
 
