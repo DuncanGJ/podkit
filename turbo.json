@@ -12,6 +12,18 @@
       "outputs": [],
       "cache": false
     },
+    "test:unit": {
+      "dependsOn": ["build"],
+      "inputs": ["src/**/*.test.ts", "!src/**/*.integration.test.ts"],
+      "outputs": [],
+      "cache": false
+    },
+    "test:integration": {
+      "dependsOn": ["build"],
+      "inputs": ["src/**/*.integration.test.ts"],
+      "outputs": [],
+      "cache": false
+    },
     "typecheck": {
       "dependsOn": ["^build"],
       "inputs": ["src/**", "tsconfig.json"],

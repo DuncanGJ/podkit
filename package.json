@@ -13,6 +13,8 @@
     "postinstall": "manypkg check",
     "build": "turbo run build",
     "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "turbo run test:integration",
     "lint": "oxlint --config oxlint.json .",
     "lint:fix": "oxlint --config oxlint.json --fix .",
     "format": "prettier --write .",

@@ -1,10 +1,10 @@
 ---
 id: TASK-003
 title: Define testing strategy
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-22 18:32'
-updated_date: '2026-02-22 21:07'
+updated_date: '2026-02-22 22:31'
 labels: []
 milestone: 'M0: Project Bootstrap'
 dependencies: []
@@ -29,9 +29,9 @@ Discuss and document the testing approach for podkit:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Testing approach discussed with user
-- [ ] #2 ADR or TESTING.md created documenting decisions
-- [ ] #3 Basic test setup working in at least one package
+- [x] #1 Testing approach discussed with user
+- [x] #2 ADR or TESTING.md created documenting decisions
+- [x] #3 Basic test setup working in at least one package
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -57,4 +57,19 @@ async function createTestIpod(model: string, name: string): Promise<string> {
 ```
 
 See TASK-007 notes for full details and proof of concept.
+
+## Decisions Made
+
+1. **Conditional skipping**: Tests skip gracefully when dependencies unavailable; Bun reports skipped tests
+2. **Coverage philosophy**: No hard targets, but high coverage expected - write tests for anything testable
+3. **Test categories**: Unit tests (*.test.ts) and integration tests (*.integration.test.ts)
+4. **Filtering**: `bun run test:unit` and `bun run test:integration` work with turborepo
+
+## Implementation
+
+- Updated turbo.json with test:unit and test:integration tasks
+- Updated all package.json files with test filtering scripts
+- Renamed gpod-testing tests to *.integration.test.ts (they require gpod-tool)
+- Created docs/TESTING.md with full testing strategy documentation
+- Updated AGENTS.md and docs/README.md with documentation references
 <!-- SECTION:NOTES:END -->

@@ -29,7 +29,9 @@ tools/
 # Development (uses Bun)
 bun install                      # Install dependencies
 bun run dev                      # Run in development mode
-bun test                         # Run all tests
+bun run test                     # Run all tests (unit + integration)
+bun run test:unit                # Run unit tests only
+bun run test:integration         # Run integration tests only
 bun test packages/podkit-core    # Run tests for specific package
 
 # Build
@@ -65,6 +67,7 @@ Read these documents based on what you're working on:
 | [docs/TRANSCODING.md](docs/TRANSCODING.md) | Working on audio conversion |
 | [docs/COLLECTION-SOURCES.md](docs/COLLECTION-SOURCES.md) | Working on collection scanning and metadata parsing |
 | [docs/IPOD-INTERNALS.md](docs/IPOD-INTERNALS.md) | Debugging iPod-specific issues |
+| [docs/TESTING.md](docs/TESTING.md) | Understanding testing strategy and conventions |
 | [packages/gpod-testing/README.md](packages/gpod-testing/README.md) | Writing tests that need iPod databases |
 
 ## Task Management (Backlog.md)
@@ -144,9 +147,20 @@ These decisions are documented in ADRs — read the full ADR for context:
 
 ## Testing
 
-### Test Environment Setup
+See [docs/TESTING.md](docs/TESTING.md) for full testing strategy and conventions.
 
-Before running tests that interact with iPod databases, build the gpod-tool:
+### Quick Reference
+
+- **Unit tests** (`*.test.ts`): Fast, no external dependencies
+- **Integration tests** (`*.integration.test.ts`): Require gpod-tool, FFmpeg, etc.
+
+```bash
+bun run test              # All tests
+bun run test:unit         # Unit tests only
+bun run test:integration  # Integration tests only
+```
+
+### Prerequisites for Integration Tests
 
 ```bash
 mise run tools:build   # Build gpod-tool CLI
@@ -155,59 +169,19 @@ mise trust             # Trust mise config (first time only)
 
 ### Writing Tests with iPod Databases
 
-Use `@podkit/gpod-testing` to create test iPod environments. This package creates real iTunesDB databases in temp directories—no physical iPod needed.
-
-**Basic pattern:**
+Use `@podkit/gpod-testing` to create test iPod environments:
 
 ```typescript
-import { describe, it, expect, beforeAll } from 'bun:test';
-import { withTestIpod, isGpodToolAvailable } from '@podkit/gpod-testing';
+import { withTestIpod } from '@podkit/gpod-testing';
 
-describe('MyFeature', () => {
-  beforeAll(async () => {
-    if (!(await isGpodToolAvailable())) {
-      throw new Error('Run `mise run tools:build` first');
-    }
-  });
-
-  it('works with iPod database', async () => {
-    await withTestIpod(async (ipod) => {
-      // ipod.path - absolute path to test iPod
-      // ipod.addTrack() - add track metadata
-      // ipod.info() - get database info
-      // ipod.tracks() - list all tracks
-      // Cleanup is automatic
-
-      await ipod.addTrack({ title: 'Test', artist: 'Artist' });
-      const info = await ipod.info();
-      expect(info.trackCount).toBe(1);
-    });
+it('works with iPod database', async () => {
+  await withTestIpod(async (ipod) => {
+    await ipod.addTrack({ title: 'Test', artist: 'Artist' });
+    const info = await ipod.info();
+    expect(info.trackCount).toBe(1);
   });
 });
 ```
-
-**Manual cleanup (for complex setups):**
-
-```typescript
-import { createTestIpod } from '@podkit/gpod-testing';
-
-const ipod = await createTestIpod({ model: 'MA147' });
-try {
-  // Use ipod.path for testing
-} finally {
-  await ipod.cleanup();
-}
-```
-
-**Supported models for testing:**
-
-| Model | Device | Notes |
-|-------|--------|-------|
-| `MA147` | iPod Video 60GB | Default, recommended |
-| `MA002` | iPod Video 30GB | Alternative |
-| `MA477` | iPod Nano 2GB | Nano testing |
-
-> **Note:** iPod Classic 6th gen+ models (MB565, MC297) require FirewireID and won't work for test environments.
 
 See [packages/gpod-testing/README.md](packages/gpod-testing/README.md) for full API documentation.
 
