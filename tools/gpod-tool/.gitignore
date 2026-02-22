@@ -1,0 +1,6 @@
+# Build artifacts
+gpod-tool
+*.o
+
+# Test directories
+test-ipod-*

@@ -4,7 +4,7 @@ title: Research iPod test environment
 status: Done
 assignee: []
 created_date: '2026-02-22 19:08'
-updated_date: '2026-02-22 21:07'
+updated_date: '2026-02-22 21:21'
 labels:
   - research
 milestone: 'M1: Foundation (v0.1.0)'
@@ -13,6 +13,7 @@ dependencies:
 references:
   - docs/LIBGPOD.md
   - docs/IPOD-INTERNALS.md
+  - tools/gpod-tool/README.md
 priority: high
 ---
 
@@ -120,4 +121,18 @@ await fs.rm(testIpodPath, { recursive: true });
 - [libgpod Device API](https://tmz.fedorapeople.org/docs/libgpod/libgpod-Device.html)
 - [libgpod iTunesDB API](https://tmz.fedorapeople.org/docs/libgpod/libgpod-The-Itdb-iTunesDB-structure.html)
 - [gpod-utils](https://github.com/whatdoineed2do/gpod-utils)
+
+## Implementation
+
+Created `tools/gpod-tool/` - a standalone C CLI that wraps libgpod:
+
+- `gpod-tool init` - Create iPod structure
+- `gpod-tool info` - Display database info
+- `gpod-tool tracks` - List tracks
+- `gpod-tool add-track` - Add track metadata
+- `gpod-tool verify` - Verify database
+
+All commands support `--json` for test automation.
+
+See ADR-005 for full details.
 <!-- SECTION:NOTES:END -->

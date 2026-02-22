@@ -10,6 +10,7 @@ This directory contains Architecture Decision Records (ADRs) documenting signifi
 | [ADR-002](ADR-002-libgpod-binding.md) | libgpod Binding Approach | Proposed | 2025-02-22 |
 | [ADR-003](ADR-003-transcoding.md) | Transcoding Backend | Proposed | 2025-02-22 |
 | [ADR-004](ADR-004-collection-sources.md) | Collection Source Abstraction | Proposed | 2025-02-22 |
+| [ADR-005](ADR-005-test-ipod-environment.md) | iPod Test Environment | Accepted | 2026-02-22 |
 
 ## ADR Workflow
 
