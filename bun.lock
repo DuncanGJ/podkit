@@ -12,6 +12,13 @@
         "typescript": "^5.9.0",
       },
     },
+    "packages/gpod-testing": {
+      "name": "@podkit/gpod-testing",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
     "packages/libgpod-node": {
       "name": "@podkit/libgpod-node",
       "version": "0.0.0",
@@ -97,6 +104,8 @@
     "@pnpm/npm-conf": ["@pnpm/npm-conf@3.0.2", "", { "dependencies": { "@pnpm/config.env-replace": "^1.1.0", "@pnpm/network.ca-file": "^1.0.1", "config-chain": "^1.1.11" } }, "sha512-h104Kh26rR8tm+a3Qkc5S4VLYint3FE48as7+/5oCEcKR2idC/pF1G6AhIXKI+eHPJa/3J9i5z0Al47IeGHPkA=="],
 
     "@podkit/core": ["@podkit/core@workspace:packages/podkit-core"],
+
+    "@podkit/gpod-testing": ["@podkit/gpod-testing@workspace:packages/gpod-testing"],
 
     "@podkit/libgpod-node": ["@podkit/libgpod-node@workspace:packages/libgpod-node"],
 
