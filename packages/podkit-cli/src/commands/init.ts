@@ -2,9 +2,7 @@
 import { Command } from 'commander';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
-
-const DEFAULT_CONFIG_PATH = path.join(os.homedir(), '.config', 'podkit', 'config.toml');
+import { DEFAULT_CONFIG_PATH } from '../config/index.js';
 
 const DEFAULT_CONFIG = `# podkit configuration
 # See: https://github.com/your-repo/podkit

@@ -1,0 +1,114 @@
+import { describe, expect, it, beforeEach } from 'bun:test';
+import {
+  setContext,
+  getContext,
+  getConfig,
+  getGlobalOpts,
+  clearContext,
+  type CliContext,
+} from './context.js';
+import type { PodkitConfig, GlobalOptions, LoadConfigResult } from './config/index.js';
+
+describe('CLI context', () => {
+  const mockConfig: PodkitConfig = {
+    source: '/test/music',
+    device: '/test/ipod',
+    quality: 'high',
+    artwork: true,
+  };
+
+  const mockGlobalOpts: GlobalOptions = {
+    verbose: 1,
+    quiet: false,
+    json: false,
+    color: true,
+    config: '/test/config.toml',
+  };
+
+  const mockConfigResult: LoadConfigResult = {
+    config: mockConfig,
+    configPath: '/test/config.toml',
+    configFileExists: true,
+  };
+
+  const mockContext: CliContext = {
+    config: mockConfig,
+    globalOpts: mockGlobalOpts,
+    configResult: mockConfigResult,
+  };
+
+  beforeEach(() => {
+    clearContext();
+  });
+
+  describe('getContext', () => {
+    it('throws when context not set', () => {
+      expect(() => getContext()).toThrow(/CLI context not initialized/);
+    });
+
+    it('returns context after setContext', () => {
+      setContext(mockContext);
+      const ctx = getContext();
+      expect(ctx).toBe(mockContext);
+    });
+  });
+
+  describe('setContext', () => {
+    it('sets the context', () => {
+      setContext(mockContext);
+      expect(getContext()).toBe(mockContext);
+    });
+
+    it('overwrites previous context', () => {
+      const firstContext: CliContext = {
+        ...mockContext,
+        config: { ...mockConfig, quality: 'low' },
+      };
+      const secondContext: CliContext = {
+        ...mockContext,
+        config: { ...mockConfig, quality: 'medium' },
+      };
+
+      setContext(firstContext);
+      setContext(secondContext);
+
+      expect(getContext().config.quality).toBe('medium');
+    });
+  });
+
+  describe('getConfig', () => {
+    it('throws when context not set', () => {
+      expect(() => getConfig()).toThrow(/CLI context not initialized/);
+    });
+
+    it('returns config from context', () => {
+      setContext(mockContext);
+      const config = getConfig();
+      expect(config).toBe(mockConfig);
+    });
+  });
+
+  describe('getGlobalOpts', () => {
+    it('throws when context not set', () => {
+      expect(() => getGlobalOpts()).toThrow(/CLI context not initialized/);
+    });
+
+    it('returns globalOpts from context', () => {
+      setContext(mockContext);
+      const opts = getGlobalOpts();
+      expect(opts).toBe(mockGlobalOpts);
+    });
+  });
+
+  describe('clearContext', () => {
+    it('clears the context', () => {
+      setContext(mockContext);
+      clearContext();
+      expect(() => getContext()).toThrow(/CLI context not initialized/);
+    });
+
+    it('does not throw when context already clear', () => {
+      expect(() => clearContext()).not.toThrow();
+    });
+  });
+});

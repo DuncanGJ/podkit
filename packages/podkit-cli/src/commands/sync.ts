@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import { Command } from 'commander';
+import { getContext } from '../context.js';
 
 export const syncCommand = new Command('sync')
   .description('sync music collection to iPod')
@@ -10,28 +11,44 @@ export const syncCommand = new Command('sync')
   .option('--no-artwork', 'skip artwork transfer')
   .option('--delete', 'remove tracks from iPod not in source')
   .action(async (options) => {
-    const parent = syncCommand.parent;
-    const globalOpts = parent?.opts() ?? {};
+    const { config, globalOpts, configResult } = getContext();
 
     // Stub implementation
     if (globalOpts.json) {
       console.log(JSON.stringify({
         status: 'not_implemented',
         message: 'Sync command not yet implemented',
-        options: { ...globalOpts, ...options },
+        config: {
+          source: config.source ?? null,
+          device: config.device ?? null,
+          quality: config.quality,
+          artwork: config.artwork,
+        },
+        options: {
+          dryRun: options.dryRun ?? false,
+          filter: options.filter ?? null,
+          delete: options.delete ?? false,
+        },
+        configFile: configResult.configPath ?? null,
       }, null, 2));
     } else {
       console.log('Sync command not yet implemented.');
       console.log('');
-      console.log('Options received:');
-      console.log(`  Source: ${options.source ?? '(not specified)'}`);
-      console.log(`  Device: ${globalOpts.device ?? '(auto-detect)'}`);
-      console.log(`  Quality: ${options.quality}`);
+      console.log('Configuration (merged from all sources):');
+      console.log(`  Source: ${config.source ?? '(not specified)'}`);
+      console.log(`  Device: ${config.device ?? '(auto-detect)'}`);
+      console.log(`  Quality: ${config.quality}`);
+      console.log(`  Artwork: ${config.artwork}`);
+      console.log('');
+      console.log('Options:');
       console.log(`  Dry run: ${options.dryRun ?? false}`);
-      console.log(`  Artwork: ${options.artwork}`);
       console.log(`  Delete: ${options.delete ?? false}`);
       if (options.filter) {
         console.log(`  Filter: ${options.filter}`);
+      }
+      if (configResult.configPath) {
+        console.log('');
+        console.log(`Config loaded from: ${configResult.configPath}`);
       }
     }
   });

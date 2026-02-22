@@ -1,18 +1,19 @@
 /* eslint-disable no-console */
 import { Command } from 'commander';
+import { getContext } from '../context.js';
 
 export const statusCommand = new Command('status')
   .description('show iPod device information and connection status')
   .action(async () => {
-    const parent = statusCommand.parent;
-    const globalOpts = parent?.opts() ?? {};
+    const { config, globalOpts, configResult } = getContext();
 
     // Stub implementation
     if (globalOpts.json) {
       console.log(JSON.stringify({
         status: 'not_implemented',
         message: 'Status command not yet implemented',
-        device: globalOpts.device ?? null,
+        device: config.device ?? null,
+        configFile: configResult.configPath ?? null,
       }, null, 2));
     } else {
       console.log('Status command not yet implemented.');
@@ -22,9 +23,12 @@ export const statusCommand = new Command('status')
       console.log('  - Storage capacity (used/free)');
       console.log('  - Track count');
       console.log('  - Connection status');
-      if (globalOpts.device) {
+      if (config.device) {
         console.log('');
-        console.log(`Device path specified: ${globalOpts.device}`);
+        console.log(`Device path: ${config.device}`);
+      }
+      if (configResult.configPath) {
+        console.log(`Config loaded from: ${configResult.configPath}`);
       }
     }
   });
