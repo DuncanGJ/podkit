@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
+import { stat } from 'node:fs/promises';
 import {
   createTestIpod,
   withTestIpod,
@@ -7,6 +8,7 @@ import {
   isGpodToolAvailable,
   getGpodToolVersion,
   gpodTool,
+  GpodToolError,
 } from './index';
 
 describe('gpod-testing', () => {
@@ -53,7 +55,6 @@ describe('gpod-testing', () => {
 
     it('creates a test iPod with custom model', async () => {
       // Use MA002 (iPod Video 30GB) - works without FirewireID
-      // Note: MB565 (iPod Classic) requires additional SysInfo fields
       const ipod = await createTestIpod({
         model: 'MA002',
         name: 'My Video',
@@ -68,6 +69,14 @@ describe('gpod-testing', () => {
       } finally {
         await ipod.cleanup();
       }
+    });
+
+    it('fails with models requiring FirewireID (iPod Classic 6th gen+)', async () => {
+      // MB565 (iPod Classic 120GB) requires FirewireID in SysInfo
+      // libgpod doesn't auto-generate this, so initialization fails
+      await expect(
+        createTestIpod({ model: 'MB565', name: 'Classic' })
+      ).rejects.toThrow("Couldn't find the iPod firewire ID");
     });
 
     it('allows adding tracks', async () => {
@@ -88,8 +97,10 @@ describe('gpod-testing', () => {
 
         const tracks = await ipod.tracks();
         expect(tracks).toHaveLength(1);
-        expect(tracks[0].title).toBe('Test Song');
-        expect(tracks[0].artist).toBe('Test Artist');
+        const firstTrack = tracks[0];
+        expect(firstTrack).toBeDefined();
+        expect(firstTrack?.title).toBe('Test Song');
+        expect(firstTrack?.artist).toBe('Test Artist');
       } finally {
         await ipod.cleanup();
       }
@@ -117,7 +128,7 @@ describe('gpod-testing', () => {
 
   describe('withTestIpod', () => {
     it('creates and cleans up automatically', async () => {
-      let capturedPath: string | undefined;
+      let capturedPath = '';
 
       await withTestIpod(async (ipod) => {
         capturedPath = ipod.path;
@@ -126,27 +137,25 @@ describe('gpod-testing', () => {
       });
 
       // Verify cleanup happened
-      expect(capturedPath).toBeDefined();
-      const exists = await Bun.file(capturedPath!).exists();
-      expect(exists).toBe(false);
+      expect(capturedPath).not.toBe('');
+      await expect(stat(capturedPath)).rejects.toThrow();
     });
 
     it('cleans up even on error', async () => {
-      let capturedPath: string | undefined;
+      let capturedPath = '';
 
       try {
         await withTestIpod(async (ipod) => {
           capturedPath = ipod.path;
           throw new Error('Test error');
         });
-      } catch (e) {
+      } catch {
         // Expected
       }
 
       // Verify cleanup happened
-      expect(capturedPath).toBeDefined();
-      const exists = await Bun.file(capturedPath!).exists();
-      expect(exists).toBe(false);
+      expect(capturedPath).not.toBe('');
+      await expect(stat(capturedPath)).rejects.toThrow();
     });
 
     it('returns the function result', async () => {
@@ -167,8 +176,8 @@ describe('gpod-testing', () => {
 
       try {
         expect(ipods).toHaveLength(2);
-        expect(ipods[0].model).toBe('MA147');
-        expect(ipods[1].model).toBe('MA002');
+        expect(ipods[0]?.model).toBe('MA147');
+        expect(ipods[1]?.model).toBe('MA002');
       } finally {
         await Promise.all(ipods.map((i) => i.cleanup()));
       }
@@ -184,12 +193,25 @@ describe('gpod-testing', () => {
   });
 
   describe('gpodTool (low-level)', () => {
-    it('exposes low-level functions', async () => {
+    it('exposes low-level functions', () => {
       expect(gpodTool.init).toBeFunction();
       expect(gpodTool.info).toBeFunction();
       expect(gpodTool.tracks).toBeFunction();
       expect(gpodTool.addTrack).toBeFunction();
       expect(gpodTool.verify).toBeFunction();
+    });
+
+    it('throws GpodToolError on failure', async () => {
+      try {
+        await gpodTool.init('/tmp/test-fail', { model: 'MB565' });
+        expect.unreachable('Should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(GpodToolError);
+        if (error instanceof GpodToolError) {
+          expect(error.message).toContain('firewire ID');
+          expect(error.command).toContain('gpod-tool');
+        }
+      }
     });
   });
 });

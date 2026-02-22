@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "build": "bun build src/index.ts --outdir dist --target bun && bun run build:types",
-    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build:types": "tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"

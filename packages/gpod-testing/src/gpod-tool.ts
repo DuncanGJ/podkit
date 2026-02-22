@@ -33,11 +33,48 @@ export class GpodToolError extends Error {
 }
 
 /**
+ * Run gpod-tool command and parse JSON response.
+ * @internal
+ */
+async function runGpodTool<T>(
+  args: string[],
+  errorContext: string
+): Promise<T> {
+  const command = `gpod-tool ${args.join(' ')}`;
+  const result = await $`gpod-tool ${args}`.nothrow().quiet();
+  const stdout = result.stdout.toString();
+
+  let json: T & { success?: boolean; valid?: boolean; error?: string };
+  try {
+    json = JSON.parse(stdout);
+  } catch {
+    throw new GpodToolError(
+      `Failed to parse gpod-tool output: ${errorContext}`,
+      command,
+      result.exitCode,
+      result.stderr.toString()
+    );
+  }
+
+  // Check for explicit failure (success: false)
+  if ('success' in json && json.success === false) {
+    throw new GpodToolError(
+      json.error ?? 'Unknown error',
+      command,
+      result.exitCode,
+      result.stderr.toString()
+    );
+  }
+
+  return json;
+}
+
+/**
  * Check if gpod-tool is available in PATH.
  */
 export async function isGpodToolAvailable(): Promise<boolean> {
   try {
-    const result = await $`gpod-tool --version`.quiet();
+    const result = await $`gpod-tool --version`.nothrow().quiet();
     return result.exitCode === 0;
   } catch {
     return false;
@@ -73,27 +110,12 @@ export async function init(
     args.push('--name', options.name);
   }
 
-  const result = await $`gpod-tool ${args}`.quiet();
-
-  if (result.exitCode !== 0) {
-    throw new GpodToolError(
-      `Failed to initialize iPod at ${path}`,
-      `gpod-tool ${args.join(' ')}`,
-      result.exitCode,
-      result.stderr.toString()
-    );
-  }
-
-  const json = JSON.parse(result.stdout.toString());
-
-  if (!json.success) {
-    throw new GpodToolError(
-      json.error || 'Unknown error',
-      `gpod-tool ${args.join(' ')}`,
-      result.exitCode,
-      ''
-    );
-  }
+  const json = await runGpodTool<{
+    success: boolean;
+    path: string;
+    model: string;
+    name: string;
+  }>(args, `init ${path}`);
 
   return {
     path: json.path,
@@ -110,27 +132,18 @@ export async function init(
  * @throws {GpodToolError} If reading fails
  */
 export async function info(path: string): Promise<DatabaseInfo> {
-  const result = await $`gpod-tool info ${path} --json`.quiet();
-
-  if (result.exitCode !== 0) {
-    throw new GpodToolError(
-      `Failed to read iPod info at ${path}`,
-      `gpod-tool info ${path} --json`,
-      result.exitCode,
-      result.stderr.toString()
-    );
-  }
-
-  const json = JSON.parse(result.stdout.toString());
-
-  if (!json.success) {
-    throw new GpodToolError(
-      json.error || 'Unknown error',
-      `gpod-tool info ${path} --json`,
-      result.exitCode,
-      ''
-    );
-  }
+  const json = await runGpodTool<{
+    success: boolean;
+    path: string;
+    device: {
+      model_number: string | null;
+      model_name: string;
+      supports_artwork: boolean;
+      supports_video: boolean;
+    };
+    track_count: number;
+    playlist_count: number;
+  }>(['info', path, '--json'], `info ${path}`);
 
   return {
     path: json.path,
@@ -153,30 +166,9 @@ export async function info(path: string): Promise<DatabaseInfo> {
  * @throws {GpodToolError} If reading fails
  */
 export async function tracks(path: string): Promise<TrackInfo[]> {
-  const result = await $`gpod-tool tracks ${path} --json`.quiet();
-
-  if (result.exitCode !== 0) {
-    throw new GpodToolError(
-      `Failed to list tracks at ${path}`,
-      `gpod-tool tracks ${path} --json`,
-      result.exitCode,
-      result.stderr.toString()
-    );
-  }
-
-  const json = JSON.parse(result.stdout.toString());
-
-  if (!json.success) {
-    throw new GpodToolError(
-      json.error || 'Unknown error',
-      `gpod-tool tracks ${path} --json`,
-      result.exitCode,
-      ''
-    );
-  }
-
-  return json.tracks.map(
-    (t: {
+  const json = await runGpodTool<{
+    success: boolean;
+    tracks: Array<{
       id: number;
       title: string;
       artist: string | null;
@@ -187,19 +179,21 @@ export async function tracks(path: string): Promise<TrackInfo[]> {
       sample_rate: number;
       size: number;
       has_artwork: boolean;
-    }) => ({
-      id: t.id,
-      title: t.title,
-      artist: t.artist,
-      album: t.album,
-      trackNumber: t.track_number,
-      durationMs: t.duration_ms,
-      bitrate: t.bitrate,
-      sampleRate: t.sample_rate,
-      size: t.size,
-      hasArtwork: t.has_artwork,
-    })
-  );
+    }>;
+  }>(['tracks', path, '--json'], `tracks ${path}`);
+
+  return json.tracks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    artist: t.artist,
+    album: t.album,
+    trackNumber: t.track_number,
+    durationMs: t.duration_ms,
+    bitrate: t.bitrate,
+    sampleRate: t.sample_rate,
+    size: t.size,
+    hasArtwork: t.has_artwork,
+  }));
 }
 
 /**
@@ -235,27 +229,13 @@ export async function addTrack(
     args.push('--sample-rate', String(track.sampleRate));
   }
 
-  const result = await $`gpod-tool ${args}`.quiet();
-
-  if (result.exitCode !== 0) {
-    throw new GpodToolError(
-      `Failed to add track at ${path}`,
-      `gpod-tool ${args.join(' ')}`,
-      result.exitCode,
-      result.stderr.toString()
-    );
-  }
-
-  const json = JSON.parse(result.stdout.toString());
-
-  if (!json.success) {
-    throw new GpodToolError(
-      json.error || 'Unknown error',
-      `gpod-tool ${args.join(' ')}`,
-      result.exitCode,
-      ''
-    );
-  }
+  const json = await runGpodTool<{
+    success: boolean;
+    track_id: number;
+    title: string;
+    artist: string | null;
+    album: string | null;
+  }>(args, `add-track ${path}`);
 
   return {
     trackId: json.track_id,
@@ -269,19 +249,39 @@ export async function addTrack(
  * Verify an iPod database can be parsed.
  *
  * @param path - Path to the iPod directory
- * @returns Verification result
+ * @returns Verification result (does not throw on invalid database)
  */
 export async function verify(path: string): Promise<VerifyResult> {
-  const result = await $`gpod-tool verify ${path} --json`.quiet();
+  const command = `gpod-tool verify ${path} --json`;
+  const result = await $`gpod-tool verify ${path} --json`.nothrow().quiet();
+  const stdout = result.stdout.toString();
 
-  const json = JSON.parse(result.stdout.toString());
+  let json: {
+    valid: boolean;
+    path?: string;
+    track_count?: number;
+    playlist_count?: number;
+    error?: string;
+  };
+
+  try {
+    json = JSON.parse(stdout);
+  } catch {
+    return {
+      valid: false,
+      path: path,
+      trackCount: 0,
+      playlistCount: 0,
+      error: `Failed to parse output: ${stdout}`,
+    };
+  }
 
   if (json.valid) {
     return {
       valid: true,
-      path: json.path,
-      trackCount: json.track_count,
-      playlistCount: json.playlist_count,
+      path: json.path ?? path,
+      trackCount: json.track_count ?? 0,
+      playlistCount: json.playlist_count ?? 0,
     };
   } else {
     return {
