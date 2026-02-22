@@ -214,6 +214,56 @@ export class Database {
   }
 
   /**
+   * Copy an audio file to the iPod storage.
+   *
+   * This copies the source file to the iPod's internal storage location
+   * and updates the track's ipod_path. The track must already be added
+   * to the database via `addTrack()` before calling this method.
+   *
+   * The file format must be iPod-compatible (MP3, AAC/M4A).
+   * Transcoding should be done before calling this method.
+   *
+   * @param trackId ID of the track to copy file for
+   * @param sourcePath Path to the source audio file
+   * @returns The updated track with ipod_path set
+   * @throws LibgpodError if copying fails (disk full, file not found, etc.)
+   *
+   * @example
+   * ```typescript
+   * const track = db.addTrack({ title: 'Song', artist: 'Artist' });
+   * const updated = db.copyTrackToDevice(track.id, '/path/to/song.mp3');
+   * console.log(updated.ipodPath); // :iPod_Control:Music:F00:...
+   * await db.save();
+   * ```
+   */
+  copyTrackToDevice(trackId: number, sourcePath: string): Track {
+    const native = this.ensureOpen();
+    try {
+      return native.copyTrackToDevice(trackId, sourcePath);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'copyTrackToDevice'
+      );
+    }
+  }
+
+  /**
+   * Async version of copyTrackToDevice for consistency with other async methods.
+   *
+   * @param trackId ID of the track to copy file for
+   * @param sourcePath Path to the source audio file
+   * @returns The updated track with ipod_path set
+   */
+  async copyTrackToDeviceAsync(
+    trackId: number,
+    sourcePath: string
+  ): Promise<Track> {
+    return this.copyTrackToDevice(trackId, sourcePath);
+  }
+
+  /**
    * Remove a track from the database.
    *
    * Note: This does not delete the file from the iPod.

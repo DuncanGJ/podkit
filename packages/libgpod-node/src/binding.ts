@@ -37,6 +37,7 @@ export interface NativeDatabase {
   getPlaylists(): Playlist[];
   addTrack(input: TrackInput): Track;
   removeTrack(trackId: number): void;
+  copyTrackToDevice(trackId: number, sourcePath: string): Track;
   write(): boolean;
   close(): void;
   getMountpoint(): string | null;

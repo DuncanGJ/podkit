@@ -270,6 +270,7 @@ private:
     Napi::Value GetPlaylists(const Napi::CallbackInfo& info);
     Napi::Value AddTrack(const Napi::CallbackInfo& info);
     Napi::Value RemoveTrack(const Napi::CallbackInfo& info);
+    Napi::Value CopyTrackToDevice(const Napi::CallbackInfo& info);
     Napi::Value Write(const Napi::CallbackInfo& info);
     Napi::Value Close(const Napi::CallbackInfo& info);
     Napi::Value GetMountpoint(const Napi::CallbackInfo& info);
@@ -287,6 +288,7 @@ Napi::Object DatabaseWrapper::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("getPlaylists", &DatabaseWrapper::GetPlaylists),
         InstanceMethod("addTrack", &DatabaseWrapper::AddTrack),
         InstanceMethod("removeTrack", &DatabaseWrapper::RemoveTrack),
+        InstanceMethod("copyTrackToDevice", &DatabaseWrapper::CopyTrackToDevice),
         InstanceMethod("write", &DatabaseWrapper::Write),
         InstanceMethod("close", &DatabaseWrapper::Close),
         InstanceMethod("getMountpoint", &DatabaseWrapper::GetMountpoint),
@@ -470,6 +472,57 @@ Napi::Value DatabaseWrapper::RemoveTrack(const Napi::CallbackInfo& info) {
 
     itdb_track_remove(track);
     return env.Undefined();
+}
+
+Napi::Value DatabaseWrapper::CopyTrackToDevice(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 2) {
+        Napi::TypeError::New(env, "Expected track ID and source file path").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[1].IsString()) {
+        Napi::TypeError::New(env, "Expected source file path as string").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    uint32_t trackId = info[0].As<Napi::Number>().Uint32Value();
+    std::string sourcePath = info[1].As<Napi::String>().Utf8Value();
+
+    // Find the track by ID
+    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    if (!track) {
+        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Copy the file to the iPod
+    GError* error = nullptr;
+    gboolean success = itdb_cp_track_to_ipod(track, sourcePath.c_str(), &error);
+
+    if (!success) {
+        std::string message = "Failed to copy track to iPod";
+        if (error) {
+            message = error->message;
+            g_error_free(error);
+        }
+        Napi::Error::New(env, message).ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Return the updated track object with the new ipod_path
+    return TrackToObject(env, track);
 }
 
 Napi::Value DatabaseWrapper::Write(const Napi::CallbackInfo& info) {
