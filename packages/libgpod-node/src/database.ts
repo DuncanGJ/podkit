@@ -381,6 +381,27 @@ export class Database {
   }
 
   /**
+   * Get unique artwork IDs (mhii_link values) from all tracks.
+   *
+   * This method collects all unique non-zero mhii_link values from tracks
+   * in the database. These IDs reference artwork entries in the ArtworkDB
+   * and can be used for artwork deduplication.
+   *
+   * @returns Array of unique artwork IDs (mhii_link values)
+   *
+   * @example
+   * ```typescript
+   * const db = Database.openSync('/media/ipod');
+   * const artworkIds = db.getUniqueArtworkIds();
+   * console.log(`Found ${artworkIds.length} unique artwork entries`);
+   * ```
+   */
+  getUniqueArtworkIds(): number[] {
+    const native = this.ensureOpen();
+    return native.getUniqueArtworkIds();
+  }
+
+  /**
    * Ensure the database is closed when garbage collected.
    */
   [Symbol.dispose](): void {

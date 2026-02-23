@@ -9,6 +9,7 @@
 #include <gpod/itdb.h>
 #include <string>
 #include <cstring>
+#include <set>
 
 // Helper to convert gchar* to Napi::Value, handling NULL
 static Napi::Value GcharToValue(Napi::Env env, const gchar* str) {
@@ -276,6 +277,7 @@ private:
     Napi::Value GetMountpoint(const Napi::CallbackInfo& info);
     Napi::Value GetTrackById(const Napi::CallbackInfo& info);
     Napi::Value SetTrackThumbnails(const Napi::CallbackInfo& info);
+    Napi::Value GetUniqueArtworkIds(const Napi::CallbackInfo& info);
 };
 
 Napi::FunctionReference DatabaseWrapper::constructor;
@@ -295,6 +297,7 @@ Napi::Object DatabaseWrapper::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("getMountpoint", &DatabaseWrapper::GetMountpoint),
         InstanceMethod("getTrackById", &DatabaseWrapper::GetTrackById),
         InstanceMethod("setTrackThumbnails", &DatabaseWrapper::SetTrackThumbnails),
+        InstanceMethod("getUniqueArtworkIds", &DatabaseWrapper::GetUniqueArtworkIds),
     });
 
     constructor = Napi::Persistent(func);
@@ -639,6 +642,36 @@ Napi::Value DatabaseWrapper::SetTrackThumbnails(const Napi::CallbackInfo& info) 
 
     // Return the updated track object
     return TrackToObject(env, track);
+}
+
+Napi::Value DatabaseWrapper::GetUniqueArtworkIds(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Use a set to collect unique mhii_link values
+    // We'll use a simple approach: iterate through all tracks and collect non-zero mhii_link values
+    std::set<uint32_t> uniqueIds;
+
+    for (GList* l = db_->tracks; l != nullptr; l = l->next) {
+        Itdb_Track* track = static_cast<Itdb_Track*>(l->data);
+        // Only include non-zero mhii_link values (0 means no artwork)
+        if (track->mhii_link != 0) {
+            uniqueIds.insert(track->mhii_link);
+        }
+    }
+
+    // Convert to Napi::Array
+    Napi::Array result = Napi::Array::New(env, uniqueIds.size());
+    uint32_t index = 0;
+    for (uint32_t id : uniqueIds) {
+        result.Set(index++, Napi::Number::New(env, id));
+    }
+
+    return result;
 }
 
 /**

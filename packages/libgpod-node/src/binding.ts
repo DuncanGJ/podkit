@@ -43,6 +43,7 @@ export interface NativeDatabase {
   close(): void;
   getMountpoint(): string | null;
   getTrackById(id: number): Track | null;
+  getUniqueArtworkIds(): number[];
 }
 
 /**

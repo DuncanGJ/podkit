@@ -851,3 +851,153 @@ describe('libgpod-node artwork (setTrackArtwork)', () => {
     }
   );
 });
+
+// Tests for getUniqueArtworkIds functionality
+describe('libgpod-node artwork IDs (getUniqueArtworkIds)', () => {
+  it.skipIf(!isNativeAvailable())(
+    'returns empty array for empty database',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        const db = Database.openSync(ipod.path);
+
+        // Fresh database with no tracks
+        expect(db.trackCount).toBe(0);
+
+        // Get unique artwork IDs
+        const artworkIds = db.getUniqueArtworkIds();
+
+        // Should be empty array for empty database
+        expect(artworkIds).toEqual([]);
+        expect(Array.isArray(artworkIds)).toBe(true);
+
+        db.close();
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'returns empty array when no tracks have artwork',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        const db = Database.openSync(ipod.path);
+
+        // Add some tracks without artwork
+        db.addTrack({ title: 'Track 1' });
+        db.addTrack({ title: 'Track 2' });
+        db.addTrack({ title: 'Track 3' });
+
+        // Get unique artwork IDs
+        const artworkIds = db.getUniqueArtworkIds();
+
+        // Should be empty since no tracks have artwork
+        expect(artworkIds).toEqual([]);
+
+        db.close();
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'returns unique artwork IDs when tracks have artwork',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        const db = Database.openSync(ipod.path);
+
+        // Create a test JPEG image
+        const dir = join(tmpdir(), `libgpod-test-${randomUUID()}`);
+        await mkdir(dir, { recursive: true });
+        const imagePath = join(dir, 'test-artwork.jpg');
+        await writeFile(imagePath, createMinimalJpeg());
+
+        try {
+          // Add tracks and set artwork
+          const track1 = db.addTrack({ title: 'Track 1' });
+          const track2 = db.addTrack({ title: 'Track 2' });
+          db.addTrack({ title: 'Track 3 (no artwork)' });
+
+          // Set artwork for first two tracks
+          db.setTrackArtwork(track1.id, imagePath);
+          db.setTrackArtwork(track2.id, imagePath);
+
+          // Save to ensure mhii_link values are assigned
+          db.saveSync();
+
+          // Get unique artwork IDs
+          const artworkIds = db.getUniqueArtworkIds();
+
+          // Should have at least one unique artwork ID
+          // (tracks with same artwork may share the same mhii_link)
+          expect(artworkIds.length).toBeGreaterThanOrEqual(1);
+
+          // All IDs should be non-zero
+          for (const id of artworkIds) {
+            expect(id).toBeGreaterThan(0);
+          }
+
+          db.close();
+        } finally {
+          // Cleanup
+          await rm(dir, { recursive: true, force: true });
+        }
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'returns deduplicated artwork IDs',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        const db = Database.openSync(ipod.path);
+
+        // Create test images
+        const dir = join(tmpdir(), `libgpod-test-${randomUUID()}`);
+        await mkdir(dir, { recursive: true });
+        const imagePath1 = join(dir, 'artwork1.jpg');
+        const imagePath2 = join(dir, 'artwork2.jpg');
+        await writeFile(imagePath1, createMinimalJpeg());
+        await writeFile(imagePath2, createMinimalJpeg());
+
+        try {
+          // Add multiple tracks with same artwork
+          const track1 = db.addTrack({ title: 'Track 1' });
+          const track2 = db.addTrack({ title: 'Track 2' });
+          const track3 = db.addTrack({ title: 'Track 3' });
+          db.addTrack({ title: 'Track 4' }); // intentionally no artwork
+
+          // Set same artwork for tracks 1 and 2, different for track 3
+          db.setTrackArtwork(track1.id, imagePath1);
+          db.setTrackArtwork(track2.id, imagePath1);
+          db.setTrackArtwork(track3.id, imagePath2);
+          // track4 gets no artwork
+
+          // Save to ensure mhii_link values are assigned
+          db.saveSync();
+
+          // Get unique artwork IDs
+          const artworkIds = db.getUniqueArtworkIds();
+
+          // The IDs should be unique (no duplicates)
+          const uniqueSet = new Set(artworkIds);
+          expect(artworkIds.length).toBe(uniqueSet.size);
+
+          db.close();
+        } finally {
+          // Cleanup
+          await rm(dir, { recursive: true, force: true });
+        }
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'throws error when database is closed',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        const db = Database.openSync(ipod.path);
+        db.close();
+
+        expect(() => db.getUniqueArtworkIds()).toThrow(LibgpodError);
+      });
+    }
+  );
+});
