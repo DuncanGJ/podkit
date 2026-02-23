@@ -50,6 +50,27 @@ export type {
   TranscodePresetRef,
 } from './sync/types.js';
 
+// Differ
+export {
+  computeDiff,
+  createDiffer,
+  DefaultSyncDiffer,
+} from './sync/differ.js';
+
+// Planner
+export {
+  createPlan,
+  createPlanner,
+  DefaultSyncPlanner,
+  isIPodCompatible,
+  requiresTranscoding,
+  estimateTranscodedSize,
+  estimateCopySize,
+  calculateOperationSize,
+  willFitInSpace,
+  getPlanSummary,
+} from './sync/planner.js';
+
 // Track matching
 export type { Matchable, MatchResult } from './sync/matching.js';
 export {
