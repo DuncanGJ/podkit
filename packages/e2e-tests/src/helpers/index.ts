@@ -1,0 +1,33 @@
+/**
+ * Helper utilities for E2E tests.
+ */
+
+export {
+  runCli,
+  runCliJson,
+  isCliAvailable,
+  getCliPath,
+  type CliResult,
+  type CliOptions,
+  type CliJsonResult,
+} from './cli-runner';
+
+export {
+  getFixturesDir,
+  getAlbumDir,
+  getTrackPath,
+  getTrack,
+  getAlbumTracks,
+  getAllTracks,
+  areFixturesAvailable,
+  Albums,
+  Tracks,
+  type AlbumDir,
+  type TestTrack,
+} from './fixtures';
+
+export {
+  runPreflightChecks,
+  printResults,
+  type CheckResult,
+} from './preflight';

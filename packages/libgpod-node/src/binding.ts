@@ -69,16 +69,85 @@ let cachedBinding: NativeBinding | null = null;
 let loadError: Error | null = null;
 
 /**
- * Get the path to the native addon.
+ * Binding filename
  */
-function getAddonPath(): string {
+const BINDING_FILENAME = 'gpod_binding.node';
+
+/**
+ * Get candidate paths for the native addon.
+ *
+ * Returns paths to try in order of preference:
+ * 1. Relative to this source file (development, running from source)
+ * 2. In node_modules/@podkit/libgpod-node (bundled CLI, published package)
+ * 3. Various node_modules locations for monorepo/hoisted scenarios
+ */
+function getAddonCandidatePaths(): string[] {
+  const candidates: string[] = [];
+
   // In ESM, we need to compute __dirname
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
 
-  // The addon is built to build/Release/gpod_binding.node relative to package root
-  // src/ is one level below package root
-  return join(__dirname, '..', 'build', 'Release', 'gpod_binding.node');
+  // 1. Relative to source file (development mode)
+  // When running from source, __dirname is packages/libgpod-node/src/
+  // The binding is at packages/libgpod-node/build/Release/
+  candidates.push(join(__dirname, '..', 'build', 'Release', BINDING_FILENAME));
+
+  // 2. Relative to dist file (if running from built dist/)
+  // When running from dist, __dirname is packages/libgpod-node/dist/
+  candidates.push(join(__dirname, '..', 'build', 'Release', BINDING_FILENAME));
+
+  // 3. Look in node_modules (for bundled CLI or external consumers)
+  // Walk up from current directory to find node_modules
+  let searchDir = __dirname;
+  const visited = new Set<string>();
+
+  while (searchDir && !visited.has(searchDir)) {
+    visited.add(searchDir);
+
+    // Check node_modules/@podkit/libgpod-node/build/Release/
+    const nodeModulesPath = join(
+      searchDir,
+      'node_modules',
+      '@podkit',
+      'libgpod-node',
+      'build',
+      'Release',
+      BINDING_FILENAME
+    );
+    candidates.push(nodeModulesPath);
+
+    // Move up one directory
+    const parentDir = dirname(searchDir);
+    if (parentDir === searchDir) break; // reached root
+    searchDir = parentDir;
+  }
+
+  // 4. Check process.cwd() based paths (for CLI invocation)
+  const cwd = process.cwd();
+  candidates.push(
+    join(cwd, 'node_modules', '@podkit', 'libgpod-node', 'build', 'Release', BINDING_FILENAME)
+  );
+
+  return candidates;
+}
+
+/**
+ * Find the native addon by trying candidate paths.
+ *
+ * @returns The path to the addon, or null if not found
+ */
+function findAddonPath(): string | null {
+  const { existsSync } = require('fs') as typeof import('fs');
+  const candidates = getAddonCandidatePaths();
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -98,7 +167,17 @@ function loadBinding(): NativeBinding {
   try {
     // Use createRequire for ESM compatibility
     const require = createRequire(import.meta.url);
-    const addonPath = getAddonPath();
+    const addonPath = findAddonPath();
+
+    if (!addonPath) {
+      throw new Error(
+        'Native binding not found. Searched locations:\n' +
+          getAddonCandidatePaths()
+            .slice(0, 5)
+            .map((p) => `  - ${p}`)
+            .join('\n')
+      );
+    }
 
     cachedBinding = require(addonPath) as NativeBinding;
     return cachedBinding;

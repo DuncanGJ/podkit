@@ -1,0 +1,206 @@
+/**
+ * CLI runner for E2E tests.
+ *
+ * Spawns the podkit CLI as a subprocess and captures output, exactly as
+ * a real user would invoke it.
+ */
+
+import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
+
+/**
+ * Result of running the CLI.
+ */
+export interface CliResult {
+  /** Process exit code */
+  exitCode: number;
+
+  /** Captured stdout */
+  stdout: string;
+
+  /** Captured stderr */
+  stderr: string;
+
+  /** Execution duration in milliseconds */
+  duration: number;
+}
+
+/**
+ * Options for running the CLI.
+ */
+export interface CliOptions {
+  /** Working directory for the process */
+  cwd?: string;
+
+  /** Environment variables (merged with process.env) */
+  env?: Record<string, string>;
+
+  /** Timeout in milliseconds (default: 30000) */
+  timeout?: number;
+
+  /** Standard input to send to the process */
+  stdin?: string;
+}
+
+/**
+ * Path to the built CLI artifact.
+ *
+ * E2E tests run against the compiled CLI, not TypeScript source.
+ */
+export function getCliPath(): string {
+  // Resolve relative to this package
+  return resolve(__dirname, '../../../podkit-cli/dist/main.js');
+}
+
+/**
+ * Run the podkit CLI with given arguments.
+ *
+ * @param args - Command-line arguments
+ * @param options - Execution options
+ * @returns CLI result with exit code, output, and timing
+ *
+ * @example
+ * ```typescript
+ * const result = await runCli(['status', '/Volumes/iPod']);
+ * expect(result.exitCode).toBe(0);
+ * expect(result.stdout).toContain('Track count');
+ * ```
+ */
+export async function runCli(
+  args: string[],
+  options: CliOptions = {}
+): Promise<CliResult> {
+  const cliPath = getCliPath();
+  const timeout = options.timeout ?? 30000;
+
+  const startTime = performance.now();
+
+  return new Promise((resolve, reject) => {
+    const env = {
+      ...process.env,
+      ...options.env,
+      // Ensure consistent output
+      NO_COLOR: '1',
+      FORCE_COLOR: '0',
+    };
+
+    const child = spawn('node', [cliPath, ...args], {
+      cwd: options.cwd,
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let resolved = false;
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    // Send stdin if provided
+    if (options.stdin) {
+      child.stdin.write(options.stdin);
+      child.stdin.end();
+    } else {
+      child.stdin.end();
+    }
+
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        child.kill('SIGKILL');
+        reject(new Error(`CLI timed out after ${timeout}ms`));
+      }
+    }, timeout);
+
+    child.on('close', (code) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timer);
+
+      const duration = performance.now() - startTime;
+      resolve({
+        exitCode: code ?? 1,
+        stdout,
+        stderr,
+        duration,
+      });
+    });
+
+    child.on('error', (err) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Result of running CLI with JSON parsing.
+ */
+export interface CliJsonResult<T> {
+  /** Raw CLI result */
+  result: CliResult;
+
+  /** Parsed JSON, or null if parsing failed */
+  json: T | null;
+
+  /** Parse error, if any */
+  parseError?: string;
+}
+
+/**
+ * Run the CLI and parse JSON output.
+ *
+ * @param args - Command-line arguments (should include --json or -f json)
+ * @param options - Execution options
+ * @returns CLI result with parsed JSON
+ *
+ * @example
+ * ```typescript
+ * const { result, json } = await runCliJson<StatusOutput>(['status', path, '--json']);
+ * if (json) {
+ *   expect(json.trackCount).toBeGreaterThan(0);
+ * }
+ * ```
+ */
+export async function runCliJson<T>(
+  args: string[],
+  options: CliOptions = {}
+): Promise<CliJsonResult<T>> {
+  const result = await runCli(args, options);
+
+  let json: T | null = null;
+  let parseError: string | undefined;
+
+  try {
+    // Handle potential leading/trailing whitespace
+    const trimmed = result.stdout.trim();
+    if (trimmed) {
+      json = JSON.parse(trimmed);
+    }
+  } catch (err) {
+    parseError = err instanceof Error ? err.message : String(err);
+  }
+
+  return { result, json, parseError };
+}
+
+/**
+ * Check if the CLI is available (built).
+ */
+export async function isCliAvailable(): Promise<boolean> {
+  const fs = await import('node:fs/promises');
+  try {
+    await fs.access(getCliPath());
+    return true;
+  } catch {
+    return false;
+  }
+}

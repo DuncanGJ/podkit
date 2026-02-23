@@ -1,0 +1,21 @@
+{
+  "name": "@podkit/e2e-tests",
+  "version": "0.0.0",
+  "description": "End-to-end tests for the podkit CLI",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "bun test",
+    "test:dummy": "IPOD_TARGET=dummy bun test",
+    "test:real": "IPOD_TARGET=real bun test",
+    "preflight": "bun run src/helpers/preflight.ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@podkit/gpod-testing": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

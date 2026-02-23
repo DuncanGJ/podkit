@@ -6,11 +6,12 @@ Instructions for AI agents (Claude Code, Cursor, etc.) working in this repositor
 
 **podkit** is a TypeScript toolkit for syncing music collections to iPod devices. It provides a CLI and library that handles collection diffing, transcoding (FLAC→AAC), metadata preservation, and artwork transfer.
 
-**Status:** Pre-development (planning/documentation phase)
+**Status:** Active development
 
 **Monorepo structure:**
 ```
 packages/
+├── e2e-tests/       # End-to-end CLI tests (dummy + real iPod)
 ├── gpod-testing/    # Test utilities for iPod environments (no hardware needed)
 ├── libgpod-node/    # Native Node.js bindings for libgpod (C library)
 ├── podkit-core/     # Core sync logic, adapters, transcoding
@@ -32,14 +33,16 @@ bun run dev                      # Run in development mode
 bun run test                     # Run all tests (unit + integration)
 bun run test:unit                # Run unit tests only
 bun run test:integration         # Run integration tests only
+bun run test:e2e                 # Run E2E tests (dummy iPod)
 bun test packages/podkit-core    # Run tests for specific package
 
 # Build
 bun run build                    # Build all packages for Node.js
 
-# CLI (once implemented)
-podkit sync --source strawberry --dry-run
-podkit status
+# CLI
+podkit sync --source ~/Music --dry-run
+podkit status --device /Volumes/iPod
+podkit list --format json
 ```
 
 ### System Dependencies
@@ -69,6 +72,7 @@ Read these documents based on what you're working on:
 | [docs/IPOD-INTERNALS.md](docs/IPOD-INTERNALS.md) | Debugging iPod-specific issues |
 | [docs/TESTING.md](docs/TESTING.md) | Understanding testing strategy and conventions |
 | [packages/gpod-testing/README.md](packages/gpod-testing/README.md) | Writing tests that need iPod databases |
+| [packages/e2e-tests/README.md](packages/e2e-tests/README.md) | Writing E2E tests for the CLI |
 
 ## Task Management (Backlog.md)
 
@@ -153,11 +157,14 @@ See [docs/TESTING.md](docs/TESTING.md) for full testing strategy and conventions
 
 - **Unit tests** (`*.test.ts`): Fast, no external dependencies
 - **Integration tests** (`*.integration.test.ts`): Require gpod-tool, FFmpeg, etc.
+- **E2E tests** (`packages/e2e-tests/`): Full CLI workflow tests
 
 ```bash
 bun run test              # All tests
 bun run test:unit         # Unit tests only
 bun run test:integration  # Integration tests only
+bun run test:e2e          # E2E tests (dummy iPod)
+bun run test:e2e:real     # E2E tests (real iPod, requires IPOD_MOUNT)
 ```
 
 ### Prerequisites for Integration Tests
@@ -189,6 +196,29 @@ See [packages/gpod-testing/README.md](packages/gpod-testing/README.md) for full 
 
 Pre-built FLAC files with metadata and artwork are available in `test/fixtures/audio/` for integration tests. See [test/fixtures/audio/README.md](test/fixtures/audio/README.md) for details.
 
+### Writing E2E Tests
+
+Use `@podkit/e2e-tests` helpers for CLI testing:
+
+```typescript
+import { withTarget } from '../targets';
+import { runCli, runCliJson } from '../helpers/cli-runner';
+
+it('syncs tracks to iPod', async () => {
+  await withTarget(async (target) => {
+    // target.path is the iPod mount point (dummy or real)
+    const result = await runCli(['sync', '--device', target.path, '--source', '/music']);
+    expect(result.exitCode).toBe(0);
+
+    // Verify tracks were added
+    const count = await target.getTrackCount();
+    expect(count).toBeGreaterThan(0);
+  });
+});
+```
+
+See [packages/e2e-tests/README.md](packages/e2e-tests/README.md) for full documentation.
+
 ## Code Conventions
 
 - TypeScript strict mode
@@ -205,4 +235,5 @@ Key files to understand:
 | Core library | `packages/podkit-core/src/index.ts` |
 | libgpod bindings | `packages/libgpod-node/src/index.ts` |
 | Test utilities | `packages/gpod-testing/src/index.ts` |
+| E2E test helpers | `packages/e2e-tests/src/helpers/index.ts` |
 | gpod-tool CLI | `tools/gpod-tool/gpod-tool.c` |

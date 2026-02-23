@@ -12,6 +12,16 @@ This document describes the testing approach for podkit.
 
 ### Unit Tests (`*.test.ts`)
 
+### Integration Tests (`*.integration.test.ts`)
+
+### End-to-End Tests (`packages/e2e-tests/`)
+
+See each category below for details.
+
+---
+
+### Unit Tests (`*.test.ts`)
+
 Fast tests with no external dependencies. These test individual functions, classes, and modules in isolation.
 
 **Characteristics:**
@@ -41,6 +51,24 @@ Tests that verify components work together with real external dependencies.
 - Testing FFmpeg transcoding with real audio files
 - Testing full sync workflows
 
+### End-to-End Tests (`packages/e2e-tests/`)
+
+Tests that invoke the built CLI artifact (`dist/main.js`) as a real user would. E2E tests run against dummy iPods (CI-safe) or real iPods (manual validation).
+
+**Characteristics:**
+- Spawns actual CLI binary as subprocess
+- Tests real user workflows end-to-end
+- Uses target abstraction for dummy/real iPod switching
+- Longer execution times (includes transcoding)
+
+**Examples:**
+- Full sync workflow: init → sync → status → list
+- Incremental sync with growing collection
+- CLI error handling and exit codes
+- JSON output format validation
+
+See [packages/e2e-tests/README.md](../packages/e2e-tests/README.md) for full documentation.
+
 ## Running Tests
 
 ```bash
@@ -52,6 +80,12 @@ bun run test:unit
 
 # Run only integration tests
 bun run test:integration
+
+# Run E2E tests (with dummy iPod)
+bun run test:e2e
+
+# Run E2E tests with real iPod
+IPOD_MOUNT=/Volumes/iPod bun run test:e2e:real
 
 # Run tests for a specific package
 bun test packages/podkit-core
