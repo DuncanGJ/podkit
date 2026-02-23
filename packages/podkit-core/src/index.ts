@@ -135,3 +135,12 @@ export {
   IPOD_ARTWORK_FORMATS,
   EXTERNAL_ARTWORK_NAMES,
 } from './artwork/types.js';
+
+export type { ExtractArtworkOptions } from './artwork/extractor.js';
+export {
+  extractArtwork,
+  saveArtworkToTemp,
+  cleanupTempArtwork,
+  cleanupAllTempArtwork,
+  extractAndSaveArtwork,
+} from './artwork/extractor.js';
