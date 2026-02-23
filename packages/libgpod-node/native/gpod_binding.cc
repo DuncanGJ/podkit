@@ -275,6 +275,7 @@ private:
     Napi::Value Close(const Napi::CallbackInfo& info);
     Napi::Value GetMountpoint(const Napi::CallbackInfo& info);
     Napi::Value GetTrackById(const Napi::CallbackInfo& info);
+    Napi::Value SetTrackThumbnails(const Napi::CallbackInfo& info);
 };
 
 Napi::FunctionReference DatabaseWrapper::constructor;
@@ -293,6 +294,7 @@ Napi::Object DatabaseWrapper::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("close", &DatabaseWrapper::Close),
         InstanceMethod("getMountpoint", &DatabaseWrapper::GetMountpoint),
         InstanceMethod("getTrackById", &DatabaseWrapper::GetTrackById),
+        InstanceMethod("setTrackThumbnails", &DatabaseWrapper::SetTrackThumbnails),
     });
 
     constructor = Napi::Persistent(func);
@@ -590,6 +592,52 @@ Napi::Value DatabaseWrapper::GetTrackById(const Napi::CallbackInfo& info) {
         return env.Null();
     }
 
+    return TrackToObject(env, track);
+}
+
+Napi::Value DatabaseWrapper::SetTrackThumbnails(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 2) {
+        Napi::TypeError::New(env, "Expected track ID and image path").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[1].IsString()) {
+        Napi::TypeError::New(env, "Expected image path as string").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    uint32_t trackId = info[0].As<Napi::Number>().Uint32Value();
+    std::string imagePath = info[1].As<Napi::String>().Utf8Value();
+
+    // Find the track by ID
+    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    if (!track) {
+        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Set thumbnails using libgpod
+    // libgpod automatically handles resizing and format conversion
+    gboolean success = itdb_track_set_thumbnails(track, imagePath.c_str());
+
+    if (!success) {
+        Napi::Error::New(env, "Failed to set track thumbnails - check image file exists and is valid").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Return the updated track object
     return TrackToObject(env, track);
 }
 

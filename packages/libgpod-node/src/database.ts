@@ -276,6 +276,59 @@ export class Database {
   }
 
   /**
+   * Set artwork for a track from an image file.
+   *
+   * Uses libgpod's `itdb_track_set_thumbnails` to set artwork.
+   * libgpod automatically handles:
+   * - Resizing to all required thumbnail sizes
+   * - Converting to the correct pixel format for the device
+   * - Writing to .ithmb files on save()
+   *
+   * The image file must exist until save() is called, as thumbnails
+   * are generated lazily during the write operation.
+   *
+   * @param trackId ID of the track to set artwork for
+   * @param imagePath Path to the image file (JPEG or PNG recommended)
+   * @returns The updated track with hasArtwork set to true
+   * @throws LibgpodError if setting artwork fails (track not found, invalid image, etc.)
+   *
+   * @example
+   * ```typescript
+   * // Extract artwork from source file and apply to iPod track
+   * const artworkPath = await extractAndSaveArtwork('/path/to/song.flac');
+   * if (artworkPath) {
+   *   db.setTrackArtwork(track.id, artworkPath);
+   * }
+   * await db.save();
+   * // Clean up temp artwork file after save
+   * await cleanupTempArtwork(artworkPath);
+   * ```
+   */
+  setTrackArtwork(trackId: number, imagePath: string): Track {
+    const native = this.ensureOpen();
+    try {
+      return native.setTrackThumbnails(trackId, imagePath);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'setTrackArtwork'
+      );
+    }
+  }
+
+  /**
+   * Async version of setTrackArtwork for consistency with other async methods.
+   *
+   * @param trackId ID of the track to set artwork for
+   * @param imagePath Path to the image file
+   * @returns The updated track with hasArtwork set to true
+   */
+  async setTrackArtworkAsync(trackId: number, imagePath: string): Promise<Track> {
+    return this.setTrackArtwork(trackId, imagePath);
+  }
+
+  /**
    * Write changes to the iPod database.
    *
    * Call this after making modifications (adding/removing tracks, etc.)

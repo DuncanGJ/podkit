@@ -38,6 +38,7 @@ export interface NativeDatabase {
   addTrack(input: TrackInput): Track;
   removeTrack(trackId: number): void;
   copyTrackToDevice(trackId: number, sourcePath: string): Track;
+  setTrackThumbnails(trackId: number, imagePath: string): Track;
   write(): boolean;
   close(): void;
   getMountpoint(): string | null;
