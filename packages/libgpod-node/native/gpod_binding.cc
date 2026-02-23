@@ -242,7 +242,8 @@ static Napi::Object PlaylistToObject(Napi::Env env, const Itdb_Playlist* pl) {
     obj.Set("isMaster", Napi::Boolean::New(env, itdb_playlist_is_mpl(const_cast<Itdb_Playlist*>(pl))));
     obj.Set("isSmart", Napi::Boolean::New(env, pl->is_spl));
     obj.Set("isPodcasts", Napi::Boolean::New(env, itdb_playlist_is_podcasts(const_cast<Itdb_Playlist*>(pl))));
-    obj.Set("trackCount", Napi::Number::New(env, pl->num));
+    // Count members directly since pl->num may not be kept in sync by libgpod
+    obj.Set("trackCount", Napi::Number::New(env, g_list_length(pl->members)));
     obj.Set("timestamp", Napi::Number::New(env, static_cast<double>(pl->timestamp)));
 
     return obj;
@@ -278,6 +279,17 @@ private:
     Napi::Value GetTrackById(const Napi::CallbackInfo& info);
     Napi::Value SetTrackThumbnails(const Napi::CallbackInfo& info);
     Napi::Value GetUniqueArtworkIds(const Napi::CallbackInfo& info);
+
+    // Playlist methods
+    Napi::Value CreatePlaylist(const Napi::CallbackInfo& info);
+    Napi::Value RemovePlaylist(const Napi::CallbackInfo& info);
+    Napi::Value GetPlaylistById(const Napi::CallbackInfo& info);
+    Napi::Value GetPlaylistByName(const Napi::CallbackInfo& info);
+    Napi::Value SetPlaylistName(const Napi::CallbackInfo& info);
+    Napi::Value AddTrackToPlaylist(const Napi::CallbackInfo& info);
+    Napi::Value RemoveTrackFromPlaylist(const Napi::CallbackInfo& info);
+    Napi::Value PlaylistContainsTrack(const Napi::CallbackInfo& info);
+    Napi::Value GetPlaylistTracks(const Napi::CallbackInfo& info);
 };
 
 Napi::FunctionReference DatabaseWrapper::constructor;
@@ -298,6 +310,16 @@ Napi::Object DatabaseWrapper::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("getTrackById", &DatabaseWrapper::GetTrackById),
         InstanceMethod("setTrackThumbnails", &DatabaseWrapper::SetTrackThumbnails),
         InstanceMethod("getUniqueArtworkIds", &DatabaseWrapper::GetUniqueArtworkIds),
+        // Playlist methods
+        InstanceMethod("createPlaylist", &DatabaseWrapper::CreatePlaylist),
+        InstanceMethod("removePlaylist", &DatabaseWrapper::RemovePlaylist),
+        InstanceMethod("getPlaylistById", &DatabaseWrapper::GetPlaylistById),
+        InstanceMethod("getPlaylistByName", &DatabaseWrapper::GetPlaylistByName),
+        InstanceMethod("setPlaylistName", &DatabaseWrapper::SetPlaylistName),
+        InstanceMethod("addTrackToPlaylist", &DatabaseWrapper::AddTrackToPlaylist),
+        InstanceMethod("removeTrackFromPlaylist", &DatabaseWrapper::RemoveTrackFromPlaylist),
+        InstanceMethod("playlistContainsTrack", &DatabaseWrapper::PlaylistContainsTrack),
+        InstanceMethod("getPlaylistTracks", &DatabaseWrapper::GetPlaylistTracks),
     });
 
     constructor = Napi::Persistent(func);
@@ -669,6 +691,323 @@ Napi::Value DatabaseWrapper::GetUniqueArtworkIds(const Napi::CallbackInfo& info)
     uint32_t index = 0;
     for (uint32_t id : uniqueIds) {
         result.Set(index++, Napi::Number::New(env, id));
+    }
+
+    return result;
+}
+
+// ============================================================================
+// Playlist methods
+// ============================================================================
+
+Napi::Value DatabaseWrapper::CreatePlaylist(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected playlist name").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    std::string name = info[0].As<Napi::String>().Utf8Value();
+
+    // Create a new regular playlist (not smart playlist)
+    Itdb_Playlist* pl = itdb_playlist_new(name.c_str(), FALSE);
+    if (!pl) {
+        Napi::Error::New(env, "Failed to create playlist").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Add to database at end (-1)
+    itdb_playlist_add(db_, pl, -1);
+
+    return PlaylistToObject(env, pl);
+}
+
+Napi::Value DatabaseWrapper::RemovePlaylist(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 1 || !info[0].IsBigInt()) {
+        Napi::TypeError::New(env, "Expected playlist ID as BigInt").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    bool lossless;
+    uint64_t playlistId = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
+
+    Itdb_Playlist* pl = itdb_playlist_by_id(db_, playlistId);
+    if (!pl) {
+        Napi::Error::New(env, "Playlist not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Check if it's the master playlist - cannot delete it
+    if (itdb_playlist_is_mpl(pl)) {
+        Napi::Error::New(env, "Cannot delete the master playlist").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    itdb_playlist_remove(pl);
+    return env.Undefined();
+}
+
+Napi::Value DatabaseWrapper::GetPlaylistById(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 1 || !info[0].IsBigInt()) {
+        Napi::TypeError::New(env, "Expected playlist ID as BigInt").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    bool lossless;
+    uint64_t playlistId = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
+
+    Itdb_Playlist* pl = itdb_playlist_by_id(db_, playlistId);
+    if (!pl) {
+        return env.Null();
+    }
+
+    return PlaylistToObject(env, pl);
+}
+
+Napi::Value DatabaseWrapper::GetPlaylistByName(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected playlist name").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    std::string name = info[0].As<Napi::String>().Utf8Value();
+
+    Itdb_Playlist* pl = itdb_playlist_by_name(db_, const_cast<gchar*>(name.c_str()));
+    if (!pl) {
+        return env.Null();
+    }
+
+    return PlaylistToObject(env, pl);
+}
+
+Napi::Value DatabaseWrapper::SetPlaylistName(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 2) {
+        Napi::TypeError::New(env, "Expected playlist ID and new name").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[0].IsBigInt()) {
+        Napi::TypeError::New(env, "Expected playlist ID as BigInt").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[1].IsString()) {
+        Napi::TypeError::New(env, "Expected new name as string").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    bool lossless;
+    uint64_t playlistId = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
+    std::string newName = info[1].As<Napi::String>().Utf8Value();
+
+    Itdb_Playlist* pl = itdb_playlist_by_id(db_, playlistId);
+    if (!pl) {
+        Napi::Error::New(env, "Playlist not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Free old name and set new one
+    g_free(pl->name);
+    pl->name = g_strdup(newName.c_str());
+
+    return PlaylistToObject(env, pl);
+}
+
+Napi::Value DatabaseWrapper::AddTrackToPlaylist(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 2) {
+        Napi::TypeError::New(env, "Expected playlist ID and track ID").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[0].IsBigInt()) {
+        Napi::TypeError::New(env, "Expected playlist ID as BigInt").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[1].IsNumber()) {
+        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    bool lossless;
+    uint64_t playlistId = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
+    uint32_t trackId = info[1].As<Napi::Number>().Uint32Value();
+
+    Itdb_Playlist* pl = itdb_playlist_by_id(db_, playlistId);
+    if (!pl) {
+        Napi::Error::New(env, "Playlist not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    if (!track) {
+        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Add track to playlist at end (-1)
+    itdb_playlist_add_track(pl, track, -1);
+
+    return PlaylistToObject(env, pl);
+}
+
+Napi::Value DatabaseWrapper::RemoveTrackFromPlaylist(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 2) {
+        Napi::TypeError::New(env, "Expected playlist ID and track ID").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[0].IsBigInt()) {
+        Napi::TypeError::New(env, "Expected playlist ID as BigInt").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[1].IsNumber()) {
+        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    bool lossless;
+    uint64_t playlistId = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
+    uint32_t trackId = info[1].As<Napi::Number>().Uint32Value();
+
+    Itdb_Playlist* pl = itdb_playlist_by_id(db_, playlistId);
+    if (!pl) {
+        Napi::Error::New(env, "Playlist not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    if (!track) {
+        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Remove track from playlist
+    itdb_playlist_remove_track(pl, track);
+
+    return PlaylistToObject(env, pl);
+}
+
+Napi::Value DatabaseWrapper::PlaylistContainsTrack(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 2) {
+        Napi::TypeError::New(env, "Expected playlist ID and track ID").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[0].IsBigInt()) {
+        Napi::TypeError::New(env, "Expected playlist ID as BigInt").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[1].IsNumber()) {
+        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    bool lossless;
+    uint64_t playlistId = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
+    uint32_t trackId = info[1].As<Napi::Number>().Uint32Value();
+
+    Itdb_Playlist* pl = itdb_playlist_by_id(db_, playlistId);
+    if (!pl) {
+        Napi::Error::New(env, "Playlist not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    if (!track) {
+        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    gboolean contains = itdb_playlist_contains_track(pl, track);
+    return Napi::Boolean::New(env, contains != FALSE);
+}
+
+Napi::Value DatabaseWrapper::GetPlaylistTracks(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 1 || !info[0].IsBigInt()) {
+        Napi::TypeError::New(env, "Expected playlist ID as BigInt").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    bool lossless;
+    uint64_t playlistId = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
+
+    Itdb_Playlist* pl = itdb_playlist_by_id(db_, playlistId);
+    if (!pl) {
+        Napi::Error::New(env, "Playlist not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    Napi::Array result = Napi::Array::New(env);
+    uint32_t index = 0;
+
+    for (GList* l = pl->members; l != nullptr; l = l->next) {
+        Itdb_Track* track = static_cast<Itdb_Track*>(l->data);
+        result.Set(index++, TrackToObject(env, track));
     }
 
     return result;

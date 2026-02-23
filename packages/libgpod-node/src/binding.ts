@@ -44,6 +44,17 @@ export interface NativeDatabase {
   getMountpoint(): string | null;
   getTrackById(id: number): Track | null;
   getUniqueArtworkIds(): number[];
+
+  // Playlist operations
+  createPlaylist(name: string): Playlist;
+  removePlaylist(playlistId: bigint): void;
+  getPlaylistById(playlistId: bigint): Playlist | null;
+  getPlaylistByName(name: string): Playlist | null;
+  setPlaylistName(playlistId: bigint, newName: string): Playlist;
+  addTrackToPlaylist(playlistId: bigint, trackId: number): Playlist;
+  removeTrackFromPlaylist(playlistId: bigint, trackId: number): Playlist;
+  playlistContainsTrack(playlistId: bigint, trackId: number): boolean;
+  getPlaylistTracks(playlistId: bigint): Track[];
 }
 
 /**

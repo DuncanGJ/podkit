@@ -401,6 +401,279 @@ export class Database {
     return native.getUniqueArtworkIds();
   }
 
+  // ============================================================================
+  // Playlist operations
+  // ============================================================================
+
+  /**
+   * Create a new playlist.
+   *
+   * @param name Name for the new playlist
+   * @returns The created playlist
+   * @throws LibgpodError if creation fails
+   *
+   * @example
+   * ```typescript
+   * const db = Database.openSync('/media/ipod');
+   * const playlist = db.createPlaylist('My Favorites');
+   * console.log(`Created playlist with ID: ${playlist.id}`);
+   * await db.save();
+   * ```
+   */
+  createPlaylist(name: string): Playlist {
+    const native = this.ensureOpen();
+    try {
+      return native.createPlaylist(name);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'createPlaylist'
+      );
+    }
+  }
+
+  /**
+   * Remove a playlist from the database.
+   *
+   * Note: The master playlist cannot be deleted.
+   *
+   * @param playlistId ID of the playlist to remove
+   * @throws LibgpodError if the playlist is not found or is the master playlist
+   *
+   * @example
+   * ```typescript
+   * const playlist = db.getPlaylistByName('Old Playlist');
+   * if (playlist) {
+   *   db.removePlaylist(playlist.id);
+   *   await db.save();
+   * }
+   * ```
+   */
+  removePlaylist(playlistId: bigint): void {
+    const native = this.ensureOpen();
+    try {
+      native.removePlaylist(playlistId);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'removePlaylist'
+      );
+    }
+  }
+
+  /**
+   * Find a playlist by its ID.
+   *
+   * @param playlistId Playlist ID (64-bit)
+   * @returns Playlist or null if not found
+   *
+   * @example
+   * ```typescript
+   * const playlist = db.getPlaylistById(someId);
+   * if (playlist) {
+   *   console.log(`Found playlist: ${playlist.name}`);
+   * }
+   * ```
+   */
+  getPlaylistById(playlistId: bigint): Playlist | null {
+    const native = this.ensureOpen();
+    return native.getPlaylistById(playlistId);
+  }
+
+  /**
+   * Find a playlist by name.
+   *
+   * @param name Playlist name to search for
+   * @returns Playlist or null if not found
+   *
+   * @example
+   * ```typescript
+   * const favorites = db.getPlaylistByName('Favorites');
+   * if (favorites) {
+   *   console.log(`Found ${favorites.trackCount} tracks in Favorites`);
+   * }
+   * ```
+   */
+  getPlaylistByName(name: string): Playlist | null {
+    const native = this.ensureOpen();
+    return native.getPlaylistByName(name);
+  }
+
+  /**
+   * Rename a playlist.
+   *
+   * @param playlistId ID of the playlist to rename
+   * @param newName New name for the playlist
+   * @returns The updated playlist
+   * @throws LibgpodError if the playlist is not found
+   *
+   * @example
+   * ```typescript
+   * const playlist = db.getPlaylistByName('Old Name');
+   * if (playlist) {
+   *   db.renamePlaylist(playlist.id, 'New Name');
+   *   await db.save();
+   * }
+   * ```
+   */
+  renamePlaylist(playlistId: bigint, newName: string): Playlist {
+    const native = this.ensureOpen();
+    try {
+      return native.setPlaylistName(playlistId, newName);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'renamePlaylist'
+      );
+    }
+  }
+
+  /**
+   * Add a track to a playlist.
+   *
+   * @param playlistId ID of the playlist
+   * @param trackId ID of the track to add
+   * @returns The updated playlist
+   * @throws LibgpodError if the playlist or track is not found
+   *
+   * @example
+   * ```typescript
+   * const playlist = db.getPlaylistByName('Favorites');
+   * const track = db.getTracks().find(t => t.title === 'Great Song');
+   * if (playlist && track) {
+   *   db.addTrackToPlaylist(playlist.id, track.id);
+   *   await db.save();
+   * }
+   * ```
+   */
+  addTrackToPlaylist(playlistId: bigint, trackId: number): Playlist {
+    const native = this.ensureOpen();
+    try {
+      return native.addTrackToPlaylist(playlistId, trackId);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'addTrackToPlaylist'
+      );
+    }
+  }
+
+  /**
+   * Remove a track from a playlist.
+   *
+   * Note: This only removes the track from the playlist, not from the database.
+   *
+   * @param playlistId ID of the playlist
+   * @param trackId ID of the track to remove
+   * @returns The updated playlist
+   * @throws LibgpodError if the playlist or track is not found
+   *
+   * @example
+   * ```typescript
+   * const playlist = db.getPlaylistByName('Favorites');
+   * if (playlist && db.playlistContainsTrack(playlist.id, trackId)) {
+   *   db.removeTrackFromPlaylist(playlist.id, trackId);
+   *   await db.save();
+   * }
+   * ```
+   */
+  removeTrackFromPlaylist(playlistId: bigint, trackId: number): Playlist {
+    const native = this.ensureOpen();
+    try {
+      return native.removeTrackFromPlaylist(playlistId, trackId);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'removeTrackFromPlaylist'
+      );
+    }
+  }
+
+  /**
+   * Check if a playlist contains a specific track.
+   *
+   * @param playlistId ID of the playlist
+   * @param trackId ID of the track
+   * @returns True if the playlist contains the track
+   * @throws LibgpodError if the playlist or track is not found
+   *
+   * @example
+   * ```typescript
+   * const playlist = db.getPlaylistByName('Favorites');
+   * if (playlist && db.playlistContainsTrack(playlist.id, track.id)) {
+   *   console.log('Track is in Favorites');
+   * }
+   * ```
+   */
+  playlistContainsTrack(playlistId: bigint, trackId: number): boolean {
+    const native = this.ensureOpen();
+    try {
+      return native.playlistContainsTrack(playlistId, trackId);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'playlistContainsTrack'
+      );
+    }
+  }
+
+  /**
+   * Get all tracks in a playlist.
+   *
+   * @param playlistId ID of the playlist
+   * @returns Array of tracks in the playlist
+   * @throws LibgpodError if the playlist is not found
+   *
+   * @example
+   * ```typescript
+   * const playlist = db.getPlaylistByName('Favorites');
+   * if (playlist) {
+   *   const tracks = db.getPlaylistTracks(playlist.id);
+   *   for (const track of tracks) {
+   *     console.log(`${track.artist} - ${track.title}`);
+   *   }
+   * }
+   * ```
+   */
+  getPlaylistTracks(playlistId: bigint): Track[] {
+    const native = this.ensureOpen();
+    try {
+      return native.getPlaylistTracks(playlistId);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'getPlaylistTracks'
+      );
+    }
+  }
+
+  /**
+   * Get the master playlist.
+   *
+   * The master playlist contains all tracks on the iPod.
+   *
+   * @returns The master playlist or null if not found (shouldn't happen)
+   *
+   * @example
+   * ```typescript
+   * const mpl = db.getMasterPlaylist();
+   * if (mpl) {
+   *   console.log(`iPod has ${mpl.trackCount} tracks total`);
+   * }
+   * ```
+   */
+  getMasterPlaylist(): Playlist | null {
+    const playlists = this.getPlaylists();
+    return playlists.find((p) => p.isMaster) ?? null;
+  }
+
   /**
    * Ensure the database is closed when garbage collected.
    */
