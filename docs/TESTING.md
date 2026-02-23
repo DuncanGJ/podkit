@@ -183,9 +183,20 @@ mise trust  # First time only
 
 ## Test Fixtures
 
-### Audio File Fixtures
+### Pre-built Audio Fixtures
 
-Integration tests that need real audio files generate them dynamically using FFmpeg rather than storing binary fixtures in the repository.
+Pre-built FLAC files with complete metadata and embedded artwork are available in `test/fixtures/audio/`. These are useful for testing sync, transcoding, and artwork transfer:
+
+- 6 FLAC files organized as 2 albums (3 tracks each)
+- Complete metadata (artist, album, title, track number, year, genre)
+- Embedded album artwork (different per album)
+- One track without artwork for edge case testing
+
+See [test/fixtures/audio/README.md](../test/fixtures/audio/README.md) for file details and metadata inspection commands.
+
+### Dynamically Generated Audio
+
+For tests that need specific audio characteristics, generate files dynamically using FFmpeg rather than storing additional binary fixtures.
 
 **Why dynamic generation?**
 

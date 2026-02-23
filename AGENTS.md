@@ -185,6 +185,10 @@ it('works with iPod database', async () => {
 
 See [packages/gpod-testing/README.md](packages/gpod-testing/README.md) for full API documentation.
 
+### Test Audio Fixtures
+
+Pre-built FLAC files with metadata and artwork are available in `test/fixtures/audio/` for integration tests. See [test/fixtures/audio/README.md](test/fixtures/audio/README.md) for details.
+
 ## Code Conventions
 
 - TypeScript strict mode
