@@ -64,6 +64,20 @@ export {
   findOrphanedTracks,
 } from './sync/matching.js';
 
+// Sync executor
+export type {
+  ExecutorProgress,
+  ExtendedExecuteOptions,
+  ExecuteResult,
+  ExecutorDependencies,
+} from './sync/executor.js';
+export {
+  DefaultSyncExecutor,
+  createExecutor,
+  executePlan,
+  getOperationDisplayName,
+} from './sync/executor.js';
+
 // Transcoding
 export type {
   TranscodePreset,

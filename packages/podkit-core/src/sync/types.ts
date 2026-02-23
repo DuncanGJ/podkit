@@ -123,7 +123,7 @@ export interface ExecuteOptions {
  * Progress update during sync execution
  */
 export interface SyncProgress {
-  phase: 'transcoding' | 'copying' | 'updating-db' | 'complete';
+  phase: 'preparing' | 'transcoding' | 'copying' | 'removing' | 'updating-db' | 'complete';
   current: number;
   total: number;
   currentTrack?: string;

@@ -28,6 +28,7 @@
     "music-metadata": "^11.12.1"
   },
   "devDependencies": {
+    "@podkit/gpod-testing": "workspace:*",
     "@types/bun": "latest"
   }
 }
