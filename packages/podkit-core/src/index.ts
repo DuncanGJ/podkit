@@ -76,6 +76,18 @@ export type {
 } from './transcode/types.js';
 export { PRESETS } from './transcode/types.js';
 
+export {
+  FFmpegTranscoder,
+  createFFmpegTranscoder,
+  isFFmpegAvailable,
+  FFmpegNotFoundError,
+  TranscodeError,
+  buildTranscodeArgs,
+  buildVbrArgs,
+  parseProgressLine,
+} from './transcode/ffmpeg.js';
+export type { FFmpegTranscoderConfig } from './transcode/ffmpeg.js';
+
 // Artwork
 export type {
   ArtworkFormat,
