@@ -7,6 +7,8 @@
 
 import {
   parse as nativeParse,
+  parseFile as nativeParseFile,
+  create as nativeCreate,
   type NativeDatabase,
 } from './binding';
 
@@ -91,6 +93,100 @@ export class Database {
   }
 
   /**
+   * Create a new empty iPod database.
+   *
+   * Creates a fresh database that is not associated with any mountpoint.
+   * The database has reasonable defaults (version 0x13, random ID).
+   *
+   * To use the database with an iPod, call `setMountpoint()` to associate
+   * it with an iPod mount point before saving.
+   *
+   * @returns Database instance
+   * @throws LibgpodError if creation fails
+   *
+   * @example
+   * ```typescript
+   * // Create a new empty database
+   * const db = Database.create();
+   *
+   * // Associate with an iPod
+   * db.setMountpoint('/media/ipod');
+   *
+   * // Add tracks
+   * db.addTrack({ title: 'Test', artist: 'Artist' });
+   *
+   * // Save to iPod
+   * await db.save();
+   * db.close();
+   * ```
+   */
+  static create(): Database {
+    try {
+      const native = nativeCreate();
+      return new Database(native, '');
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'create'
+      );
+    }
+  }
+
+  /**
+   * Open an iPod database from a specific file path.
+   *
+   * Unlike `open()` and `openSync()`, this reads a database file directly
+   * without requiring a full iPod mount point structure. This is useful
+   * for reading local repository backups or database files that have been
+   * copied from an iPod.
+   *
+   * **Note:** The database will have no mountpoint set, so track file
+   * operations like `copyTrackToDevice()` and `getTrackFilePath()` may
+   * not work correctly. Use `setMountpoint()` if you need these features.
+   *
+   * @param filename Path to the iTunesDB file
+   * @returns Database instance
+   * @throws LibgpodError if parsing fails
+   *
+   * @example
+   * ```typescript
+   * // Open a backup of an iPod database
+   * const db = Database.openFile('/backups/iTunesDB');
+   *
+   * // Read tracks
+   * for (const track of db.getTracks()) {
+   *   console.log(`${track.artist} - ${track.title}`);
+   * }
+   *
+   * db.close();
+   * ```
+   */
+  static openFile(filename: string): Database {
+    try {
+      const native = nativeParseFile(filename);
+      return new Database(native, '');
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Corrupt,
+        'parseFile'
+      );
+    }
+  }
+
+  /**
+   * Async version of openFile for consistency with other async methods.
+   *
+   * @param filename Path to the iTunesDB file
+   * @returns Database instance
+   * @throws LibgpodError if parsing fails
+   */
+  static async openFileAsync(filename: string): Promise<Database> {
+    return Database.openFile(filename);
+  }
+
+  /**
    * Ensure the database is open.
    */
   private ensureOpen(): NativeDatabase {
@@ -116,6 +212,67 @@ export class Database {
    */
   get closed(): boolean {
     return this._closed;
+  }
+
+  /**
+   * Set the mountpoint for the database.
+   *
+   * This is useful when you create a new database with `Database.create()`
+   * or open a database file with `Database.openFile()` and need to
+   * associate it with an iPod mount point.
+   *
+   * **Warning:** Calling this function removes any artwork in the database
+   * that was read from the previous iPod, as it may no longer be valid.
+   *
+   * @param mountpoint Path to the iPod mount point
+   *
+   * @example
+   * ```typescript
+   * const db = Database.create();
+   * db.setMountpoint('/media/ipod');
+   * // Now you can add tracks and save to the iPod
+   * ```
+   */
+  setMountpoint(mountpoint: string): void {
+    const native = this.ensureOpen();
+    try {
+      native.setMountpoint(mountpoint);
+      this._mountpoint = mountpoint;
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'setMountpoint'
+      );
+    }
+  }
+
+  /**
+   * Get the filename of the database file.
+   *
+   * This returns the path to the iTunesDB file that was used when
+   * opening the database with `Database.openFile()`, or the path
+   * that was determined when opening with `Database.open()`.
+   *
+   * @returns The database file path, or null if not set
+   *
+   * @example
+   * ```typescript
+   * const db = Database.openFile('/backups/iTunesDB');
+   * console.log(db.getFilename()); // '/backups/iTunesDB'
+   * ```
+   */
+  getFilename(): string | null {
+    const native = this.ensureOpen();
+    try {
+      return native.getFilename();
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'getFilename'
+      );
+    }
   }
 
   /**

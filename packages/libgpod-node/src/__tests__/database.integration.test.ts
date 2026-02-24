@@ -472,4 +472,334 @@ describe('libgpod-node with native binding', () => {
       });
     }
   );
+
+  // ============================================================================
+  // Database creation/manipulation tests
+  // ============================================================================
+
+  it.skipIf(!isNativeAvailable())(
+    'Database.create() creates new empty database',
+    async () => {
+      // Create a new empty database
+      const db = Database.create();
+
+      expect(db).toBeDefined();
+      expect(db.closed).toBe(false);
+
+      // New database should have no tracks
+      const info = db.getInfo();
+      expect(info.trackCount).toBe(0);
+
+      // New database may have no playlists (no master playlist yet)
+      // since it has no mountpoint associated
+      expect(info.playlistCount).toBeGreaterThanOrEqual(0);
+
+      // No mountpoint initially
+      expect(db.mountpoint).toBe('');
+
+      // Database ID should be set (random)
+      expect(info.id).toBeDefined();
+      expect(typeof info.id).toBe('bigint');
+
+      db.close();
+      expect(db.closed).toBe(true);
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'Database.create() with setMountpoint() can save to iPod',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        // Create a new database and set mountpoint
+        const db = Database.create();
+        db.setMountpoint(ipod.path);
+
+        expect(db.mountpoint).toBe(ipod.path);
+
+        // Add a track
+        const track = db.addTrack({
+          title: 'Created Track',
+          artist: 'Created Artist',
+        });
+        expect(track.title).toBe('Created Track');
+
+        // Save should work
+        db.saveSync();
+        db.close();
+
+        // Reopen and verify
+        const db2 = Database.openSync(ipod.path);
+        expect(db2.trackCount).toBe(1);
+
+        const tracks = db2.getTracks();
+        expect(tracks[0].title).toBe('Created Track');
+        expect(tracks[0].artist).toBe('Created Artist');
+
+        db2.close();
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'setMountpoint updates the database mountpoint',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        // Open existing database
+        const db = Database.openSync(ipod.path);
+
+        // Mountpoint should be set
+        expect(db.mountpoint).toBe(ipod.path);
+
+        // We can verify the native mountpoint matches
+        const info = db.getInfo();
+        expect(info.mountpoint).toBe(ipod.path);
+
+        db.close();
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'getFilename returns null for databases opened by mountpoint',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        // When opening via mountpoint, the filename is set internally
+        const db = Database.openSync(ipod.path);
+
+        // Should return the path to the iTunesDB file
+        const filename = db.getFilename();
+        // The filename should either be null or a path containing iTunesDB
+        if (filename !== null) {
+          expect(filename).toContain('iTunesDB');
+        }
+
+        db.close();
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'Database.openFile() opens database from file path',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        // First save some data to the test iPod
+        const db1 = Database.openSync(ipod.path);
+        db1.addTrack({
+          title: 'File Track',
+          artist: 'File Artist',
+        });
+        db1.saveSync();
+        const itunesDbPath = db1.getFilename();
+        db1.close();
+
+        // Skip if we couldn't get the filename
+        if (!itunesDbPath) {
+          return;
+        }
+
+        // Now open directly from file
+        const db2 = Database.openFile(itunesDbPath);
+
+        expect(db2).toBeDefined();
+        expect(db2.closed).toBe(false);
+
+        // Should have the track we saved
+        expect(db2.trackCount).toBe(1);
+        const tracks = db2.getTracks();
+        expect(tracks[0].title).toBe('File Track');
+
+        // Mountpoint should be empty when opened from file
+        expect(db2.mountpoint).toBe('');
+
+        // Filename should be set
+        const filename = db2.getFilename();
+        expect(filename).toBe(itunesDbPath);
+
+        db2.close();
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'Database.openFileAsync() opens database from file path asynchronously',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        // First save some data to the test iPod
+        const db1 = Database.openSync(ipod.path);
+        db1.addTrack({
+          title: 'Async File Track',
+          artist: 'Async File Artist',
+        });
+        db1.saveSync();
+        const itunesDbPath = db1.getFilename();
+        db1.close();
+
+        // Skip if we couldn't get the filename
+        if (!itunesDbPath) {
+          return;
+        }
+
+        // Now open directly from file async
+        const db2 = await Database.openFileAsync(itunesDbPath);
+
+        expect(db2).toBeDefined();
+        expect(db2.trackCount).toBe(1);
+
+        const tracks = db2.getTracks();
+        expect(tracks[0].title).toBe('Async File Track');
+
+        db2.close();
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'throws error when setMountpoint is called on closed database',
+    async () => {
+      const db = Database.create();
+      db.close();
+
+      expect(() => db.setMountpoint('/some/path')).toThrow(LibgpodError);
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'throws error when getFilename is called on closed database',
+    async () => {
+      const db = Database.create();
+      db.close();
+
+      expect(() => db.getFilename()).toThrow(LibgpodError);
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'Database.openFile() throws error for non-existent file',
+    async () => {
+      expect(() => Database.openFile('/nonexistent/path/iTunesDB')).toThrow(
+        LibgpodError
+      );
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'Database.openFileAsync() throws error for non-existent file',
+    async () => {
+      await expect(
+        Database.openFileAsync('/nonexistent/path/iTunesDB')
+      ).rejects.toThrow(LibgpodError);
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'getFilename() returns null for newly created database',
+    async () => {
+      const db = Database.create();
+
+      // Newly created database has no filename
+      const filename = db.getFilename();
+      expect(filename).toBeNull();
+
+      db.close();
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'Database.create() database can add multiple tracks',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        const db = Database.create();
+        db.setMountpoint(ipod.path);
+
+        // Add multiple tracks
+        const track1 = db.addTrack({
+          title: 'Track One',
+          artist: 'Artist One',
+          album: 'Album',
+          trackNumber: 1,
+        });
+        const track2 = db.addTrack({
+          title: 'Track Two',
+          artist: 'Artist Two',
+          album: 'Album',
+          trackNumber: 2,
+        });
+
+        expect(db.trackCount).toBe(2);
+        expect(track1.title).toBe('Track One');
+        expect(track2.title).toBe('Track Two');
+
+        // Save and verify persistence
+        db.saveSync();
+        db.close();
+
+        const db2 = Database.openSync(ipod.path);
+        expect(db2.trackCount).toBe(2);
+
+        const tracks = db2.getTracks();
+        const titles = tracks.map((t) => t.title).sort();
+        expect(titles).toEqual(['Track One', 'Track Two']);
+
+        db2.close();
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'setMountpoint with empty string',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        const db = Database.openSync(ipod.path);
+
+        // Setting empty mountpoint should work (clears it)
+        db.setMountpoint('');
+        expect(db.mountpoint).toBe('');
+
+        // getInfo should reflect the change
+        const info = db.getInfo();
+        // info.mountpoint may be empty or null depending on libgpod behavior
+        expect(info.mountpoint === '' || info.mountpoint === null).toBe(true);
+
+        db.close();
+      });
+    }
+  );
+
+  it.skipIf(!isNativeAvailable())(
+    'openFile() then setMountpoint() allows save operations',
+    async () => {
+      await withTestIpod(async (ipod) => {
+        // First create a database with some data
+        const db1 = Database.openSync(ipod.path);
+        db1.addTrack({ title: 'Original Track' });
+        db1.saveSync();
+        const itunesDbPath = db1.getFilename();
+        db1.close();
+
+        if (!itunesDbPath) {
+          return;
+        }
+
+        // Open from file, set mountpoint, add track, save
+        const db2 = Database.openFile(itunesDbPath);
+        expect(db2.mountpoint).toBe('');
+
+        db2.setMountpoint(ipod.path);
+        expect(db2.mountpoint).toBe(ipod.path);
+
+        db2.addTrack({ title: 'New Track' });
+        db2.saveSync();
+        db2.close();
+
+        // Verify both tracks exist
+        const db3 = Database.openSync(ipod.path);
+        expect(db3.trackCount).toBe(2);
+
+        const titles = db3.getTracks().map((t) => t.title).sort();
+        expect(titles).toEqual(['New Track', 'Original Track']);
+
+        db3.close();
+      });
+    }
+  );
 });

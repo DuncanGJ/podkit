@@ -49,6 +49,59 @@ Napi::Value Parse(const Napi::CallbackInfo& info) {
 }
 
 /**
+ * Parse an iPod database from a specific file path.
+ * Unlike parse(), this reads a database file directly without
+ * requiring a full iPod mount point structure.
+ * @param filename Path to iTunesDB file
+ * @returns Database object
+ */
+Napi::Value ParseFile(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected filename path").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    std::string filename = info[0].As<Napi::String>().Utf8Value();
+
+    GError* error = nullptr;
+    Itdb_iTunesDB* db = itdb_parse_file(filename.c_str(), &error);
+
+    if (!db) {
+        std::string message = error ? error->message : "Failed to parse database file";
+        if (error) {
+            g_error_free(error);
+        }
+        Napi::Error::New(env, message).ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Create a new DatabaseWrapper and set its internal pointer
+    return DatabaseWrapper::NewInstance(env, db);
+}
+
+/**
+ * Create a new empty iPod database.
+ * The database is not associated with any mountpoint until
+ * setMountpoint() is called.
+ * @returns Database object
+ */
+Napi::Value Create(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    Itdb_iTunesDB* db = itdb_new();
+
+    if (!db) {
+        Napi::Error::New(env, "Failed to create new database").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Create a new DatabaseWrapper and set its internal pointer
+    return DatabaseWrapper::NewInstance(env, db);
+}
+
+/**
  * Get libgpod version information.
  */
 Napi::Value GetVersion(const Napi::CallbackInfo& info) {
@@ -71,6 +124,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     DatabaseWrapper::Init(env, exports);
 
     exports.Set("parse", Napi::Function::New(env, Parse));
+    exports.Set("parseFile", Napi::Function::New(env, ParseFile));
+    exports.Set("create", Napi::Function::New(env, Create));
     exports.Set("getVersion", Napi::Function::New(env, GetVersion));
 
     return exports;

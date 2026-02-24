@@ -47,6 +47,8 @@ export interface NativeDatabase {
   write(): boolean;
   close(): void;
   getMountpoint(): string | null;
+  setMountpoint(mountpoint: string): void;
+  getFilename(): string | null;
   getTrackById(id: number): Track | null;
   getTrackByDbId(dbid: bigint): Track | null;
   updateTrack(trackId: number, fields: Partial<TrackInput>): Track;
@@ -88,6 +90,8 @@ export interface NativeVersion {
 export interface NativeBinding {
   Database: new () => NativeDatabase;
   parse(mountpoint: string): NativeDatabase;
+  parseFile(filename: string): NativeDatabase;
+  create(): NativeDatabase;
   getVersion(): NativeVersion;
 }
 
@@ -248,6 +252,37 @@ export function getNativeBinding(): NativeBinding {
 export function parse(mountpoint: string): NativeDatabase {
   const binding = loadBinding();
   return binding.parse(mountpoint);
+}
+
+/**
+ * Parse an iPod database from a specific file path.
+ *
+ * Unlike parse(), this reads a database file directly without requiring
+ * a full iPod mount point structure. The database will have no mountpoint
+ * set, and track file operations may not work correctly.
+ *
+ * @param filename Path to the iTunesDB file
+ * @returns Native database handle
+ * @throws Error if parsing fails
+ */
+export function parseFile(filename: string): NativeDatabase {
+  const binding = loadBinding();
+  return binding.parseFile(filename);
+}
+
+/**
+ * Create a new empty iPod database.
+ *
+ * Creates a fresh database that is not associated with any mountpoint.
+ * The database has reasonable defaults (version 0x13, random ID).
+ * Use setMountpoint() to associate with an iPod before writing.
+ *
+ * @returns Native database handle
+ * @throws Error if creation fails
+ */
+export function create(): NativeDatabase {
+  const binding = loadBinding();
+  return binding.create();
 }
 
 /**

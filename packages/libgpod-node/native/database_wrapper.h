@@ -32,6 +32,8 @@ private:
     Napi::Value Write(const Napi::CallbackInfo& info);
     Napi::Value Close(const Napi::CallbackInfo& info);
     Napi::Value GetMountpoint(const Napi::CallbackInfo& info);
+    Napi::Value SetMountpoint(const Napi::CallbackInfo& info);
+    Napi::Value GetFilename(const Napi::CallbackInfo& info);
 
     // Track operations (track_operations.cc)
     Napi::Value GetTrackById(const Napi::CallbackInfo& info);

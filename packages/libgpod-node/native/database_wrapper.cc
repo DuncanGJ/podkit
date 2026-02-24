@@ -20,6 +20,8 @@ Napi::Object DatabaseWrapper::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("write", &DatabaseWrapper::Write),
         InstanceMethod("close", &DatabaseWrapper::Close),
         InstanceMethod("getMountpoint", &DatabaseWrapper::GetMountpoint),
+        InstanceMethod("setMountpoint", &DatabaseWrapper::SetMountpoint),
+        InstanceMethod("getFilename", &DatabaseWrapper::GetFilename),
         // Track methods
         InstanceMethod("getTrackById", &DatabaseWrapper::GetTrackById),
         InstanceMethod("getTrackByDbId", &DatabaseWrapper::GetTrackByDbId),
@@ -184,6 +186,40 @@ Napi::Value DatabaseWrapper::GetMountpoint(const Napi::CallbackInfo& info) {
     }
 
     return GcharToValue(env, itdb_get_mountpoint(db_));
+}
+
+Napi::Value DatabaseWrapper::SetMountpoint(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Mountpoint must be a string").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    std::string mountpoint = info[0].As<Napi::String>().Utf8Value();
+    itdb_set_mountpoint(db_, mountpoint.c_str());
+
+    return env.Undefined();
+}
+
+Napi::Value DatabaseWrapper::GetFilename(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (db_->filename) {
+        return Napi::String::New(env, db_->filename);
+    }
+
+    return env.Null();
 }
 
 Napi::Value DatabaseWrapper::GetDeviceCapabilities(const Napi::CallbackInfo& info) {
