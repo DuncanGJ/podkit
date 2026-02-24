@@ -24,6 +24,8 @@ import type {
   SPLRule,
   SPLPreferences,
   SmartPlaylistInput,
+  Chapter,
+  ChapterInput,
 } from './types';
 
 import { LibgpodError, LibgpodErrorCode } from './types';
@@ -1551,6 +1553,154 @@ export class Database {
         error instanceof Error ? error.message : String(error),
         LibgpodErrorCode.Unknown,
         'setSysInfo'
+      );
+    }
+  }
+
+  // ============================================================================
+  // Chapter data operations (for podcasts and audiobooks)
+  // ============================================================================
+
+  /**
+   * Get chapter markers for a track.
+   *
+   * Chapters provide navigation points within a track, commonly used for
+   * podcasts (mediaType = 4) and audiobooks (mediaType = 8).
+   *
+   * @param trackId ID of the track
+   * @returns Array of chapters, or empty array if no chapters exist
+   * @throws LibgpodError if the track is not found
+   *
+   * @example
+   * ```typescript
+   * import { MediaType } from '@podkit/libgpod-node';
+   *
+   * const track = db.getTrackById(trackId);
+   * if (track && (track.mediaType & MediaType.Podcast)) {
+   *   const chapters = db.getTrackChapters(trackId);
+   *   for (const chapter of chapters) {
+   *     console.log(`${chapter.startPos}ms: ${chapter.title}`);
+   *   }
+   * }
+   * ```
+   */
+  getTrackChapters(trackId: number): Chapter[] {
+    const native = this.ensureOpen();
+    try {
+      return native.getTrackChapters(trackId);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'getTrackChapters'
+      );
+    }
+  }
+
+  /**
+   * Set all chapters for a track, replacing any existing chapters.
+   *
+   * This is typically used when importing a podcast or audiobook that
+   * already has chapter data embedded in its metadata.
+   *
+   * Note: The first chapter's startPos should be 0 (will be converted to 1
+   * by libgpod, as that's the minimum valid start position).
+   *
+   * @param trackId ID of the track
+   * @param chapters Array of chapter definitions
+   * @returns The chapters as stored (startPos may be adjusted)
+   * @throws LibgpodError if the track is not found
+   *
+   * @example
+   * ```typescript
+   * import { MediaType } from '@podkit/libgpod-node';
+   *
+   * // Add a podcast episode with chapters
+   * const track = db.addTrack({
+   *   title: 'Podcast Episode 1',
+   *   mediaType: MediaType.Podcast,
+   * });
+   *
+   * db.setTrackChapters(track.id, [
+   *   { startPos: 0, title: 'Introduction' },
+   *   { startPos: 60000, title: 'Topic 1' },
+   *   { startPos: 300000, title: 'Topic 2' },
+   *   { startPos: 600000, title: 'Conclusion' },
+   * ]);
+   *
+   * await db.save();
+   * ```
+   */
+  setTrackChapters(trackId: number, chapters: ChapterInput[]): Chapter[] {
+    const native = this.ensureOpen();
+    try {
+      return native.setTrackChapters(trackId, chapters);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'setTrackChapters'
+      );
+    }
+  }
+
+  /**
+   * Add a single chapter to a track.
+   *
+   * Chapters are appended to the existing chapter list. For best results,
+   * add chapters in chronological order (ascending start times).
+   *
+   * @param trackId ID of the track
+   * @param startPos Start position in milliseconds (0 will be converted to 1)
+   * @param title Chapter title
+   * @returns All chapters after adding the new one
+   * @throws LibgpodError if the track is not found
+   *
+   * @example
+   * ```typescript
+   * // Add chapters one by one
+   * db.addTrackChapter(trackId, 0, 'Introduction');
+   * db.addTrackChapter(trackId, 120000, 'Chapter 1');
+   * db.addTrackChapter(trackId, 360000, 'Chapter 2');
+   *
+   * await db.save();
+   * ```
+   */
+  addTrackChapter(trackId: number, startPos: number, title: string): Chapter[] {
+    const native = this.ensureOpen();
+    try {
+      return native.addTrackChapter(trackId, startPos, title);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'addTrackChapter'
+      );
+    }
+  }
+
+  /**
+   * Remove all chapters from a track.
+   *
+   * @param trackId ID of the track
+   * @throws LibgpodError if the track is not found
+   *
+   * @example
+   * ```typescript
+   * // Remove chapters from a track
+   * db.clearTrackChapters(trackId);
+   * await db.save();
+   * ```
+   */
+  clearTrackChapters(trackId: number): void {
+    const native = this.ensureOpen();
+    try {
+      native.clearTrackChapters(trackId);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'clearTrackChapters'
       );
     }
   }

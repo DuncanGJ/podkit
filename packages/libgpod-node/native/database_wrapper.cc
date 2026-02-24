@@ -61,6 +61,11 @@ Napi::Object DatabaseWrapper::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("getDeviceCapabilities", &DatabaseWrapper::GetDeviceCapabilities),
         InstanceMethod("getSysInfo", &DatabaseWrapper::GetSysInfo),
         InstanceMethod("setSysInfo", &DatabaseWrapper::SetSysInfo),
+        // Chapter data methods
+        InstanceMethod("getTrackChapters", &DatabaseWrapper::GetTrackChapters),
+        InstanceMethod("setTrackChapters", &DatabaseWrapper::SetTrackChapters),
+        InstanceMethod("addTrackChapter", &DatabaseWrapper::AddTrackChapter),
+        InstanceMethod("clearTrackChapters", &DatabaseWrapper::ClearTrackChapters),
     });
 
     constructor = Napi::Persistent(func);

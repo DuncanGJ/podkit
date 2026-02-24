@@ -20,6 +20,8 @@ import type {
   SPLRule,
   SPLPreferences,
   SPLMatch,
+  Chapter,
+  ChapterInput,
 } from './types';
 
 /**
@@ -96,6 +98,12 @@ export interface NativeDatabase {
   getDeviceCapabilities(): DeviceCapabilities;
   getSysInfo(field: string): string | null;
   setSysInfo(field: string, value: string | null): void;
+
+  // Chapter data operations
+  getTrackChapters(trackId: number): Chapter[];
+  setTrackChapters(trackId: number, chapters: ChapterInput[]): Chapter[];
+  addTrackChapter(trackId: number, startPos: number, title: string): Chapter[];
+  clearTrackChapters(trackId: number): void;
 }
 
 /**

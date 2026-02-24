@@ -316,3 +316,30 @@ void ObjectToSPLPrefs(Napi::Env env, Napi::Object obj, Itdb_SPLPref* prefs) {
         prefs->matchcheckedonly = obj.Get("matchCheckedOnly").As<Napi::Boolean>().Value() ? 1 : 0;
     }
 }
+
+Napi::Object ChapterToObject(Napi::Env env, const Itdb_Chapter* chapter) {
+    Napi::Object obj = Napi::Object::New(env);
+
+    obj.Set("startPos", Napi::Number::New(env, chapter->startpos));
+    obj.Set("title", GcharToValue(env, chapter->chaptertitle));
+
+    return obj;
+}
+
+Napi::Array ChaptersToArray(Napi::Env env, const Itdb_Chapterdata* chapterdata) {
+    Napi::Array arr = Napi::Array::New(env);
+
+    if (!chapterdata || !chapterdata->chapters) {
+        return arr;
+    }
+
+    uint32_t index = 0;
+    for (GList* l = chapterdata->chapters; l != nullptr; l = l->next) {
+        Itdb_Chapter* chapter = static_cast<Itdb_Chapter*>(l->data);
+        if (chapter) {
+            arr.Set(index++, ChapterToObject(env, chapter));
+        }
+    }
+
+    return arr;
+}

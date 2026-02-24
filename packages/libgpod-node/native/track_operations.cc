@@ -411,3 +411,201 @@ Napi::Value DatabaseWrapper::DuplicateTrack(const Napi::CallbackInfo& info) {
 
     return TrackToObject(env, newTrack);
 }
+
+// ============================================================================
+// Chapter Data Operations
+// ============================================================================
+
+Napi::Value DatabaseWrapper::GetTrackChapters(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected track ID").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    uint32_t trackId = info[0].As<Napi::Number>().Uint32Value();
+    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+
+    if (!track) {
+        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    return ChaptersToArray(env, track->chapterdata);
+}
+
+Napi::Value DatabaseWrapper::SetTrackChapters(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 2) {
+        Napi::TypeError::New(env, "Expected track ID and chapters array").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[1].IsArray()) {
+        Napi::TypeError::New(env, "Expected chapters as array").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    uint32_t trackId = info[0].As<Napi::Number>().Uint32Value();
+    Napi::Array chaptersArray = info[1].As<Napi::Array>();
+
+    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+
+    if (!track) {
+        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Free existing chapter data
+    if (track->chapterdata) {
+        itdb_chapterdata_free(track->chapterdata);
+        track->chapterdata = nullptr;
+    }
+
+    // If empty array, just return empty chapters
+    if (chaptersArray.Length() == 0) {
+        return ChaptersToArray(env, track->chapterdata);
+    }
+
+    // Create new chapter data
+    track->chapterdata = itdb_chapterdata_new();
+    if (!track->chapterdata) {
+        Napi::Error::New(env, "Failed to create chapter data").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Add each chapter
+    for (uint32_t i = 0; i < chaptersArray.Length(); i++) {
+        Napi::Value item = chaptersArray.Get(i);
+        if (!item.IsObject()) {
+            continue;
+        }
+
+        Napi::Object chapterObj = item.As<Napi::Object>();
+
+        uint32_t startPos = 0;
+        if (chapterObj.Has("startPos") && chapterObj.Get("startPos").IsNumber()) {
+            startPos = chapterObj.Get("startPos").As<Napi::Number>().Uint32Value();
+        }
+
+        std::string title;
+        if (chapterObj.Has("title") && chapterObj.Get("title").IsString()) {
+            title = chapterObj.Get("title").As<Napi::String>().Utf8Value();
+        }
+
+        // Add chapter (libgpod will convert startPos 0 to 1 for first chapter)
+        itdb_chapterdata_add_chapter(track->chapterdata, startPos, const_cast<gchar*>(title.c_str()));
+    }
+
+    return ChaptersToArray(env, track->chapterdata);
+}
+
+Napi::Value DatabaseWrapper::AddTrackChapter(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 3) {
+        Napi::TypeError::New(env, "Expected track ID, start time, and title").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[1].IsNumber()) {
+        Napi::TypeError::New(env, "Expected start time as number").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[2].IsString()) {
+        Napi::TypeError::New(env, "Expected title as string").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    uint32_t trackId = info[0].As<Napi::Number>().Uint32Value();
+    uint32_t startPos = info[1].As<Napi::Number>().Uint32Value();
+    std::string title = info[2].As<Napi::String>().Utf8Value();
+
+    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+
+    if (!track) {
+        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Create chapter data if it doesn't exist
+    if (!track->chapterdata) {
+        track->chapterdata = itdb_chapterdata_new();
+        if (!track->chapterdata) {
+            Napi::Error::New(env, "Failed to create chapter data").ThrowAsJavaScriptException();
+            return env.Undefined();
+        }
+    }
+
+    // Add the chapter
+    gboolean success = itdb_chapterdata_add_chapter(
+        track->chapterdata,
+        startPos,
+        const_cast<gchar*>(title.c_str())
+    );
+
+    if (!success) {
+        Napi::Error::New(env, "Failed to add chapter").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    return ChaptersToArray(env, track->chapterdata);
+}
+
+Napi::Value DatabaseWrapper::ClearTrackChapters(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected track ID").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    uint32_t trackId = info[0].As<Napi::Number>().Uint32Value();
+    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+
+    if (!track) {
+        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Free existing chapter data (only if it exists)
+    if (track->chapterdata != nullptr) {
+        itdb_chapterdata_free(track->chapterdata);
+        track->chapterdata = nullptr;
+    }
+
+    return env.Undefined();
+}

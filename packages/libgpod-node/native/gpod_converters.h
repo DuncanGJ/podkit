@@ -36,3 +36,9 @@ void ObjectToSPLRule(Napi::Env env, Napi::Object obj, Itdb_SPLRule* rule);
 
 // Parse SPL preferences from JS object
 void ObjectToSPLPrefs(Napi::Env env, Napi::Object obj, Itdb_SPLPref* prefs);
+
+// Convert chapter to JS object
+Napi::Object ChapterToObject(Napi::Env env, const Itdb_Chapter* chapter);
+
+// Convert chapters list (from track->chapterdata) to JS array
+Napi::Array ChaptersToArray(Napi::Env env, const Itdb_Chapterdata* chapterdata);

@@ -58,6 +58,10 @@ export type {
   SPLRule,
   SPLPreferences,
 
+  // Chapter types (for podcasts and audiobooks)
+  Chapter,
+  ChapterInput,
+
   // Enums and type aliases
   IpodGeneration,
   IpodModel,

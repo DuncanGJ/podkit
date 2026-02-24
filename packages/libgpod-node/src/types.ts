@@ -571,6 +571,33 @@ export interface SmartPlaylist extends Playlist {
 }
 
 // ============================================================================
+// Chapter Data Types (for Podcasts and Audiobooks)
+// ============================================================================
+
+/**
+ * Chapter marker for podcasts and audiobooks.
+ *
+ * Chapters allow navigation within a track, showing title and start position.
+ * They are commonly used with podcasts (mediaType = 4) and audiobooks (mediaType = 8).
+ */
+export interface Chapter {
+  /** Chapter start position in milliseconds (min value is 1 for first chapter) */
+  startPos: number;
+  /** Chapter title */
+  title: string;
+}
+
+/**
+ * Input for creating a chapter.
+ */
+export interface ChapterInput {
+  /** Chapter start position in milliseconds (0 will be converted to 1) */
+  startPos: number;
+  /** Chapter title */
+  title: string;
+}
+
+// ============================================================================
 // Error Types
 // ============================================================================
 

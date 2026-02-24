@@ -74,6 +74,12 @@ private:
     Napi::Value GetSmartPlaylistPreferences(const Napi::CallbackInfo& info);
     Napi::Value EvaluateSmartPlaylist(const Napi::CallbackInfo& info);
 
+    // Chapter data operations (track_operations.cc)
+    Napi::Value GetTrackChapters(const Napi::CallbackInfo& info);
+    Napi::Value SetTrackChapters(const Napi::CallbackInfo& info);
+    Napi::Value AddTrackChapter(const Napi::CallbackInfo& info);
+    Napi::Value ClearTrackChapters(const Napi::CallbackInfo& info);
+
     // Device capability operations (database_wrapper.cc)
     Napi::Value GetDeviceCapabilities(const Napi::CallbackInfo& info);
     Napi::Value GetSysInfo(const Napi::CallbackInfo& info);
