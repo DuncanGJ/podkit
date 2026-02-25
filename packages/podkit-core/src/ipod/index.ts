@@ -50,3 +50,10 @@ export type { IpodErrorCode } from './errors.js';
 // Constant exports
 export { MediaType } from './constants.js';
 export type { MediaTypeValue } from './constants.js';
+
+// Implementation exports
+export { IpodTrackImpl } from './track.js';
+export type { IpodDatabaseInternal } from './track.js';
+
+export { IpodPlaylistImpl } from './playlist.js';
+export type { PlaylistDatabaseInternal } from './playlist.js';
