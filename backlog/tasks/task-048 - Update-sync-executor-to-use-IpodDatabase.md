@@ -4,7 +4,7 @@ title: Update sync executor to use IpodDatabase
 status: Done
 assignee: []
 created_date: '2026-02-25 21:23'
-updated_date: '2026-02-25 23:09'
+updated_date: '2026-02-25 23:12'
 labels:
   - podkit-core
   - implementation
@@ -89,11 +89,11 @@ operation.track.remove();
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 ExecutorDependencies updated to use IpodDatabase
-- [ ] #2 DefaultSyncExecutor uses IpodDatabase API
-- [ ] #3 All existing executor tests pass
-- [ ] #4 No direct libgpod-node imports in executor
-- [ ] #5 Integration tests verify sync still works
+- [x] #1 ExecutorDependencies updated to use IpodDatabase
+- [x] #2 DefaultSyncExecutor uses IpodDatabase API
+- [x] #3 All existing executor tests pass
+- [x] #4 No direct libgpod-node imports in executor
+- [x] #5 Integration tests verify sync still works
 <!-- AC:END -->
 
 ## Final Summary

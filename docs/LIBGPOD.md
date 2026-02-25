@@ -4,6 +4,67 @@
 
 libgpod is a C library for reading and writing the iTunes database (iTunesDB) on iPod devices. It is the de facto standard library used by most Linux iPod management tools.
 
+## IpodDatabase Abstraction Layer
+
+**For application code, use `IpodDatabase` from `@podkit/core` instead of `@podkit/libgpod-node` directly.**
+
+The `IpodDatabase` class provides a clean, high-level API that:
+- Hides internal details like `TrackHandle` references
+- Provides type-safe track and playlist operations
+- Returns immutable snapshots for safe data access
+- Handles error translation to structured `IpodError` types
+
+### When to Use Each Package
+
+| Use Case | Package |
+|----------|---------|
+| CLI commands, application code | `@podkit/core` (IpodDatabase) |
+| Sync engine, business logic | `@podkit/core` (IpodDatabase) |
+| libgpod binding tests | `@podkit/libgpod-node` |
+| Debugging low-level issues | `@podkit/libgpod-node` |
+| Extending podkit-core internals | `@podkit/libgpod-node` |
+
+### Quick Example
+
+```typescript
+import { IpodDatabase } from '@podkit/core';
+
+// Open iPod
+const ipod = await IpodDatabase.open('/Volumes/IPOD');
+
+// Display info
+const info = ipod.getInfo();
+console.log(`${info.device.modelName} (${info.device.capacity}GB)`);
+console.log(`Tracks: ${info.trackCount}`);
+
+// List tracks
+for (const track of ipod.getTracks()) {
+  console.log(`${track.artist} - ${track.title}`);
+}
+
+// Add a track
+const track = ipod.addTrack({
+  title: 'New Song',
+  artist: 'Artist',
+  album: 'Album',
+});
+track.copyFile('/path/to/song.mp3');
+
+// Create a playlist and add high-rated tracks
+let favorites = ipod.createPlaylist('Favorites');
+for (const t of ipod.getTracks()) {
+  if (t.rating >= 80) {
+    favorites = favorites.addTrack(t);  // Returns updated snapshot
+  }
+}
+
+// Save and close
+await ipod.save();
+ipod.close();
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full API reference.
+
 ## Project Information
 
 | Attribute | Value |
