@@ -1,0 +1,83 @@
+---
+id: TASK-042.02
+title: Create TrackHandle type and update TypeScript API
+status: To Do
+assignee: []
+created_date: '2026-02-25 13:38'
+updated_date: '2026-02-25 13:40'
+labels:
+  - libgpod-node
+  - typescript
+dependencies: []
+parent_task_id: TASK-042
+priority: high
+---
+
+## Description
+
+<!-- SECTION:DESCRIPTION:BEGIN -->
+Update the TypeScript types and Database class to use TrackHandle.
+
+## Type Changes (`types.ts`)
+
+```typescript
+/**
+ * Opaque handle to a track in the database.
+ * 
+ * This is the primary way to reference tracks for operations.
+ * The handle remains valid until the database is closed or the
+ * track is removed.
+ * 
+ * To get track metadata, use db.getTrack(handle).
+ */
+export interface TrackHandle {
+  readonly __brand: 'TrackHandle';
+  readonly index: number;
+}
+
+/**
+ * Track metadata snapshot.
+ * 
+ * This is a point-in-time copy of track metadata. Changes to the
+ * track in the database will not be reflected here.
+ */
+export interface Track {
+  // ... existing fields, but id becomes optional or removed
+}
+```
+
+## Database class changes (`database.ts`)
+
+- `addTrack(input: TrackInput): TrackHandle`
+- `getTracks(): TrackHandle[]`
+- `getTrack(handle: TrackHandle): Track` - NEW: get data snapshot
+- `copyTrackToDevice(handle: TrackHandle, path: string): Track`
+- `removeTrack(handle: TrackHandle): void`
+- `updateTrack(handle: TrackHandle, fields: Partial<TrackInput>): Track`
+- All other track operations updated similarly
+
+## Deprecation/Removal
+
+- `getTrackById(id: number)` - Mark as deprecated or remove
+- `getTrackByDbId(dbid: bigint)` - Keep but document limitations
+<!-- SECTION:DESCRIPTION:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Decision: Remove getTrackById
+
+After analysis, `getTrackById()` should be **removed entirely**, not deprecated:
+
+1. libgpod docs explicitly say `itdb_track_by_id()` is "not really a good idea"
+2. Track IDs are reassigned on every `itdb_write()` - stored IDs become invalid
+3. No application code in podkit uses it
+4. Strawberry (major libgpod user) never uses ID-based lookup
+
+With TrackHandle, the use cases are covered:
+- `addTrack()` → returns handle
+- `getTracks()` → returns all handles
+- To find a specific track → iterate handles and match by metadata
+
+Document this exclusion in LIBGPOD.md explaining why the function exists in libgpod but isn't exposed.
+<!-- SECTION:NOTES:END -->
