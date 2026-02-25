@@ -21,7 +21,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 
-import type { Database, Track, TrackInput } from '@podkit/libgpod-node';
+import type { Database, Track, TrackHandle, TrackInput } from '@podkit/libgpod-node';
 import type { CollectionTrack } from '../adapters/interface.js';
 import type { FFmpegTranscoder } from '../transcode/ffmpeg.js';
 import { PRESETS, type TranscodePreset } from '../transcode/types.js';
@@ -558,7 +558,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
     operation: SyncOperation,
     transcodeDir: string,
     signal?: AbortSignal
-  ): Promise<{ bytesTransferred: number; track?: Track }> {
+  ): Promise<{ bytesTransferred: number; track?: Track; handle?: TrackHandle }> {
     switch (operation.type) {
       case 'transcode':
         return this.executeTranscode(operation, transcodeDir, signal);
@@ -579,7 +579,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
     operation: Extract<SyncOperation, { type: 'transcode' }>,
     transcodeDir: string,
     signal?: AbortSignal
-  ): Promise<{ bytesTransferred: number; track: Track }> {
+  ): Promise<{ bytesTransferred: number; track: Track; handle: TrackHandle }> {
     const { source, preset: presetRef } = operation;
     const preset = getPreset(presetRef);
 
@@ -600,12 +600,12 @@ export class DefaultSyncExecutor implements SyncExecutor {
     trackInput.bitrate = result.bitrate;
     trackInput.filetype = 'AAC audio file';
 
-    const track = this.database.addTrack(trackInput);
+    const handle = this.database.addTrack(trackInput);
 
     // Copy transcoded file to iPod
-    this.database.copyTrackToDevice(track.id, outputPath);
+    const track = this.database.copyTrackToDevice(handle, outputPath);
 
-    return { bytesTransferred: result.size, track };
+    return { bytesTransferred: result.size, track, handle };
   }
 
   /**
@@ -613,7 +613,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
    */
   private async executeCopy(
     operation: Extract<SyncOperation, { type: 'copy' }>
-  ): Promise<{ bytesTransferred: number; track: Track }> {
+  ): Promise<{ bytesTransferred: number; track: Track; handle: TrackHandle }> {
     const { source } = operation;
 
     // Add track to iPod database
@@ -636,17 +636,17 @@ export class DefaultSyncExecutor implements SyncExecutor {
         trackInput.filetype = 'Audio file';
     }
 
-    const track = this.database.addTrack(trackInput);
+    const handle = this.database.addTrack(trackInput);
 
     // Copy source file to iPod
-    this.database.copyTrackToDevice(track.id, source.filePath);
+    const track = this.database.copyTrackToDevice(handle, source.filePath);
 
     // Estimate bytes transferred (we don't have actual file size)
     const bytesTransferred = source.duration
       ? Math.round((source.duration / 1000) * 32000) // ~256 kbps estimate
       : 5000000; // default 5MB
 
-    return { bytesTransferred, track };
+    return { bytesTransferred, track, handle };
   }
 
   /**
@@ -655,10 +655,29 @@ export class DefaultSyncExecutor implements SyncExecutor {
   private async executeRemove(
     operation: Extract<SyncOperation, { type: 'remove' }>
   ): Promise<{ bytesTransferred: number }> {
-    const { track } = operation;
+    const { track: targetTrack } = operation;
+
+    // Find the track handle by matching on track ID
+    // The IPodTrack.id corresponds to Track.id in libgpod-node
+    const handles = this.database.getTracks();
+    let targetHandle: TrackHandle | null = null;
+
+    for (const handle of handles) {
+      const track = this.database.getTrack(handle);
+      if (track.id === targetTrack.id) {
+        targetHandle = handle;
+        break;
+      }
+    }
+
+    if (!targetHandle) {
+      throw new Error(
+        `Track not found in database: ${targetTrack.artist} - ${targetTrack.title} (id: ${targetTrack.id})`
+      );
+    }
 
     // Remove track from database
-    this.database.removeTrack(track.id);
+    this.database.removeTrack(targetHandle);
 
     return { bytesTransferred: 0 };
   }

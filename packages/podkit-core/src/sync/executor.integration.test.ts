@@ -214,10 +214,11 @@ describe('SyncExecutor integration', () => {
           expect(info.trackCount).toBe(1);
 
           // Verify track metadata
-          const tracks = db.getTracks();
-          expect(tracks).toHaveLength(1);
-          expect(tracks[0]!.title).toBe('Test Song');
-          expect(tracks[0]!.artist).toBe('Test Artist');
+          const handles = db.getTracks();
+          expect(handles).toHaveLength(1);
+          const track = db.getTrack(handles[0]!);
+          expect(track.title).toBe('Test Song');
+          expect(track.artist).toBe('Test Artist');
         } finally {
           db.close();
         }
@@ -262,9 +263,10 @@ describe('SyncExecutor integration', () => {
           expect(result.failed).toBe(0);
 
           // Verify track is in database
-          const tracks = db.getTracks();
-          expect(tracks).toHaveLength(1);
-          expect(tracks[0]!.title).toBe('Transcode Song');
+          const handles = db.getTracks();
+          expect(handles).toHaveLength(1);
+          const track = db.getTrack(handles[0]!);
+          expect(track.title).toBe('Transcode Song');
         } finally {
           db.close();
         }
@@ -288,18 +290,18 @@ describe('SyncExecutor integration', () => {
         try {
           // First, add a track manually
           // Note: Track ID is only assigned after save(), so we must re-fetch
-          const pendingTrack = db.addTrack({
+          const pendingHandle = db.addTrack({
             title: 'Track To Remove',
             artist: 'Remove Artist',
             album: 'Remove Album',
           });
-          db.copyTrackToDevice(pendingTrack.id, mp3Path);
+          db.copyTrackToDevice(pendingHandle, mp3Path);
           await db.save();
 
           // Verify it was added and get the track with its real ID
           expect(db.trackCount).toBe(1);
-          const tracks = db.getTracks();
-          const savedTrack = tracks[0];
+          const handles = db.getTracks();
+          const savedTrack = db.getTrack(handles[0]!);
 
           // Now remove it via executor
           const deps: ExecutorDependencies = {
@@ -312,7 +314,7 @@ describe('SyncExecutor integration', () => {
               {
                 type: 'remove',
                 track: {
-                  id: savedTrack.id,
+                  id: savedTrack.id!,
                   title: savedTrack.title ?? 'Track To Remove',
                   artist: savedTrack.artist ?? 'Remove Artist',
                   album: savedTrack.album ?? 'Remove Album',

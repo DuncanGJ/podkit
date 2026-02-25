@@ -38,6 +38,8 @@ interface MockDatabase {
   copyTrackToDevice: ReturnType<typeof mock>;
   removeTrack: ReturnType<typeof mock>;
   save: ReturnType<typeof mock>;
+  getTracks: ReturnType<typeof mock>;
+  getTrack: ReturnType<typeof mock>;
 }
 
 interface MockTranscoder {
@@ -49,19 +51,41 @@ interface MockTranscoder {
 // Test Fixtures
 // =============================================================================
 
-function createMockDatabase(): MockDatabase {
-  let trackIdCounter = 1;
+interface MockTrack {
+  id: number;
+  title: string;
+  artist: string;
+  album: string;
+}
+
+function createMockDatabase(initialTracks: MockTrack[] = []): MockDatabase {
+  let trackIdCounter = initialTracks.length > 0
+    ? Math.max(...initialTracks.map(t => t.id)) + 1
+    : 1;
+  // Store tracks for lookup (copy initial tracks)
+  const tracks: MockTrack[] = [...initialTracks];
 
   return {
-    addTrack: mock((input: { title: string; artist: string }) => ({
-      id: trackIdCounter++,
-      title: input.title,
-      artist: input.artist,
-      album: '',
-    })),
-    copyTrackToDevice: mock(() => ({})),
+    addTrack: mock((input: { title: string; artist: string }) => {
+      const id = trackIdCounter++;
+      const track: MockTrack = {
+        id,
+        title: input.title,
+        artist: input.artist,
+        album: '',
+      };
+      tracks.push(track);
+      // Return a mock handle (index-based)
+      return { __brand: 'TrackHandle', index: tracks.length - 1 };
+    }),
+    copyTrackToDevice: mock((handle: { index: number }) => {
+      return tracks[handle.index] || {};
+    }),
     removeTrack: mock(() => {}),
     save: mock(async () => {}),
+    // Add getTracks and getTrack for remove operation support
+    getTracks: mock(() => tracks.map((_, i) => ({ __brand: 'TrackHandle', index: i }))),
+    getTrack: mock((handle: { index: number }) => tracks[handle.index]),
   };
 }
 
@@ -254,6 +278,12 @@ describe('DefaultSyncExecutor - basic execution', () => {
   });
 
   it('executes remove operation', async () => {
+    // Pre-populate with the track to be removed
+    const existingTrack = { id: 123, title: 'Song', artist: 'Artist', album: 'Album' };
+    mockDb = createMockDatabase([existingTrack]);
+    mockTranscoder = createMockTranscoder();
+    deps = createDependencies(mockDb, mockTranscoder);
+
     const executor = new DefaultSyncExecutor(deps);
     const plan: SyncPlan = {
       operations: [
@@ -271,13 +301,21 @@ describe('DefaultSyncExecutor - basic execution', () => {
       progress.push(p);
     }
 
-    // Should have called removeTrack
+    // Should have called removeTrack with a TrackHandle
     expect(mockDb.removeTrack.mock.calls.length).toBe(1);
-    expect(mockDb.removeTrack.mock.calls[0]).toEqual([123]);
+    const callArg = mockDb.removeTrack.mock.calls[0]![0] as { __brand: string; index: number };
+    expect(callArg.__brand).toBe('TrackHandle');
+    expect(callArg.index).toBe(0); // First track in the mock database
     expect(mockDb.save.mock.calls.length).toBe(1);
   });
 
   it('executes multiple operations in order', async () => {
+    // Pre-populate with the track to be removed
+    const existingTrack = { id: 1, title: 'Old Song', artist: 'Old Artist', album: 'Old Album' };
+    mockDb = createMockDatabase([existingTrack]);
+    mockTranscoder = createMockTranscoder();
+    deps = createDependencies(mockDb, mockTranscoder);
+
     const executor = new DefaultSyncExecutor(deps);
     const plan: SyncPlan = {
       operations: [
