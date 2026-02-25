@@ -14,6 +14,7 @@ import {
 
 import type {
   Track,
+  TrackHandle,
   Playlist,
   DatabaseInfo,
   TrackInput,
@@ -207,6 +208,13 @@ export class Database {
   }
 
   /**
+   * Create a TrackHandle from a native index.
+   */
+  private createHandle(index: number): TrackHandle {
+    return { __brand: 'TrackHandle', index } as TrackHandle;
+  }
+
+  /**
    * The iPod mount point path.
    */
   get mountpoint(): string {
@@ -336,45 +344,84 @@ export class Database {
   /**
    * Get all tracks in the database.
    *
-   * @returns Array of track metadata
-   */
-  getTracks(): Track[] {
-    const native = this.ensureOpen();
-    return native.getTracks();
-  }
-
-  /**
-   * Get a track by its ID.
+   * Returns handles that can be used to access track data and perform
+   * operations. Use `getTrack(handle)` to get the track metadata.
    *
-   * @param id Track ID (32-bit, assigned by libgpod)
-   * @returns Track or null if not found
-   */
-  getTrackById(id: number): Track | null {
-    const native = this.ensureOpen();
-    return native.getTrackById(id);
-  }
-
-  /**
-   * Get a track by its database ID (dbid).
-   *
-   * The dbid is a 64-bit unique identifier that persists across database
-   * operations, unlike the regular track ID which is re-assigned on export.
-   *
-   * @param dbid Database ID (64-bit BigInt)
-   * @returns Track or null if not found
+   * @returns Array of track handles
    *
    * @example
    * ```typescript
-   * const track = db.getTracks()[0];
+   * for (const handle of db.getTracks()) {
+   *   const track = db.getTrack(handle);
+   *   console.log(`${track.artist} - ${track.title}`);
+   * }
+   * ```
+   */
+  getTracks(): TrackHandle[] {
+    const native = this.ensureOpen();
+    return native.getTracks().map((index) => this.createHandle(index));
+  }
+
+  /**
+   * Get track metadata from a handle.
+   *
+   * Returns a point-in-time snapshot of the track's metadata. Changes
+   * made to the track will not be reflected until you call this again.
+   *
+   * @param handle Track handle from getTracks() or addTrack()
+   * @returns Track metadata snapshot
+   * @throws LibgpodError if the handle is invalid
+   *
+   * @example
+   * ```typescript
+   * const handle = db.addTrack({ title: 'Song', artist: 'Artist' });
+   * const track = db.getTrack(handle);
+   * console.log(`Added: ${track.title}`);
+   * ```
+   */
+  getTrack(handle: TrackHandle): Track {
+    const native = this.ensureOpen();
+    try {
+      return native.getTrackData(handle.index);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.NotFound,
+        'getTrack'
+      );
+    }
+  }
+
+  /**
+   * Get a track handle by its database ID (dbid).
+   *
+   * The dbid is a 64-bit unique identifier that persists across database
+   * operations. This is useful for finding a track after the database
+   * has been saved and reopened.
+   *
+   * @param dbid Database ID (64-bit BigInt)
+   * @returns Track handle or null if not found
+   *
+   * @example
+   * ```typescript
+   * const handle = db.getTracks()[0];
+   * const track = db.getTrack(handle);
    * const dbid = track.dbid;
    *
    * // Later, look up by dbid
    * const found = db.getTrackByDbId(dbid);
+   * if (found) {
+   *   const trackData = db.getTrack(found);
+   * }
    * ```
    */
-  getTrackByDbId(dbid: bigint): Track | null {
+  getTrackByDbId(dbid: bigint): TrackHandle | null {
     const native = this.ensureOpen();
-    return native.getTrackByDbId(dbid);
+    const index = native.getTrackByDbId(dbid);
+    if (index < 0) {
+      return null;
+    }
+    return this.createHandle(index);
   }
 
   /**
@@ -394,11 +441,19 @@ export class Database {
    * use `copyTrackToDevice()` after adding the track.
    *
    * @param input Track metadata
-   * @returns The created track with assigned ID
+   * @returns Handle to the created track
+   *
+   * @example
+   * ```typescript
+   * const handle = db.addTrack({ title: 'Song', artist: 'Artist' });
+   * db.copyTrackToDevice(handle, '/path/to/song.mp3');
+   * await db.save();
+   * ```
    */
-  addTrack(input: TrackInput): Track {
+  addTrack(input: TrackInput): TrackHandle {
     const native = this.ensureOpen();
-    return native.addTrack(input);
+    const index = native.addTrack(input);
+    return this.createHandle(index);
   }
 
   /**
@@ -411,23 +466,23 @@ export class Database {
    * The file format must be iPod-compatible (MP3, AAC/M4A).
    * Transcoding should be done before calling this method.
    *
-   * @param trackId ID of the track to copy file for
+   * @param handle Handle of the track to copy file for
    * @param sourcePath Path to the source audio file
-   * @returns The updated track with ipod_path set
+   * @returns The updated track metadata with ipod_path set
    * @throws LibgpodError if copying fails (disk full, file not found, etc.)
    *
    * @example
    * ```typescript
-   * const track = db.addTrack({ title: 'Song', artist: 'Artist' });
-   * const updated = db.copyTrackToDevice(track.id, '/path/to/song.mp3');
-   * console.log(updated.ipodPath); // :iPod_Control:Music:F00:...
+   * const handle = db.addTrack({ title: 'Song', artist: 'Artist' });
+   * const track = db.copyTrackToDevice(handle, '/path/to/song.mp3');
+   * console.log(track.ipodPath); // :iPod_Control:Music:F00:...
    * await db.save();
    * ```
    */
-  copyTrackToDevice(trackId: number, sourcePath: string): Track {
+  copyTrackToDevice(handle: TrackHandle, sourcePath: string): Track {
     const native = this.ensureOpen();
     try {
-      return native.copyTrackToDevice(trackId, sourcePath);
+      return native.copyTrackToDevice(handle.index, sourcePath);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -440,27 +495,28 @@ export class Database {
   /**
    * Async version of copyTrackToDevice for consistency with other async methods.
    *
-   * @param trackId ID of the track to copy file for
+   * @param handle Handle of the track to copy file for
    * @param sourcePath Path to the source audio file
-   * @returns The updated track with ipod_path set
+   * @returns The updated track metadata with ipod_path set
    */
   async copyTrackToDeviceAsync(
-    trackId: number,
+    handle: TrackHandle,
     sourcePath: string
   ): Promise<Track> {
-    return this.copyTrackToDevice(trackId, sourcePath);
+    return this.copyTrackToDevice(handle, sourcePath);
   }
 
   /**
    * Remove a track from the database.
    *
    * Note: This does not delete the file from the iPod.
+   * After calling this, the handle is no longer valid.
    *
-   * @param trackId Track ID to remove
+   * @param handle Handle of the track to remove
    */
-  removeTrack(trackId: number): void {
+  removeTrack(handle: TrackHandle): void {
     const native = this.ensureOpen();
-    native.removeTrack(trackId);
+    native.removeTrack(handle.index);
   }
 
   /**
@@ -469,21 +525,21 @@ export class Database {
    * Only the fields provided in the input object will be updated.
    * Other fields will retain their current values.
    *
-   * @param trackId ID of the track to update
+   * @param handle Handle of the track to update
    * @param fields Partial track input with fields to update
-   * @returns The updated track
-   * @throws LibgpodError if the track is not found
+   * @returns The updated track metadata
+   * @throws LibgpodError if the handle is invalid
    *
    * @example
    * ```typescript
    * // Update just the title and artist
-   * const updated = db.updateTrack(track.id, {
+   * const track = db.updateTrack(handle, {
    *   title: 'New Title',
    *   artist: 'New Artist'
    * });
    *
    * // Update rating and play count
-   * db.updateTrack(track.id, {
+   * db.updateTrack(handle, {
    *   rating: 80,  // 4 stars
    *   playCount: 10
    * });
@@ -491,10 +547,10 @@ export class Database {
    * await db.save();
    * ```
    */
-  updateTrack(trackId: number, fields: Partial<TrackInput>): Track {
+  updateTrack(handle: TrackHandle, fields: Partial<TrackInput>): Track {
     const native = this.ensureOpen();
     try {
-      return native.updateTrack(trackId, fields);
+      return native.updateTrack(handle.index, fields);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -510,24 +566,24 @@ export class Database {
    * This uses libgpod's `itdb_filename_on_ipod()` to construct the
    * full path by combining the mountpoint with the track's ipod_path.
    *
-   * @param trackId ID of the track
+   * @param handle Handle of the track
    * @returns Full filesystem path or null if track has no file
-   * @throws LibgpodError if the track is not found
+   * @throws LibgpodError if the handle is invalid
    *
    * @example
    * ```typescript
-   * const track = db.getTrackById(trackId);
-   * const filePath = db.getTrackFilePath(trackId);
+   * const handle = db.getTracks()[0];
+   * const filePath = db.getTrackFilePath(handle);
    * if (filePath) {
    *   console.log(`Track file: ${filePath}`);
    *   // e.g., "/media/ipod/iPod_Control/Music/F00/ABCD.mp3"
    * }
    * ```
    */
-  getTrackFilePath(trackId: number): string | null {
+  getTrackFilePath(handle: TrackHandle): string | null {
     const native = this.ensureOpen();
     try {
-      return native.getTrackFilePath(trackId);
+      return native.getTrackFilePath(handle.index);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -541,7 +597,6 @@ export class Database {
    * Duplicate an existing track.
    *
    * Creates a copy of the track's metadata. The duplicate will have:
-   * - A new track ID (assigned by libgpod)
    * - A new database ID (dbid)
    * - ipodPath set to null (no file association)
    * - transferred set to false
@@ -552,32 +607,33 @@ export class Database {
    * To also copy the audio file, call `copyTrackToDevice()` on the
    * duplicate with a source file path.
    *
-   * @param trackId ID of the track to duplicate
-   * @returns The newly created duplicate track
-   * @throws LibgpodError if the track is not found
+   * @param handle Handle of the track to duplicate
+   * @returns Handle to the newly created duplicate track
+   * @throws LibgpodError if the handle is invalid
    *
    * @example
    * ```typescript
    * // Duplicate a track
-   * const original = db.getTrackById(trackId);
-   * const copy = db.duplicateTrack(trackId);
+   * const original = db.getTrack(handle);
+   * const copyHandle = db.duplicateTrack(handle);
    *
    * // Optionally modify the copy
-   * db.updateTrack(copy.id, { title: `${original.title} (Copy)` });
+   * db.updateTrack(copyHandle, { title: `${original.title} (Copy)` });
    *
    * // Optionally copy the audio file
-   * const originalPath = db.getTrackFilePath(trackId);
+   * const originalPath = db.getTrackFilePath(handle);
    * if (originalPath) {
-   *   db.copyTrackToDevice(copy.id, originalPath);
+   *   db.copyTrackToDevice(copyHandle, originalPath);
    * }
    *
    * await db.save();
    * ```
    */
-  duplicateTrack(trackId: number): Track {
+  duplicateTrack(handle: TrackHandle): TrackHandle {
     const native = this.ensureOpen();
     try {
-      return native.duplicateTrack(trackId);
+      const index = native.duplicateTrack(handle.index);
+      return this.createHandle(index);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -599,27 +655,27 @@ export class Database {
    * The image file must exist until save() is called, as thumbnails
    * are generated lazily during the write operation.
    *
-   * @param trackId ID of the track to set artwork for
+   * @param handle Handle of the track to set artwork for
    * @param imagePath Path to the image file (JPEG or PNG recommended)
-   * @returns The updated track with hasArtwork set to true
-   * @throws LibgpodError if setting artwork fails (track not found, invalid image, etc.)
+   * @returns The updated track metadata with hasArtwork set to true
+   * @throws LibgpodError if setting artwork fails (invalid handle, invalid image, etc.)
    *
    * @example
    * ```typescript
    * // Extract artwork from source file and apply to iPod track
    * const artworkPath = await extractAndSaveArtwork('/path/to/song.flac');
    * if (artworkPath) {
-   *   db.setTrackArtwork(track.id, artworkPath);
+   *   db.setTrackArtwork(handle, artworkPath);
    * }
    * await db.save();
    * // Clean up temp artwork file after save
    * await cleanupTempArtwork(artworkPath);
    * ```
    */
-  setTrackArtwork(trackId: number, imagePath: string): Track {
+  setTrackArtwork(handle: TrackHandle, imagePath: string): Track {
     const native = this.ensureOpen();
     try {
-      return native.setTrackThumbnails(trackId, imagePath);
+      return native.setTrackThumbnails(handle.index, imagePath);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -632,12 +688,12 @@ export class Database {
   /**
    * Async version of setTrackArtwork for consistency with other async methods.
    *
-   * @param trackId ID of the track to set artwork for
+   * @param handle Handle of the track to set artwork for
    * @param imagePath Path to the image file
-   * @returns The updated track with hasArtwork set to true
+   * @returns The updated track metadata with hasArtwork set to true
    */
-  async setTrackArtworkAsync(trackId: number, imagePath: string): Promise<Track> {
-    return this.setTrackArtwork(trackId, imagePath);
+  async setTrackArtworkAsync(handle: TrackHandle, imagePath: string): Promise<Track> {
+    return this.setTrackArtwork(handle, imagePath);
   }
 
   /**
@@ -647,23 +703,23 @@ export class Database {
    * from a Buffer containing image data. This is useful when artwork
    * is already loaded in memory (e.g., extracted from audio file metadata).
    *
-   * @param trackId ID of the track to set artwork for
+   * @param handle Handle of the track to set artwork for
    * @param imageData Buffer containing image data (JPEG or PNG)
-   * @returns The updated track with hasArtwork set to true
+   * @returns The updated track metadata with hasArtwork set to true
    * @throws LibgpodError if setting artwork fails
    *
    * @example
    * ```typescript
    * // Read image data from file
    * const imageData = await fs.readFile('/path/to/artwork.jpg');
-   * db.setTrackArtworkFromData(track.id, imageData);
+   * db.setTrackArtworkFromData(handle, imageData);
    * await db.save();
    * ```
    */
-  setTrackArtworkFromData(trackId: number, imageData: Buffer): Track {
+  setTrackArtworkFromData(handle: TrackHandle, imageData: Buffer): Track {
     const native = this.ensureOpen();
     try {
-      return native.setTrackThumbnailsFromData(trackId, imageData);
+      return native.setTrackThumbnailsFromData(handle.index, imageData);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -676,12 +732,12 @@ export class Database {
   /**
    * Async version of setTrackArtworkFromData.
    *
-   * @param trackId ID of the track to set artwork for
+   * @param handle Handle of the track to set artwork for
    * @param imageData Buffer containing image data
-   * @returns The updated track with hasArtwork set to true
+   * @returns The updated track metadata with hasArtwork set to true
    */
-  async setTrackArtworkFromDataAsync(trackId: number, imageData: Buffer): Promise<Track> {
-    return this.setTrackArtworkFromData(trackId, imageData);
+  async setTrackArtworkFromDataAsync(handle: TrackHandle, imageData: Buffer): Promise<Track> {
+    return this.setTrackArtworkFromData(handle, imageData);
   }
 
   /**
@@ -690,23 +746,23 @@ export class Database {
    * This removes all thumbnails associated with the track.
    * Changes take effect when save() is called.
    *
-   * @param trackId ID of the track to remove artwork from
-   * @returns The updated track with hasArtwork set to false
-   * @throws LibgpodError if the track is not found
+   * @param handle Handle of the track to remove artwork from
+   * @returns The updated track metadata with hasArtwork set to false
+   * @throws LibgpodError if the handle is invalid
    *
    * @example
    * ```typescript
-   * const track = db.getTrackById(trackId);
-   * if (track && track.hasArtwork) {
-   *   db.removeTrackArtwork(trackId);
+   * const track = db.getTrack(handle);
+   * if (track.hasArtwork) {
+   *   db.removeTrackArtwork(handle);
    *   await db.save();
    * }
    * ```
    */
-  removeTrackArtwork(trackId: number): Track {
+  removeTrackArtwork(handle: TrackHandle): Track {
     const native = this.ensureOpen();
     try {
-      return native.removeTrackThumbnails(trackId);
+      return native.removeTrackThumbnails(handle.index);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -723,23 +779,23 @@ export class Database {
    * exists for the track. This is more reliable than checking the
    * hasArtwork property, as it actually checks for thumbnail data.
    *
-   * @param trackId ID of the track to check
+   * @param handle Handle of the track to check
    * @returns True if the track has artwork
-   * @throws LibgpodError if the track is not found
+   * @throws LibgpodError if the handle is invalid
    *
    * @example
    * ```typescript
-   * const hasArtwork = db.hasTrackArtwork(track.id);
+   * const hasArtwork = db.hasTrackArtwork(handle);
    * if (!hasArtwork) {
    *   // Set artwork from source file
-   *   db.setTrackArtwork(track.id, artworkPath);
+   *   db.setTrackArtwork(handle, artworkPath);
    * }
    * ```
    */
-  hasTrackArtwork(trackId: number): boolean {
+  hasTrackArtwork(handle: TrackHandle): boolean {
     const native = this.ensureOpen();
     try {
-      return native.hasTrackThumbnails(trackId);
+      return native.hasTrackThumbnails(handle.index);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -980,24 +1036,25 @@ export class Database {
    * Add a track to a playlist.
    *
    * @param playlistId ID of the playlist
-   * @param trackId ID of the track to add
+   * @param track Handle of the track to add
    * @returns The updated playlist
-   * @throws LibgpodError if the playlist or track is not found
+   * @throws LibgpodError if the playlist is not found or handle is invalid
    *
    * @example
    * ```typescript
    * const playlist = db.getPlaylistByName('Favorites');
-   * const track = db.getTracks().find(t => t.title === 'Great Song');
-   * if (playlist && track) {
-   *   db.addTrackToPlaylist(playlist.id, track.id);
+   * const handles = db.getTracks();
+   * const handle = handles.find(h => db.getTrack(h).title === 'Great Song');
+   * if (playlist && handle) {
+   *   db.addTrackToPlaylist(playlist.id, handle);
    *   await db.save();
    * }
    * ```
    */
-  addTrackToPlaylist(playlistId: bigint, trackId: number): Playlist {
+  addTrackToPlaylist(playlistId: bigint, track: TrackHandle): Playlist {
     const native = this.ensureOpen();
     try {
-      return native.addTrackToPlaylist(playlistId, trackId);
+      return native.addTrackToPlaylist(playlistId, track.index);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -1013,23 +1070,23 @@ export class Database {
    * Note: This only removes the track from the playlist, not from the database.
    *
    * @param playlistId ID of the playlist
-   * @param trackId ID of the track to remove
+   * @param track Handle of the track to remove
    * @returns The updated playlist
-   * @throws LibgpodError if the playlist or track is not found
+   * @throws LibgpodError if the playlist is not found or handle is invalid
    *
    * @example
    * ```typescript
    * const playlist = db.getPlaylistByName('Favorites');
-   * if (playlist && db.playlistContainsTrack(playlist.id, trackId)) {
-   *   db.removeTrackFromPlaylist(playlist.id, trackId);
+   * if (playlist && db.playlistContainsTrack(playlist.id, handle)) {
+   *   db.removeTrackFromPlaylist(playlist.id, handle);
    *   await db.save();
    * }
    * ```
    */
-  removeTrackFromPlaylist(playlistId: bigint, trackId: number): Playlist {
+  removeTrackFromPlaylist(playlistId: bigint, track: TrackHandle): Playlist {
     const native = this.ensureOpen();
     try {
-      return native.removeTrackFromPlaylist(playlistId, trackId);
+      return native.removeTrackFromPlaylist(playlistId, track.index);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -1043,22 +1100,22 @@ export class Database {
    * Check if a playlist contains a specific track.
    *
    * @param playlistId ID of the playlist
-   * @param trackId ID of the track
+   * @param track Handle of the track
    * @returns True if the playlist contains the track
-   * @throws LibgpodError if the playlist or track is not found
+   * @throws LibgpodError if the playlist is not found or handle is invalid
    *
    * @example
    * ```typescript
    * const playlist = db.getPlaylistByName('Favorites');
-   * if (playlist && db.playlistContainsTrack(playlist.id, track.id)) {
+   * if (playlist && db.playlistContainsTrack(playlist.id, handle)) {
    *   console.log('Track is in Favorites');
    * }
    * ```
    */
-  playlistContainsTrack(playlistId: bigint, trackId: number): boolean {
+  playlistContainsTrack(playlistId: bigint, track: TrackHandle): boolean {
     const native = this.ensureOpen();
     try {
-      return native.playlistContainsTrack(playlistId, trackId);
+      return native.playlistContainsTrack(playlistId, track.index);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -1072,24 +1129,25 @@ export class Database {
    * Get all tracks in a playlist.
    *
    * @param playlistId ID of the playlist
-   * @returns Array of tracks in the playlist
+   * @returns Array of track handles in the playlist
    * @throws LibgpodError if the playlist is not found
    *
    * @example
    * ```typescript
    * const playlist = db.getPlaylistByName('Favorites');
    * if (playlist) {
-   *   const tracks = db.getPlaylistTracks(playlist.id);
-   *   for (const track of tracks) {
+   *   const handles = db.getPlaylistTracks(playlist.id);
+   *   for (const handle of handles) {
+   *     const track = db.getTrack(handle);
    *     console.log(`${track.artist} - ${track.title}`);
    *   }
    * }
    * ```
    */
-  getPlaylistTracks(playlistId: bigint): Track[] {
+  getPlaylistTracks(playlistId: bigint): TrackHandle[] {
     const native = this.ensureOpen();
     try {
-      return native.getPlaylistTracks(playlistId);
+      return native.getPlaylistTracks(playlistId).map((index) => this.createHandle(index));
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -1389,25 +1447,26 @@ export class Database {
    * evaluates rules dynamically.
    *
    * @param playlistId ID of the smart playlist
-   * @returns Array of tracks that match the rules
+   * @returns Array of track handles that match the rules
    * @throws LibgpodError if the playlist is not found or is not a smart playlist
    *
    * @example
    * ```typescript
    * const playlist = db.getPlaylistByName('Rock Music');
    * if (playlist && playlist.isSmart) {
-   *   const matchingTracks = db.evaluateSmartPlaylist(playlist.id);
-   *   console.log(`${matchingTracks.length} tracks match the rules`);
-   *   for (const track of matchingTracks) {
+   *   const matchingHandles = db.evaluateSmartPlaylist(playlist.id);
+   *   console.log(`${matchingHandles.length} tracks match the rules`);
+   *   for (const handle of matchingHandles) {
+   *     const track = db.getTrack(handle);
    *     console.log(`  - ${track.artist} - ${track.title}`);
    *   }
    * }
    * ```
    */
-  evaluateSmartPlaylist(playlistId: bigint): Track[] {
+  evaluateSmartPlaylist(playlistId: bigint): TrackHandle[] {
     const native = this.ensureOpen();
     try {
-      return native.evaluateSmartPlaylist(playlistId);
+      return native.evaluateSmartPlaylist(playlistId).map((index) => this.createHandle(index));
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -1567,27 +1626,27 @@ export class Database {
    * Chapters provide navigation points within a track, commonly used for
    * podcasts (mediaType = 4) and audiobooks (mediaType = 8).
    *
-   * @param trackId ID of the track
+   * @param handle Handle of the track
    * @returns Array of chapters, or empty array if no chapters exist
-   * @throws LibgpodError if the track is not found
+   * @throws LibgpodError if the handle is invalid
    *
    * @example
    * ```typescript
    * import { MediaType } from '@podkit/libgpod-node';
    *
-   * const track = db.getTrackById(trackId);
-   * if (track && (track.mediaType & MediaType.Podcast)) {
-   *   const chapters = db.getTrackChapters(trackId);
+   * const track = db.getTrack(handle);
+   * if (track.mediaType & MediaType.Podcast) {
+   *   const chapters = db.getTrackChapters(handle);
    *   for (const chapter of chapters) {
    *     console.log(`${chapter.startPos}ms: ${chapter.title}`);
    *   }
    * }
    * ```
    */
-  getTrackChapters(trackId: number): Chapter[] {
+  getTrackChapters(handle: TrackHandle): Chapter[] {
     const native = this.ensureOpen();
     try {
-      return native.getTrackChapters(trackId);
+      return native.getTrackChapters(handle.index);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -1606,22 +1665,22 @@ export class Database {
    * Note: The first chapter's startPos should be 0 (will be converted to 1
    * by libgpod, as that's the minimum valid start position).
    *
-   * @param trackId ID of the track
+   * @param handle Handle of the track
    * @param chapters Array of chapter definitions
    * @returns The chapters as stored (startPos may be adjusted)
-   * @throws LibgpodError if the track is not found
+   * @throws LibgpodError if the handle is invalid
    *
    * @example
    * ```typescript
    * import { MediaType } from '@podkit/libgpod-node';
    *
    * // Add a podcast episode with chapters
-   * const track = db.addTrack({
+   * const handle = db.addTrack({
    *   title: 'Podcast Episode 1',
    *   mediaType: MediaType.Podcast,
    * });
    *
-   * db.setTrackChapters(track.id, [
+   * db.setTrackChapters(handle, [
    *   { startPos: 0, title: 'Introduction' },
    *   { startPos: 60000, title: 'Topic 1' },
    *   { startPos: 300000, title: 'Topic 2' },
@@ -1631,10 +1690,10 @@ export class Database {
    * await db.save();
    * ```
    */
-  setTrackChapters(trackId: number, chapters: ChapterInput[]): Chapter[] {
+  setTrackChapters(handle: TrackHandle, chapters: ChapterInput[]): Chapter[] {
     const native = this.ensureOpen();
     try {
-      return native.setTrackChapters(trackId, chapters);
+      return native.setTrackChapters(handle.index, chapters);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -1650,26 +1709,26 @@ export class Database {
    * Chapters are appended to the existing chapter list. For best results,
    * add chapters in chronological order (ascending start times).
    *
-   * @param trackId ID of the track
+   * @param handle Handle of the track
    * @param startPos Start position in milliseconds (0 will be converted to 1)
    * @param title Chapter title
    * @returns All chapters after adding the new one
-   * @throws LibgpodError if the track is not found
+   * @throws LibgpodError if the handle is invalid
    *
    * @example
    * ```typescript
    * // Add chapters one by one
-   * db.addTrackChapter(trackId, 0, 'Introduction');
-   * db.addTrackChapter(trackId, 120000, 'Chapter 1');
-   * db.addTrackChapter(trackId, 360000, 'Chapter 2');
+   * db.addTrackChapter(handle, 0, 'Introduction');
+   * db.addTrackChapter(handle, 120000, 'Chapter 1');
+   * db.addTrackChapter(handle, 360000, 'Chapter 2');
    *
    * await db.save();
    * ```
    */
-  addTrackChapter(trackId: number, startPos: number, title: string): Chapter[] {
+  addTrackChapter(handle: TrackHandle, startPos: number, title: string): Chapter[] {
     const native = this.ensureOpen();
     try {
-      return native.addTrackChapter(trackId, startPos, title);
+      return native.addTrackChapter(handle.index, startPos, title);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),
@@ -1682,20 +1741,20 @@ export class Database {
   /**
    * Remove all chapters from a track.
    *
-   * @param trackId ID of the track
-   * @throws LibgpodError if the track is not found
+   * @param handle Handle of the track
+   * @throws LibgpodError if the handle is invalid
    *
    * @example
    * ```typescript
    * // Remove chapters from a track
-   * db.clearTrackChapters(trackId);
+   * db.clearTrackChapters(handle);
    * await db.save();
    * ```
    */
-  clearTrackChapters(trackId: number): void {
+  clearTrackChapters(handle: TrackHandle): void {
     const native = this.ensureOpen();
     try {
-      native.clearTrackChapters(trackId);
+      native.clearTrackChapters(handle.index);
     } catch (error) {
       throw new LibgpodError(
         error instanceof Error ? error.message : String(error),

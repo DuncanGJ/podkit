@@ -41,30 +41,54 @@ export interface NativeDatabaseInfo {
 
 /**
  * Native Database class interface.
+ *
+ * This interface reflects the native API which uses handle indices (numbers)
+ * to reference tracks. The TypeScript Database class wraps these in TrackHandle
+ * objects for type safety.
  */
 export interface NativeDatabase {
   getInfo(): NativeDatabaseInfo;
-  getTracks(): Track[];
+
+  // Track operations - handle-based API
+  /** Get all track handles (indices into native track array) */
+  getTracks(): number[];
+  /** Add a track, returns handle index */
+  addTrack(input: TrackInput): number;
+  /** Get track data from handle */
+  getTrackData(handle: number): Track;
+  /** Remove a track by handle */
+  removeTrack(handle: number): void;
+  /** Copy track file to device */
+  copyTrackToDevice(handle: number, sourcePath: string): Track;
+  /** Set track thumbnails from file */
+  setTrackThumbnails(handle: number, imagePath: string): Track;
+  /** Set track thumbnails from buffer */
+  setTrackThumbnailsFromData(handle: number, imageData: Buffer): Track;
+  /** Remove track thumbnails */
+  removeTrackThumbnails(handle: number): Track;
+  /** Check if track has thumbnails */
+  hasTrackThumbnails(handle: number): boolean;
+  /** Update track metadata */
+  updateTrack(handle: number, fields: Partial<TrackInput>): Track;
+  /** Get track file path on iPod */
+  getTrackFilePath(handle: number): string | null;
+  /** Duplicate a track, returns new handle */
+  duplicateTrack(handle: number): number;
+  /** Get unique artwork IDs */
+  getUniqueArtworkIds(): number[];
+  /** Get artwork format capabilities */
+  getArtworkFormats(): ArtworkCapabilities;
+
+  // Track lookup by dbid (returns handle or -1)
+  getTrackByDbId(dbid: bigint): number;
+
+  // Database operations
   getPlaylists(): Playlist[];
-  addTrack(input: TrackInput): Track;
-  removeTrack(trackId: number): void;
-  copyTrackToDevice(trackId: number, sourcePath: string): Track;
-  setTrackThumbnails(trackId: number, imagePath: string): Track;
-  setTrackThumbnailsFromData(trackId: number, imageData: Buffer): Track;
-  removeTrackThumbnails(trackId: number): Track;
-  hasTrackThumbnails(trackId: number): boolean;
   write(): boolean;
   close(): void;
   getMountpoint(): string | null;
   setMountpoint(mountpoint: string): void;
   getFilename(): string | null;
-  getTrackById(id: number): Track | null;
-  getTrackByDbId(dbid: bigint): Track | null;
-  updateTrack(trackId: number, fields: Partial<TrackInput>): Track;
-  getTrackFilePath(trackId: number): string | null;
-  duplicateTrack(trackId: number): Track;
-  getUniqueArtworkIds(): number[];
-  getArtworkFormats(): ArtworkCapabilities;
 
   // Playlist operations
   createPlaylist(name: string): Playlist;
@@ -72,10 +96,14 @@ export interface NativeDatabase {
   getPlaylistById(playlistId: bigint): Playlist | null;
   getPlaylistByName(name: string): Playlist | null;
   setPlaylistName(playlistId: bigint, newName: string): Playlist;
-  addTrackToPlaylist(playlistId: bigint, trackId: number): Playlist;
-  removeTrackFromPlaylist(playlistId: bigint, trackId: number): Playlist;
-  playlistContainsTrack(playlistId: bigint, trackId: number): boolean;
-  getPlaylistTracks(playlistId: bigint): Track[];
+  /** Add track to playlist by handle */
+  addTrackToPlaylist(playlistId: bigint, handle: number): Playlist;
+  /** Remove track from playlist by handle */
+  removeTrackFromPlaylist(playlistId: bigint, handle: number): Playlist;
+  /** Check if playlist contains track by handle */
+  playlistContainsTrack(playlistId: bigint, handle: number): boolean;
+  /** Get playlist tracks as handles */
+  getPlaylistTracks(playlistId: bigint): number[];
 
   // Smart playlist operations
   createSmartPlaylist(
@@ -95,18 +123,19 @@ export interface NativeDatabase {
     preferences: Partial<SPLPreferences>
   ): SmartPlaylist;
   getSmartPlaylistPreferences(playlistId: bigint): SPLPreferences;
-  evaluateSmartPlaylist(playlistId: bigint): Track[];
+  /** Evaluate smart playlist, returns handles */
+  evaluateSmartPlaylist(playlistId: bigint): number[];
 
   // Device capability operations
   getDeviceCapabilities(): DeviceCapabilities;
   getSysInfo(field: string): string | null;
   setSysInfo(field: string, value: string | null): void;
 
-  // Chapter data operations
-  getTrackChapters(trackId: number): Chapter[];
-  setTrackChapters(trackId: number, chapters: ChapterInput[]): Chapter[];
-  addTrackChapter(trackId: number, startPos: number, title: string): Chapter[];
-  clearTrackChapters(trackId: number): void;
+  // Chapter data operations - handle-based
+  getTrackChapters(handle: number): Chapter[];
+  setTrackChapters(handle: number, chapters: ChapterInput[]): Chapter[];
+  addTrackChapter(handle: number, startPos: number, title: string): Chapter[];
+  clearTrackChapters(handle: number): void;
 }
 
 /**

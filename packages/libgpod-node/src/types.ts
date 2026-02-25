@@ -5,6 +5,46 @@
  * translated to TypeScript-friendly interfaces.
  */
 
+// ============================================================================
+// TrackHandle - Opaque reference to a track in the database
+// ============================================================================
+
+/**
+ * Opaque handle to a track in the database.
+ *
+ * This is the primary way to reference tracks for operations.
+ * The handle remains valid until the database is closed or the
+ * track is removed.
+ *
+ * To get track metadata, use `db.getTrack(handle)`.
+ *
+ * TrackHandle uses a branded type pattern to prevent accidentally
+ * passing plain numbers where handles are expected.
+ *
+ * @example
+ * ```typescript
+ * const handle = db.addTrack({ title: 'Song', artist: 'Artist' });
+ * const track = db.getTrack(handle);
+ * console.log(track.title);
+ *
+ * // Update track metadata
+ * db.updateTrack(handle, { rating: 80 });
+ *
+ * // Copy audio file to iPod
+ * db.copyTrackToDevice(handle, '/path/to/song.mp3');
+ * ```
+ */
+export interface TrackHandle {
+  /** Brand to prevent accidental use of plain numbers */
+  readonly __brand: 'TrackHandle';
+  /** Internal index into the native track array */
+  readonly index: number;
+}
+
+// ============================================================================
+// iPod Device Types
+// ============================================================================
+
 /**
  * iPod generation identifier.
  */
@@ -159,10 +199,20 @@ export interface DatabaseInfo {
 /**
  * Track metadata structure.
  * Represents an Itdb_Track from libgpod.
+ *
+ * This is a point-in-time snapshot of track metadata. Changes made
+ * to the track in the database will not be reflected here until you
+ * call `db.getTrack(handle)` again.
  */
 export interface Track {
-  /** Unique track ID */
-  id: number;
+  /**
+   * Track ID (assigned on save, may be 0 before save).
+   *
+   * Note: This ID is re-assigned every time the database is written,
+   * so it should not be persisted or used across database operations.
+   * Use TrackHandle to reference tracks.
+   */
+  id?: number;
   /** Database ID */
   dbid: bigint;
 

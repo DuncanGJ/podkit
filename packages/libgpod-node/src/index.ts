@@ -48,6 +48,7 @@ export { PhotoDatabase } from './photo-database';
 export type {
   // Core types
   Track,
+  TrackHandle,
   TrackInput,
   Playlist,
   DeviceInfo,
