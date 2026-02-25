@@ -16,12 +16,12 @@ Napi::Value DatabaseWrapper::SetTrackThumbnails(const Napi::CallbackInfo& info) 
     }
 
     if (info.Length() < 2) {
-        Napi::TypeError::New(env, "Expected track ID and image path").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected track handle and image path").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
     if (!info[0].IsNumber()) {
-        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected track handle as number").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -30,13 +30,13 @@ Napi::Value DatabaseWrapper::SetTrackThumbnails(const Napi::CallbackInfo& info) 
         return env.Undefined();
     }
 
-    uint32_t trackId = info[0].As<Napi::Number>().Uint32Value();
+    uint32_t handle = info[0].As<Napi::Number>().Uint32Value();
     std::string imagePath = info[1].As<Napi::String>().Utf8Value();
 
-    // Find the track by ID
-    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    // Find the track by handle
+    Itdb_Track* track = GetTrackByHandle(handle);
     if (!track) {
-        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        Napi::Error::New(env, "Invalid track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -62,12 +62,12 @@ Napi::Value DatabaseWrapper::SetTrackThumbnailsFromData(const Napi::CallbackInfo
     }
 
     if (info.Length() < 2) {
-        Napi::TypeError::New(env, "Expected track ID and image data buffer").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected track handle and image data buffer").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
     if (!info[0].IsNumber()) {
-        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected track handle as number").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -76,13 +76,13 @@ Napi::Value DatabaseWrapper::SetTrackThumbnailsFromData(const Napi::CallbackInfo
         return env.Undefined();
     }
 
-    uint32_t trackId = info[0].As<Napi::Number>().Uint32Value();
+    uint32_t handle = info[0].As<Napi::Number>().Uint32Value();
     Napi::Buffer<guchar> buffer = info[1].As<Napi::Buffer<guchar>>();
 
-    // Find the track by ID
-    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    // Find the track by handle
+    Itdb_Track* track = GetTrackByHandle(handle);
     if (!track) {
-        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        Napi::Error::New(env, "Invalid track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -111,16 +111,16 @@ Napi::Value DatabaseWrapper::RemoveTrackThumbnails(const Napi::CallbackInfo& inf
     }
 
     if (info.Length() < 1 || !info[0].IsNumber()) {
-        Napi::TypeError::New(env, "Expected track ID").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
-    uint32_t trackId = info[0].As<Napi::Number>().Uint32Value();
+    uint32_t handle = info[0].As<Napi::Number>().Uint32Value();
 
-    // Find the track by ID
-    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    // Find the track by handle
+    Itdb_Track* track = GetTrackByHandle(handle);
     if (!track) {
-        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        Napi::Error::New(env, "Invalid track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -140,16 +140,16 @@ Napi::Value DatabaseWrapper::HasTrackThumbnails(const Napi::CallbackInfo& info) 
     }
 
     if (info.Length() < 1 || !info[0].IsNumber()) {
-        Napi::TypeError::New(env, "Expected track ID").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
-    uint32_t trackId = info[0].As<Napi::Number>().Uint32Value();
+    uint32_t handle = info[0].As<Napi::Number>().Uint32Value();
 
-    // Find the track by ID
-    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    // Find the track by handle
+    Itdb_Track* track = GetTrackByHandle(handle);
     if (!track) {
-        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        Napi::Error::New(env, "Invalid track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 

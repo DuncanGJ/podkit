@@ -22,8 +22,8 @@ Napi::Object DatabaseWrapper::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("getMountpoint", &DatabaseWrapper::GetMountpoint),
         InstanceMethod("setMountpoint", &DatabaseWrapper::SetMountpoint),
         InstanceMethod("getFilename", &DatabaseWrapper::GetFilename),
-        // Track methods
-        InstanceMethod("getTrackById", &DatabaseWrapper::GetTrackById),
+        // Track methods (handle-based API)
+        InstanceMethod("getTrackData", &DatabaseWrapper::GetTrackData),
         InstanceMethod("getTrackByDbId", &DatabaseWrapper::GetTrackByDbId),
         InstanceMethod("addTrack", &DatabaseWrapper::AddTrack),
         InstanceMethod("removeTrack", &DatabaseWrapper::RemoveTrack),
@@ -88,9 +88,64 @@ DatabaseWrapper::DatabaseWrapper(const Napi::CallbackInfo& info)
 }
 
 DatabaseWrapper::~DatabaseWrapper() {
+    ClearTrackHandles();
     if (db_) {
         itdb_free(db_);
         db_ = nullptr;
+    }
+}
+
+// ============================================================================
+// Track Handle Management
+// ============================================================================
+
+void DatabaseWrapper::SetDatabase(Itdb_iTunesDB* db) {
+    ClearTrackHandles();
+    db_ = db;
+    if (db_) {
+        PopulateTrackHandles();
+    }
+}
+
+void DatabaseWrapper::PopulateTrackHandles() {
+    // Register all existing tracks from the database
+    for (GList* l = db_->tracks; l != nullptr; l = l->next) {
+        Itdb_Track* track = static_cast<Itdb_Track*>(l->data);
+        RegisterTrack(track);
+    }
+}
+
+void DatabaseWrapper::ClearTrackHandles() {
+    trackHandles_.clear();
+    pointerToHandle_.clear();
+}
+
+uint32_t DatabaseWrapper::RegisterTrack(Itdb_Track* track) {
+    // Check if already registered
+    auto it = pointerToHandle_.find(track);
+    if (it != pointerToHandle_.end()) {
+        return it->second;
+    }
+
+    // Assign new handle (index into vector)
+    uint32_t handle = static_cast<uint32_t>(trackHandles_.size());
+    trackHandles_.push_back(track);
+    pointerToHandle_[track] = handle;
+    return handle;
+}
+
+Itdb_Track* DatabaseWrapper::GetTrackByHandle(uint32_t handle) {
+    if (handle >= trackHandles_.size()) {
+        return nullptr;
+    }
+    return trackHandles_[handle];  // May be nullptr if invalidated
+}
+
+void DatabaseWrapper::InvalidateHandle(uint32_t handle) {
+    if (handle < trackHandles_.size() && trackHandles_[handle] != nullptr) {
+        Itdb_Track* track = trackHandles_[handle];
+        pointerToHandle_.erase(track);
+        trackHandles_[handle] = nullptr;
     }
 }
 
@@ -127,12 +182,14 @@ Napi::Value DatabaseWrapper::GetTracks(const Napi::CallbackInfo& info) {
         return env.Undefined();
     }
 
+    // Return array of handles (indices)
     Napi::Array result = Napi::Array::New(env);
-    uint32_t index = 0;
+    uint32_t resultIndex = 0;
 
-    for (GList* l = db_->tracks; l != nullptr; l = l->next) {
-        Itdb_Track* track = static_cast<Itdb_Track*>(l->data);
-        result.Set(index++, TrackToObject(env, track));
+    for (uint32_t handle = 0; handle < trackHandles_.size(); ++handle) {
+        if (trackHandles_[handle] != nullptr) {
+            result.Set(resultIndex++, Napi::Number::New(env, handle));
+        }
     }
 
     return result;
@@ -183,6 +240,7 @@ Napi::Value DatabaseWrapper::Write(const Napi::CallbackInfo& info) {
 Napi::Value DatabaseWrapper::Close(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
+    ClearTrackHandles();
     if (db_) {
         itdb_free(db_);
         db_ = nullptr;

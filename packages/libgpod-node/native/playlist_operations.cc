@@ -162,7 +162,7 @@ Napi::Value DatabaseWrapper::AddTrackToPlaylist(const Napi::CallbackInfo& info) 
     }
 
     if (info.Length() < 2) {
-        Napi::TypeError::New(env, "Expected playlist ID and track ID").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected playlist ID and track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -172,13 +172,13 @@ Napi::Value DatabaseWrapper::AddTrackToPlaylist(const Napi::CallbackInfo& info) 
     }
 
     if (!info[1].IsNumber()) {
-        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected track handle as number").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
     bool lossless;
     uint64_t playlistId = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
-    uint32_t trackId = info[1].As<Napi::Number>().Uint32Value();
+    uint32_t handle = info[1].As<Napi::Number>().Uint32Value();
 
     Itdb_Playlist* pl = itdb_playlist_by_id(db_, playlistId);
     if (!pl) {
@@ -186,9 +186,9 @@ Napi::Value DatabaseWrapper::AddTrackToPlaylist(const Napi::CallbackInfo& info) 
         return env.Undefined();
     }
 
-    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    Itdb_Track* track = GetTrackByHandle(handle);
     if (!track) {
-        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        Napi::Error::New(env, "Invalid track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -207,7 +207,7 @@ Napi::Value DatabaseWrapper::RemoveTrackFromPlaylist(const Napi::CallbackInfo& i
     }
 
     if (info.Length() < 2) {
-        Napi::TypeError::New(env, "Expected playlist ID and track ID").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected playlist ID and track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -217,13 +217,13 @@ Napi::Value DatabaseWrapper::RemoveTrackFromPlaylist(const Napi::CallbackInfo& i
     }
 
     if (!info[1].IsNumber()) {
-        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected track handle as number").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
     bool lossless;
     uint64_t playlistId = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
-    uint32_t trackId = info[1].As<Napi::Number>().Uint32Value();
+    uint32_t handle = info[1].As<Napi::Number>().Uint32Value();
 
     Itdb_Playlist* pl = itdb_playlist_by_id(db_, playlistId);
     if (!pl) {
@@ -231,9 +231,9 @@ Napi::Value DatabaseWrapper::RemoveTrackFromPlaylist(const Napi::CallbackInfo& i
         return env.Undefined();
     }
 
-    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    Itdb_Track* track = GetTrackByHandle(handle);
     if (!track) {
-        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        Napi::Error::New(env, "Invalid track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -252,7 +252,7 @@ Napi::Value DatabaseWrapper::PlaylistContainsTrack(const Napi::CallbackInfo& inf
     }
 
     if (info.Length() < 2) {
-        Napi::TypeError::New(env, "Expected playlist ID and track ID").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected playlist ID and track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -262,13 +262,13 @@ Napi::Value DatabaseWrapper::PlaylistContainsTrack(const Napi::CallbackInfo& inf
     }
 
     if (!info[1].IsNumber()) {
-        Napi::TypeError::New(env, "Expected track ID as number").ThrowAsJavaScriptException();
+        Napi::TypeError::New(env, "Expected track handle as number").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
     bool lossless;
     uint64_t playlistId = info[0].As<Napi::BigInt>().Uint64Value(&lossless);
-    uint32_t trackId = info[1].As<Napi::Number>().Uint32Value();
+    uint32_t handle = info[1].As<Napi::Number>().Uint32Value();
 
     Itdb_Playlist* pl = itdb_playlist_by_id(db_, playlistId);
     if (!pl) {
@@ -276,9 +276,9 @@ Napi::Value DatabaseWrapper::PlaylistContainsTrack(const Napi::CallbackInfo& inf
         return env.Undefined();
     }
 
-    Itdb_Track* track = itdb_track_by_id(db_, trackId);
+    Itdb_Track* track = GetTrackByHandle(handle);
     if (!track) {
-        Napi::Error::New(env, "Track not found").ThrowAsJavaScriptException();
+        Napi::Error::New(env, "Invalid track handle").ThrowAsJavaScriptException();
         return env.Undefined();
     }
 
@@ -308,12 +308,15 @@ Napi::Value DatabaseWrapper::GetPlaylistTracks(const Napi::CallbackInfo& info) {
         return env.Undefined();
     }
 
+    // Return array of handles
     Napi::Array result = Napi::Array::New(env);
     uint32_t index = 0;
 
     for (GList* l = pl->members; l != nullptr; l = l->next) {
         Itdb_Track* track = static_cast<Itdb_Track*>(l->data);
-        result.Set(index++, TrackToObject(env, track));
+        // Get or register handle for this track
+        uint32_t handle = RegisterTrack(track);
+        result.Set(index++, Napi::Number::New(env, handle));
     }
 
     return result;
@@ -712,7 +715,9 @@ Napi::Value DatabaseWrapper::EvaluateSmartPlaylist(const Napi::CallbackInfo& inf
         }
 
         if (matchesRules) {
-            result.Set(index++, TrackToObject(env, track));
+            // Return handle instead of track object
+            uint32_t handle = RegisterTrack(track);
+            result.Set(index++, Napi::Number::New(env, handle));
         }
     }
 

@@ -3,10 +3,18 @@
 /**
  * DatabaseWrapper class declaration.
  * Wraps an Itdb_iTunesDB pointer for N-API.
+ *
+ * Track Handle System:
+ * - Tracks are referenced by handles (indices into trackHandles_ vector)
+ * - Handles remain valid after save() since pointers don't change
+ * - Handles are invalidated when tracks are removed (set to nullptr)
+ * - This mirrors how libgpod expects callers to use Itdb_Track* pointers
  */
 
 #include <napi.h>
 #include <gpod/itdb.h>
+#include <vector>
+#include <unordered_map>
 
 class DatabaseWrapper : public Napi::ObjectWrap<DatabaseWrapper> {
 public:
@@ -16,14 +24,27 @@ public:
     ~DatabaseWrapper();
 
     // Set the database pointer (called from Parse)
-    void SetDatabase(Itdb_iTunesDB* db) { db_ = db; }
+    void SetDatabase(Itdb_iTunesDB* db);
 
     // Get the database pointer (for use in operation files)
     Itdb_iTunesDB* GetDatabase() const { return db_; }
 
+    // Track handle management (public for use in track_operations.cc etc.)
+    uint32_t RegisterTrack(Itdb_Track* track);
+    Itdb_Track* GetTrackByHandle(uint32_t handle);
+    void InvalidateHandle(uint32_t handle);
+
 private:
     static Napi::FunctionReference constructor;
     Itdb_iTunesDB* db_;
+
+    // Track handle storage
+    std::vector<Itdb_Track*> trackHandles_;
+    std::unordered_map<Itdb_Track*, uint32_t> pointerToHandle_;
+
+    // Internal helpers
+    void PopulateTrackHandles();
+    void ClearTrackHandles();
 
     // Core database methods (database_wrapper.cc)
     Napi::Value GetInfo(const Napi::CallbackInfo& info);
@@ -36,14 +57,15 @@ private:
     Napi::Value GetFilename(const Napi::CallbackInfo& info);
 
     // Track operations (track_operations.cc)
-    Napi::Value GetTrackById(const Napi::CallbackInfo& info);
-    Napi::Value GetTrackByDbId(const Napi::CallbackInfo& info);
-    Napi::Value AddTrack(const Napi::CallbackInfo& info);
-    Napi::Value RemoveTrack(const Napi::CallbackInfo& info);
-    Napi::Value CopyTrackToDevice(const Napi::CallbackInfo& info);
-    Napi::Value UpdateTrack(const Napi::CallbackInfo& info);
-    Napi::Value GetTrackFilePath(const Napi::CallbackInfo& info);
-    Napi::Value DuplicateTrack(const Napi::CallbackInfo& info);
+    // Note: All methods accept handle (index) instead of trackId
+    Napi::Value GetTrackData(const Napi::CallbackInfo& info);  // Get track object by handle
+    Napi::Value GetTrackByDbId(const Napi::CallbackInfo& info);  // Kept for compatibility, returns handle
+    Napi::Value AddTrack(const Napi::CallbackInfo& info);  // Returns handle
+    Napi::Value RemoveTrack(const Napi::CallbackInfo& info);  // Takes handle
+    Napi::Value CopyTrackToDevice(const Napi::CallbackInfo& info);  // Takes handle
+    Napi::Value UpdateTrack(const Napi::CallbackInfo& info);  // Takes handle
+    Napi::Value GetTrackFilePath(const Napi::CallbackInfo& info);  // Takes handle
+    Napi::Value DuplicateTrack(const Napi::CallbackInfo& info);  // Takes handle, returns handle
 
     // Artwork operations (artwork_operations.cc)
     Napi::Value SetTrackThumbnails(const Napi::CallbackInfo& info);
