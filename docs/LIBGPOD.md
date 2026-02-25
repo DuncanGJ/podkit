@@ -434,6 +434,109 @@ itdb_free(db);  // Frees all tracks, playlists, etc.
 
 libgpod is **not thread-safe**. All operations on a single database must be serialized. Multiple databases can be used in parallel if they're for different devices.
 
+## Track Identification
+
+Understanding how libgpod identifies tracks is critical for building stable applications. libgpod provides several identifiers, but **only pointers (`Itdb_Track*`) are reliable references**.
+
+### Track IDs (`track->id`)
+
+The `id` field is a 32-bit integer that appears to be a unique track identifier, but it has significant limitations:
+
+- **Assigned during `itdb_write()`, not `itdb_track_add()`** - newly added tracks have `id = 0` until the database is saved
+- **Reassigned on every export** - track IDs are not stable across database writes
+- **Not a primary key** - libgpod's own documentation states that `itdb_track_by_id()` is "not really a good idea"
+- **Internal use only** - the ID exists primarily for iTunesDB binary format references
+
+```c
+Itdb_Track *track = itdb_track_new();
+itdb_track_add(db, track, -1);
+printf("ID: %d\n", track->id);  // Prints 0
+
+itdb_write(db, NULL);
+printf("ID: %d\n", track->id);  // Now has an assigned ID
+
+itdb_write(db, NULL);
+printf("ID: %d\n", track->id);  // May have a DIFFERENT ID!
+```
+
+### Track Database IDs (`track->dbid`)
+
+The `dbid` field is a 64-bit unique identifier:
+
+- More stable than `id`, but also assigned during `itdb_write()`
+- No `itdb_track_by_dbid()` function exists in libgpod - finding a track by dbid requires manual iteration through `db->tracks`
+- Better suited for external persistence than `id`, but still not recommended as a primary reference
+
+### Pointers (`Itdb_Track*`)
+
+**Pointers are the primary reference mechanism** in libgpod. This is how the library is designed to be used:
+
+- Remain valid after `itdb_write()` - you can continue using the same pointer
+- Invalidated by `itdb_track_remove()` - the track is freed, pointer becomes dangling
+- Invalidated by `itdb_free()` - all tracks are freed when the database is closed
+
+```c
+Itdb_Track *track = itdb_track_new();
+itdb_track_add(db, track, -1);
+
+// Use the pointer for all operations
+track->title = "My Song";
+itdb_cp_track_to_ipod(track, "/path/to/file.mp3", NULL);
+itdb_track_set_thumbnails(track, "/path/to/artwork.jpg");
+
+itdb_write(db, NULL);
+
+// Pointer is still valid after write
+printf("Title: %s\n", track->title);
+printf("iPod path: %s\n", track->ipod_path);
+
+// WARNING: After remove, pointer is invalid
+itdb_track_remove(track);
+// track is now a dangling pointer - DO NOT USE
+```
+
+### Why `getTrackById()` is Not Exposed
+
+The libgpod-node binding intentionally does not expose `itdb_track_by_id()` because:
+
+1. **libgpod's own documentation discourages it** - the function exists only for internal use during iTunesDB import/export
+2. **Track IDs are reassigned on every `itdb_write()`** - any cached ID becomes invalid after saving
+3. **ID is 0 for new tracks** - newly added tracks cannot be found by ID until after a write
+
+Instead, libgpod-node uses `TrackHandle` which wraps a pointer internally and provides stable references within a session.
+
+### How libgpod-node Uses TrackHandle
+
+The `TrackHandle` abstraction provides safe track references:
+
+```typescript
+// TrackHandle wraps a pointer (exposed as handle index)
+const handle = db.addTrack('/path/to/music.mp3', metadata);
+
+// All operations accept TrackHandle
+db.setTrackMetadata(handle, { title: 'New Title' });
+db.setTrackArtwork(handle, '/path/to/artwork.jpg');
+
+// After write, handle remains valid
+await db.write();
+const info = db.getTrackInfo(handle);  // Still works
+```
+
+To find a specific track, use:
+- **Within a session**: Keep the `TrackHandle` returned from `addTrack()` or `getTracks()`
+- **Across sessions**: Match by metadata (artist/album/title) or `ipod_path`
+
+### Real-World Validation: Strawberry Music Player
+
+Analysis of [Strawberry Music Player](https://github.com/strawberrymusicplayer/strawberry), a major libgpod user, confirms this approach:
+
+- **Never uses `itdb_track_by_id()`** - no calls to this function anywhere in the codebase
+- **Passes `Itdb_Track*` pointers** through all operations
+- **Finds tracks by iterating `db->tracks`** and matching `ipod_path` or metadata
+- **Stores pointer in UI models** - track objects hold the `Itdb_Track*` directly
+
+This validates that pointer-based track management is the intended and correct usage pattern for libgpod.
+
 ## API Mapping for Node Wrapper
 
 ### Proposed TypeScript API
