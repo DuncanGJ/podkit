@@ -21,7 +21,7 @@
     "build": "bun run build:native && bun run build:ts",
     "build:native": "node-gyp rebuild",
     "build:ts": "bun build src/index.ts --outdir dist --target node && bun run build:types",
-    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build:types": "tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
     "clean": "rm -rf dist build",
     "install": "node-gyp rebuild || echo 'Native build failed - some features may not work'",
     "test": "bun test",

@@ -154,7 +154,7 @@ describe('libgpod artwork deduplication (TASK-037)', () => {
           // Track should still have artwork
           const tracks = db2.getTracks();
           expect(tracks.length).toBe(1);
-          expect(tracks[0].hasArtwork).toBe(true);
+          expect(tracks[0]!.hasArtwork).toBe(true);
 
           db2.close();
         });

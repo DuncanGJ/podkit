@@ -89,9 +89,9 @@ describe('libgpod-node smart playlist operations', () => {
         });
 
         expect(playlist.rules).toHaveLength(1);
-        expect(playlist.rules[0].field).toBe(SPLField.Genre);
-        expect(playlist.rules[0].action).toBe(SPLAction.Contains);
-        expect(playlist.rules[0].string).toBe('Rock');
+        expect(playlist.rules[0]!.field).toBe(SPLField.Genre);
+        expect(playlist.rules[0]!.action).toBe(SPLAction.Contains);
+        expect(playlist.rules[0]!.string).toBe('Rock');
         expect(playlist.match).toBe(SPLMatch.And);
 
         db.close();
@@ -123,8 +123,8 @@ describe('libgpod-node smart playlist operations', () => {
         });
 
         expect(playlist.rules).toHaveLength(2);
-        expect(playlist.rules[0].field).toBe(SPLField.Genre);
-        expect(playlist.rules[1].field).toBe(SPLField.Artist);
+        expect(playlist.rules[0]!.field).toBe(SPLField.Genre);
+        expect(playlist.rules[1]!.field).toBe(SPLField.Artist);
 
         db.close();
       });
@@ -221,8 +221,8 @@ describe('libgpod-node smart playlist operations', () => {
         // Get rules
         const rules = db2.getSmartPlaylistRules(created.id);
         expect(rules).toHaveLength(1);
-        expect(rules[0].field).toBe(SPLField.Artist);
-        expect(rules[0].string).toBe('Test Artist');
+        expect(rules[0]!.field).toBe(SPLField.Artist);
+        expect(rules[0]!.string).toBe('Test Artist');
 
         db2.close();
       });
@@ -250,8 +250,8 @@ describe('libgpod-node smart playlist operations', () => {
         });
 
         expect(updated.rules).toHaveLength(1);
-        expect(updated.rules[0].field).toBe(SPLField.Year);
-        expect(updated.rules[0].fromValue).toBe(2000);
+        expect(updated.rules[0]!.field).toBe(SPLField.Year);
+        expect(updated.rules[0]!.fromValue).toBe(2000);
 
         db.close();
       });
@@ -278,7 +278,7 @@ describe('libgpod-node smart playlist operations', () => {
         const updated = db.removeSmartPlaylistRule(playlist.id, 0);
 
         expect(updated.rules).toHaveLength(1);
-        expect(updated.rules[0].field).toBe(SPLField.Artist);
+        expect(updated.rules[0]!.field).toBe(SPLField.Artist);
 
         db.close();
       });
@@ -605,7 +605,7 @@ describe('libgpod-node smart playlist evaluation', () => {
 
         // Only "Rock Beatles" matches both rules
         expect(matches).toHaveLength(1);
-        expect(matches[0].title).toBe('Rock Beatles');
+        expect(matches[0]!.title).toBe('Rock Beatles');
 
         db2.close();
       });
@@ -740,9 +740,9 @@ describe('libgpod-node smart playlist rule types', () => {
         });
 
         expect(playlist.rules).toHaveLength(1);
-        expect(playlist.rules[0].field).toBe(SPLField.Rating);
-        expect(playlist.rules[0].action).toBe(SPLAction.IsGreaterThan);
-        expect(playlist.rules[0].fromValue).toBe(80);
+        expect(playlist.rules[0]!.field).toBe(SPLField.Rating);
+        expect(playlist.rules[0]!.action).toBe(SPLAction.IsGreaterThan);
+        expect(playlist.rules[0]!.fromValue).toBe(80);
 
         db.close();
       });
@@ -795,7 +795,7 @@ describe('libgpod-node smart playlist rule types', () => {
           ],
         });
 
-        expect(playlist.rules[0].field).toBe(SPLField.PlayCount);
+        expect(playlist.rules[0]!.field).toBe(SPLField.PlayCount);
 
         db.close();
       });
@@ -819,7 +819,7 @@ describe('libgpod-node smart playlist rule types', () => {
           ],
         });
 
-        expect(playlist.rules[0].action).toBe(SPLAction.DoesNotContain);
+        expect(playlist.rules[0]!.action).toBe(SPLAction.DoesNotContain);
 
         db.close();
       });
@@ -843,7 +843,7 @@ describe('libgpod-node smart playlist rule types', () => {
           ],
         });
 
-        expect(playlist.rules[0].action).toBe(SPLAction.StartsWith);
+        expect(playlist.rules[0]!.action).toBe(SPLAction.StartsWith);
 
         db.close();
       });
@@ -867,7 +867,7 @@ describe('libgpod-node smart playlist rule types', () => {
           ],
         });
 
-        expect(playlist.rules[0].field).toBe(SPLField.Album);
+        expect(playlist.rules[0]!.field).toBe(SPLField.Album);
 
         db.close();
       });
@@ -892,10 +892,10 @@ describe('libgpod-node smart playlist rule types', () => {
           ],
         });
 
-        expect(playlist.rules[0].field).toBe(SPLField.Year);
-        expect(playlist.rules[0].action).toBe(SPLAction.IsInTheRange);
-        expect(playlist.rules[0].fromValue).toBe(2000);
-        expect(playlist.rules[0].toValue).toBe(2009);
+        expect(playlist.rules[0]!.field).toBe(SPLField.Year);
+        expect(playlist.rules[0]!.action).toBe(SPLAction.IsInTheRange);
+        expect(playlist.rules[0]!.fromValue).toBe(2000);
+        expect(playlist.rules[0]!.toValue).toBe(2009);
 
         db.close();
       });
@@ -919,8 +919,8 @@ describe('libgpod-node smart playlist rule types', () => {
           ],
         });
 
-        expect(playlist.rules[0].action).toBe(SPLAction.IsString);
-        expect(playlist.rules[0].string).toBe('Rock');
+        expect(playlist.rules[0]!.action).toBe(SPLAction.IsString);
+        expect(playlist.rules[0]!.string).toBe('Rock');
 
         db.close();
       });
@@ -944,8 +944,8 @@ describe('libgpod-node smart playlist rule types', () => {
           ],
         });
 
-        expect(playlist.rules[0].field).toBe(SPLField.Bitrate);
-        expect(playlist.rules[0].fromValue).toBe(256);
+        expect(playlist.rules[0]!.field).toBe(SPLField.Bitrate);
+        expect(playlist.rules[0]!.fromValue).toBe(256);
 
         db.close();
       });
@@ -969,8 +969,8 @@ describe('libgpod-node smart playlist rule types', () => {
           ],
         });
 
-        expect(playlist.rules[0].field).toBe(SPLField.SkipCount);
-        expect(playlist.rules[0].action).toBe(SPLAction.IsLessThan);
+        expect(playlist.rules[0]!.field).toBe(SPLField.SkipCount);
+        expect(playlist.rules[0]!.action).toBe(SPLAction.IsLessThan);
 
         db.close();
       });

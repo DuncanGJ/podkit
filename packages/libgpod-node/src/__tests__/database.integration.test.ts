@@ -154,7 +154,7 @@ describe('libgpod-node with native binding', () => {
         // Get tracks
         const tracks = db.getTracks();
         expect(tracks).toHaveLength(1);
-        expect(tracks[0].title).toBe('Test Song');
+        expect(tracks[0]!.title).toBe('Test Song');
 
         // Get track by ID
         const found = db.getTrackById(newTrack.id);
@@ -188,7 +188,7 @@ describe('libgpod-node with native binding', () => {
         expect(db2.trackCount).toBe(1);
 
         const tracks = db2.getTracks();
-        expect(tracks[0].title).toBe('Saved Song');
+        expect(tracks[0]!.title).toBe('Saved Song');
 
         db2.close();
       });
@@ -214,7 +214,7 @@ describe('libgpod-node with native binding', () => {
         // Verify correct track remains
         const tracks = db.getTracks();
         expect(tracks).toHaveLength(1);
-        expect(tracks[0].title).toBe('Song 2');
+        expect(tracks[0]!.title).toBe('Song 2');
 
         db.close();
       });
@@ -532,8 +532,8 @@ describe('libgpod-node with native binding', () => {
         expect(db2.trackCount).toBe(1);
 
         const tracks = db2.getTracks();
-        expect(tracks[0].title).toBe('Created Track');
-        expect(tracks[0].artist).toBe('Created Artist');
+        expect(tracks[0]!.title).toBe('Created Track');
+        expect(tracks[0]!.artist).toBe('Created Artist');
 
         db2.close();
       });
@@ -606,7 +606,7 @@ describe('libgpod-node with native binding', () => {
         // Should have the track we saved
         expect(db2.trackCount).toBe(1);
         const tracks = db2.getTracks();
-        expect(tracks[0].title).toBe('File Track');
+        expect(tracks[0]!.title).toBe('File Track');
 
         // Mountpoint should be empty when opened from file
         expect(db2.mountpoint).toBe('');
@@ -646,7 +646,7 @@ describe('libgpod-node with native binding', () => {
         expect(db2.trackCount).toBe(1);
 
         const tracks = db2.getTracks();
-        expect(tracks[0].title).toBe('Async File Track');
+        expect(tracks[0]!.title).toBe('Async File Track');
 
         db2.close();
       });

@@ -385,7 +385,7 @@ describe('libgpod-node playlist CRUD operations', () => {
 
         const tracks = db2.getPlaylistTracks(foundPlaylist!.id);
         expect(tracks).toHaveLength(1);
-        expect(tracks[0].title).toBe('Persisted Track');
+        expect(tracks[0]!.title).toBe('Persisted Track');
 
         db2.close();
       });
@@ -560,9 +560,9 @@ describe('libgpod-node playlist CRUD operations', () => {
         // Get tracks and verify order (insertion order)
         const tracks = db2.getPlaylistTracks(playlist.id);
         expect(tracks).toHaveLength(3);
-        expect(tracks[0].title).toBe('BBB Second');
-        expect(tracks[1].title).toBe('AAA First');
-        expect(tracks[2].title).toBe('CCC Third');
+        expect(tracks[0]!.title).toBe('BBB Second');
+        expect(tracks[1]!.title).toBe('AAA First');
+        expect(tracks[2]!.title).toBe('CCC Third');
 
         db2.close();
       });

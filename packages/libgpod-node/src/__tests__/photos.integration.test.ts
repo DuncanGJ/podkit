@@ -607,7 +607,7 @@ describe('PhotoDatabase', () => {
             // Get fresh photo with assigned ID
             const photos = photoDb.getPhotos();
             expect(photos).toHaveLength(1);
-            const savedPhoto = photos[0];
+            const savedPhoto = photos[0]!;
 
             const updatedAlbum = photoDb.addPhotoToAlbum(album!.id, savedPhoto.id);
             expect(updatedAlbum.photoCount).toBe(1);
@@ -615,7 +615,7 @@ describe('PhotoDatabase', () => {
             // Get photos in album
             const albumPhotos = photoDb.getAlbumPhotos(album!.id);
             expect(albumPhotos).toHaveLength(1);
-            expect(albumPhotos[0].id).toBe(savedPhoto.id);
+            expect(albumPhotos[0]!.id).toBe(savedPhoto.id);
 
             photoDb.close();
           } catch (e) {
@@ -657,7 +657,7 @@ describe('PhotoDatabase', () => {
 
             const photos = photoDb.getPhotos();
             expect(photos).toHaveLength(1);
-            const photo = photos[0];
+            const photo = photos[0]!;
 
             // Add photo to album
             photoDb.addPhotoToAlbum(album!.id, photo.id);

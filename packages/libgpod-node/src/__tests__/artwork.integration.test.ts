@@ -88,7 +88,7 @@ describe('libgpod-node artwork (setTrackArtwork)', () => {
         const db2 = Database.openSync(ipod.path);
         const tracks = db2.getTracks();
         expect(tracks).toHaveLength(1);
-        expect(tracks[0].hasArtwork).toBe(true);
+        expect(tracks[0]!.hasArtwork).toBe(true);
         db2.close();
       });
     }
@@ -144,7 +144,7 @@ describe('libgpod-node artwork (setTrackArtwork)', () => {
         const db2 = Database.openSync(ipod.path);
         const tracks = db2.getTracks();
         expect(tracks).toHaveLength(1);
-        expect(tracks[0].hasArtwork).toBe(false);
+        expect(tracks[0]!.hasArtwork).toBe(false);
         db2.close();
       });
     }
@@ -297,10 +297,10 @@ describe('libgpod-node artwork (setTrackArtwork)', () => {
         const db2 = Database.openSync(ipod.path);
         const tracks = db2.getTracks();
         expect(tracks).toHaveLength(1);
-        expect(tracks[0].title).toBe('Complete Track');
-        expect(tracks[0].ipodPath).not.toBeNull();
-        expect(tracks[0].transferred).toBe(true);
-        expect(tracks[0].hasArtwork).toBe(true);
+        expect(tracks[0]!.title).toBe('Complete Track');
+        expect(tracks[0]!.ipodPath).not.toBeNull();
+        expect(tracks[0]!.transferred).toBe(true);
+        expect(tracks[0]!.hasArtwork).toBe(true);
         db2.close();
       });
     }
@@ -652,7 +652,7 @@ describe('libgpod-node artwork management APIs', () => {
         const db2 = Database.openSync(ipod.path);
         const tracks2 = db2.getTracks();
         expect(tracks2).toHaveLength(1);
-        expect(tracks2[0].hasArtwork).toBe(false);
+        expect(tracks2[0]!.hasArtwork).toBe(false);
         db2.close();
       });
     }
@@ -733,7 +733,7 @@ describe('libgpod-node artwork management APIs', () => {
         const db2 = Database.openSync(ipod.path);
         const tracks = db2.getTracks();
         expect(tracks).toHaveLength(1);
-        expect(tracks[0].hasArtwork).toBe(true);
+        expect(tracks[0]!.hasArtwork).toBe(true);
         db2.close();
       });
     }
@@ -836,11 +836,11 @@ describe('libgpod-node artwork management APIs', () => {
 
         // Re-fetch track with assigned ID
         const tracks = db.getTracks();
-        const trackId = tracks[0].id;
+        const trackId = tracks[0]!.id;
 
         // 2. Check - no artwork initially
         expect(db.hasTrackArtwork(trackId)).toBe(false);
-        expect(tracks[0].hasArtwork).toBe(false);
+        expect(tracks[0]!.hasArtwork).toBe(false);
 
         // 3. Set artwork from buffer
         const imageData = createMinimalJpeg();
@@ -868,7 +868,7 @@ describe('libgpod-node artwork management APIs', () => {
         db.close();
 
         const db2 = Database.openSync(ipod.path);
-        const finalTrack = db2.getTracks()[0];
+        const finalTrack = db2.getTracks()[0]!;
         expect(finalTrack.hasArtwork).toBe(false);
         db2.close();
       });
@@ -981,29 +981,32 @@ describe('libgpod-node artwork management APIs', () => {
 
         // Re-fetch tracks with assigned IDs
         const allTracks = db.getTracks();
-        const track1 = allTracks.find((t) => t.title === 'Track 1')!;
-        const track2 = allTracks.find((t) => t.title === 'Track 2')!;
-        const track3 = allTracks.find((t) => t.title === 'Track 3')!;
+        const track1 = allTracks.find((t) => t.title === 'Track 1');
+        const track2 = allTracks.find((t) => t.title === 'Track 2');
+        const track3 = allTracks.find((t) => t.title === 'Track 3');
+        expect(track1).toBeDefined();
+        expect(track2).toBeDefined();
+        expect(track3).toBeDefined();
 
         // Set artwork on tracks 1 and 2 only
         const jpegData = createMinimalJpeg();
         const pngData = createMinimalPng();
 
-        db.setTrackArtworkFromData(track1.id, jpegData);
-        db.setTrackArtworkFromData(track2.id, pngData);
+        db.setTrackArtworkFromData(track1!.id, jpegData);
+        db.setTrackArtworkFromData(track2!.id, pngData);
         // track3 gets no artwork
 
         // Verify each track's state
-        expect(db.hasTrackArtwork(track1.id)).toBe(true);
-        expect(db.hasTrackArtwork(track2.id)).toBe(true);
-        expect(db.hasTrackArtwork(track3.id)).toBe(false);
+        expect(db.hasTrackArtwork(track1!.id)).toBe(true);
+        expect(db.hasTrackArtwork(track2!.id)).toBe(true);
+        expect(db.hasTrackArtwork(track3!.id)).toBe(false);
 
         // Remove artwork from track 1
-        db.removeTrackArtwork(track1.id);
-        expect(db.hasTrackArtwork(track1.id)).toBe(false);
+        db.removeTrackArtwork(track1!.id);
+        expect(db.hasTrackArtwork(track1!.id)).toBe(false);
 
         // track 2 should still have artwork
-        expect(db.hasTrackArtwork(track2.id)).toBe(true);
+        expect(db.hasTrackArtwork(track2!.id)).toBe(true);
 
         db.close();
       });

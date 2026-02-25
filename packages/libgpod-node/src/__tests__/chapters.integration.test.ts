@@ -54,14 +54,14 @@ describe('libgpod-node chapter data (getTrackChapters, setTrackChapters)', () =>
 
       expect(chapters).toHaveLength(4);
       // First chapter startPos 0 becomes 1 in libgpod
-      expect(chapters[0].startPos).toBe(1);
-      expect(chapters[0].title).toBe('Introduction');
-      expect(chapters[1].startPos).toBe(60000);
-      expect(chapters[1].title).toBe('Topic 1');
-      expect(chapters[2].startPos).toBe(300000);
-      expect(chapters[2].title).toBe('Topic 2');
-      expect(chapters[3].startPos).toBe(600000);
-      expect(chapters[3].title).toBe('Conclusion');
+      expect(chapters[0]!.startPos).toBe(1);
+      expect(chapters[0]!.title).toBe('Introduction');
+      expect(chapters[1]!.startPos).toBe(60000);
+      expect(chapters[1]!.title).toBe('Topic 1');
+      expect(chapters[2]!.startPos).toBe(300000);
+      expect(chapters[2]!.title).toBe('Topic 2');
+      expect(chapters[3]!.startPos).toBe(600000);
+      expect(chapters[3]!.title).toBe('Conclusion');
 
       db.close();
     });
@@ -83,8 +83,8 @@ describe('libgpod-node chapter data (getTrackChapters, setTrackChapters)', () =>
 
       const chapters = db.getTrackChapters(track.id);
       expect(chapters).toHaveLength(2);
-      expect(chapters[0].title).toBe('Chapter 1');
-      expect(chapters[1].title).toBe('Chapter 2');
+      expect(chapters[0]!.title).toBe('Chapter 1');
+      expect(chapters[1]!.title).toBe('Chapter 2');
 
       db.close();
     });
@@ -116,8 +116,8 @@ describe('libgpod-node chapter data (getTrackChapters, setTrackChapters)', () =>
 
       const chapters = db.getTrackChapters(track.id);
       expect(chapters).toHaveLength(2);
-      expect(chapters[0].title).toBe('New Chapter A');
-      expect(chapters[1].title).toBe('New Chapter B');
+      expect(chapters[0]!.title).toBe('New Chapter A');
+      expect(chapters[1]!.title).toBe('New Chapter B');
 
       db.close();
     });
@@ -188,12 +188,12 @@ describe('libgpod-node chapter data (getTrackChapters, setTrackChapters)', () =>
       const tracks = db2.getTracks();
       expect(tracks).toHaveLength(1);
 
-      const chapters = db2.getTrackChapters(tracks[0].id);
+      const chapters = db2.getTrackChapters(tracks[0]!.id);
       expect(chapters).toHaveLength(3);
-      expect(chapters[0].title).toBe('Intro');
-      expect(chapters[1].title).toBe('Main Content');
-      expect(chapters[1].startPos).toBe(120000);
-      expect(chapters[2].title).toBe('Outro');
+      expect(chapters[0]!.title).toBe('Intro');
+      expect(chapters[1]!.title).toBe('Main Content');
+      expect(chapters[1]!.startPos).toBe(120000);
+      expect(chapters[2]!.title).toBe('Outro');
 
       db2.close();
     });
@@ -216,9 +216,9 @@ describe('libgpod-node chapter data (addTrackChapter)', () => {
 
       const chapters = db.getTrackChapters(track.id);
       expect(chapters).toHaveLength(3);
-      expect(chapters[0].title).toBe('Chapter 1');
-      expect(chapters[1].title).toBe('Chapter 2');
-      expect(chapters[2].title).toBe('Chapter 3');
+      expect(chapters[0]!.title).toBe('Chapter 1');
+      expect(chapters[1]!.title).toBe('Chapter 2');
+      expect(chapters[2]!.title).toBe('Chapter 3');
 
       db.close();
     });
@@ -343,17 +343,17 @@ describe('libgpod-node chapter data (clearTrackChapters)', () => {
       const db2 = Database.openSync(ipod.path);
       const tracks = db2.getTracks();
       expect(tracks).toHaveLength(1);
-      expect(db2.getTrackChapters(tracks[0].id)).toHaveLength(2);
+      expect(db2.getTrackChapters(tracks[0]!.id)).toHaveLength(2);
 
       // Clear and save
-      db2.clearTrackChapters(tracks[0].id);
+      db2.clearTrackChapters(tracks[0]!.id);
       db2.saveSync();
       db2.close();
 
       // Reopen and verify cleared
       const db3 = Database.openSync(ipod.path);
       const tracks2 = db3.getTracks();
-      expect(db3.getTrackChapters(tracks2[0].id)).toHaveLength(0);
+      expect(db3.getTrackChapters(tracks2[0]!.id)).toHaveLength(0);
 
       db3.close();
     });
@@ -376,8 +376,8 @@ describe('libgpod-node chapter data edge cases', () => {
       ]);
 
       expect(chapters).toHaveLength(1);
-      expect(chapters[0].startPos).toBe(1); // 0 becomes 1 in libgpod
-      expect(chapters[0].title).toBe('The Only Chapter');
+      expect(chapters[0]!.startPos).toBe(1); // 0 becomes 1 in libgpod
+      expect(chapters[0]!.title).toBe('The Only Chapter');
 
       db.close();
     });
@@ -399,8 +399,8 @@ describe('libgpod-node chapter data edge cases', () => {
 
       expect(chapters).toHaveLength(2);
       // Empty string is stored as empty string by libgpod
-      expect(chapters[0].title).toBe('');
-      expect(chapters[1].title).toBe('Named Chapter');
+      expect(chapters[0]!.title).toBe('');
+      expect(chapters[1]!.title).toBe('Named Chapter');
 
       db.close();
     });
@@ -426,7 +426,7 @@ describe('libgpod-node chapter data edge cases', () => {
         ]);
 
         expect(chapters).toHaveLength(2);
-        expect(chapters[1].startPos).toBe(120000);
+        expect(chapters[1]!.startPos).toBe(120000);
 
         db.close();
       });
@@ -487,12 +487,12 @@ describe('libgpod-node chapter data edge cases', () => {
 
         expect(chapters).toHaveLength(3);
         // Chapters are stored in the order provided
-        expect(chapters[0].startPos).toBe(300000);
-        expect(chapters[0].title).toBe('Middle');
-        expect(chapters[1].startPos).toBe(1); // 0 becomes 1
-        expect(chapters[1].title).toBe('Start');
-        expect(chapters[2].startPos).toBe(600000);
-        expect(chapters[2].title).toBe('End');
+        expect(chapters[0]!.startPos).toBe(300000);
+        expect(chapters[0]!.title).toBe('Middle');
+        expect(chapters[1]!.startPos).toBe(1); // 0 becomes 1
+        expect(chapters[1]!.title).toBe('Start');
+        expect(chapters[2]!.startPos).toBe(600000);
+        expect(chapters[2]!.title).toBe('End');
 
         db.close();
       });
@@ -518,8 +518,8 @@ describe('libgpod-node chapter data edge cases', () => {
         ]);
 
         expect(chapters).toHaveLength(2);
-        expect(chapters[1].startPos).toBe(43200000);
-        expect(chapters[1].title).toBe('Halfway');
+        expect(chapters[1]!.startPos).toBe(43200000);
+        expect(chapters[1]!.title).toBe('Halfway');
 
         db.close();
       });
@@ -577,7 +577,7 @@ describe('libgpod-node chapter data with media types', () => {
 
       const chapters = db.getTrackChapters(track.id);
       expect(chapters).toHaveLength(4);
-      expect(chapters[1].title).toBe('Chapter 1: The Beginning');
+      expect(chapters[1]!.title).toBe('Chapter 1: The Beginning');
 
       db.close();
     });
