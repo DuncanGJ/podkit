@@ -1,9 +1,10 @@
 ---
 id: TASK-037
 title: Test libgpod album artwork deduplication behavior
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-23 12:28'
+updated_date: '2026-02-24 23:32'
 labels:
   - testing
   - artwork
@@ -55,10 +56,50 @@ The tests should verify these scenarios:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Integration test for single album with identical artwork on all tracks verifies deduplication
-- [ ] #2 Integration test for multiple albums verifies separate artwork entries per album
-- [ ] #3 Integration test for mixed artwork presence (some tracks with, some without)
-- [ ] #4 Test for same image across different albums confirms album-scoped deduplication
-- [ ] #5 Tests pass in CI environment
-- [ ] #6 Tests document expected libgpod behavior for future reference
+- [x] #1 Integration test for single album with identical artwork on all tracks verifies deduplication
+- [x] #2 Integration test for multiple albums verifies separate artwork entries per album
+- [x] #3 Integration test for mixed artwork presence (some tracks with, some without)
+- [x] #4 Test for same image across different albums confirms album-scoped deduplication
+- [x] #5 Tests pass in CI environment
+- [x] #6 Tests document expected libgpod behavior for future reference
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+## Summary
+
+Created comprehensive integration tests for libgpod artwork deduplication behavior in `packages/libgpod-node/src/__tests__/artwork-deduplication.integration.test.ts`.
+
+## Key Findings
+
+Testing revealed important differences between expected and actual libgpod behavior:
+
+### Confirmed Behaviors
+1. **Artwork deduplication works** - Tracks with identical source images share the same mhii_link value (1 unique artwork ID for multiple tracks)
+2. **Deduplication is NOT album-scoped** - Contrary to initial assumptions, the same image on different albums shares the same artwork entry (based on image content hash, not album+image hash)
+3. **Artwork IDs persist** - After database save and reopen, artwork IDs are preserved
+4. **getUniqueArtworkIds works correctly** - Returns empty array for no artwork, array of unique IDs when tracks have artwork
+
+### Unexpected Behaviors Documented
+1. **Different images may deduplicate** - Tests with visually distinct 500x500 JPEG fixture images sometimes resulted in only 1 unique artwork ID, suggesting libgpod may normalize images during conversion
+2. **Artwork state may propagate** - Setting artwork on one track can affect hasArtwork status of other tracks, even in different albums
+
+### Model Testing
+- Tests use `withTestIpod()` which defaults to MA147 (iPod Video 5th gen)
+- Testing other models (MA450, MA477, MB565) was limited by gpod-tool initialization issues for some models
+
+## Test Coverage
+
+11 integration tests covering:
+- Single album with identical artwork (deduplication verification)
+- Artwork persistence after database reopen
+- Multiple albums with different artwork
+- Mixed artwork presence (tracks with/without artwork)
+- Same image across different albums
+- Buffer-based artwork setting
+- getUniqueArtworkIds consistency
+
+## Files Changed
+- `packages/libgpod-node/src/__tests__/artwork-deduplication.integration.test.ts` (new file)
+<!-- SECTION:FINAL_SUMMARY:END -->
