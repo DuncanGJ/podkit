@@ -1,10 +1,10 @@
 ---
 id: TASK-029
 title: End-to-end user testing with real files and iPod
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-02-22 19:38'
-updated_date: '2026-02-26 11:39'
+updated_date: '2026-02-26 14:27'
 labels: []
 milestone: 'M3: Production Ready (v1.0.0)'
 dependencies:
@@ -48,7 +48,7 @@ Comprehensive testing session with real music files and physical iPod.
 - [ ] #2 Documentation validated by following it
 - [x] #3 Test scenarios completed
 - [x] #4 Issues documented and triaged
-- [ ] #5 Ready for 1.0 release
+- [x] #5 Ready for 1.0 release
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -218,4 +218,32 @@ Removed TASK-027 and TASK-028 (getting-started guides) as dependencies. The firs
 - Dry-run accurately predicted sync
 - Metadata (title/artist/album) preserved correctly
 - Re-sync correctly detected already-synced tracks
+
+## Second E2E Test Session (2026-02-26)
+
+**Purpose:** Verify bug fixes from first session
+
+**Test:**
+- Source: ~/Workstation/Music (Ben Quad - Ephemera, 5 FLAC tracks)
+- Synced to iPod with 488 existing tracks
+
+**Results:**
+- ✅ TASK-056 fix verified: `podkit list` now shows iPod tracks by default
+- ✅ TASK-057 fix verified: Artwork transferred (✓ shown in list output)
+- ✅ TASK-053 verified: `--fields artwork,format,bitrate` working
+- ✅ Transcoding: FLAC → AAC @ 258 kbps (high quality)
+- ✅ Physical device: Artwork displays correctly
+
+**All E2E bugs from first session now fixed and verified.**
+
+## Task Completed (2026-02-26)
+
+Marking complete. Documentation validation (criterion #2) deferred to TASK-027/TASK-028 (getting-started guides).
+
+**Final results:**
+- Two successful E2E test sessions with real iPod
+- All bugs found have been fixed and verified (TASK-053, TASK-056, TASK-057, TASK-059)
+- Full library sync tested (1,414 tracks)
+- Artwork, transcoding, metadata all working correctly
+- Created follow-up tasks for improvements (TASK-061, TASK-062, TASK-063)
 <!-- SECTION:NOTES:END -->
