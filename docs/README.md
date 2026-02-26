@@ -30,6 +30,7 @@ If you're new to the project, read in this order:
 | [TRANSCODING.md](TRANSCODING.md) | FFmpeg AAC encoding, quality presets, metadata handling |
 | [COLLECTION-SOURCES.md](COLLECTION-SOURCES.md) | Directory scanning with music-metadata, adapter interface |
 | [IPOD-INTERNALS.md](IPOD-INTERNALS.md) | iTunesDB format, artwork formats, device quirks |
+| [MACOS-IPOD-MOUNTING.md](MACOS-IPOD-MOUNTING.md) | Workaround for large iFlash iPods not mounting on macOS |
 
 ### Architecture Decision Records
 
