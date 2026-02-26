@@ -4,12 +4,10 @@ title: End-to-end user testing with real files and iPod
 status: To Do
 assignee: []
 created_date: '2026-02-22 19:38'
-updated_date: '2026-02-23 16:29'
+updated_date: '2026-02-26 00:25'
 labels: []
 milestone: 'M3: Production Ready (v1.0.0)'
 dependencies:
-  - TASK-027
-  - TASK-028
   - TASK-025
   - TASK-026
   - TASK-039
@@ -93,4 +91,87 @@ IPOD_MOUNT=/Volumes/iPod bun run test:e2e:real
 - Incremental sync workflow (add tracks progressively)
 
 The automated tests complement this manual validation task - they ensure the happy path works, while manual testing covers edge cases and real-world scenarios.
+
+## First E2E Test Session Plan (2026-02-26)
+
+### Prerequisites
+
+- iPod with **existing database** (already initialized, may have tracks from iTunes)
+- Test FLAC collection copied locally
+- CLI built and available
+
+### Test Workflow
+
+```bash
+# 1. Setup config
+podkit init                           # Creates ~/.config/podkit/config.toml
+# Edit config to set:
+#   source = "/path/to/test-flacs"
+#   device = "/Volumes/iPod"
+#   quality = "high"  # or medium/low
+#   artwork = true
+
+# 2. Verify iPod connection
+podkit status                         # Should show device info + track count
+
+# 3. View what's currently on iPod
+podkit list                           # Shows existing tracks
+
+# 4. View source collection
+podkit list --source /path/to/test-flacs
+
+# 5. Preview sync
+podkit sync --dry-run                 # Shows what will be added/removed
+
+# 6. Run sync
+podkit sync                           # Actually sync - watch for errors
+
+# 7. Verify sync worked
+podkit list                           # Check track count increased
+podkit status                         # Check storage usage changed
+
+# 8. Eject manually
+diskutil eject /Volumes/iPod
+
+# 9. Physical test on device
+# - Navigate to synced tracks
+# - Verify artwork displays
+# - Play tracks, check audio quality
+```
+
+### What to Watch For
+
+1. **Config loading** - Does podkit find and use the config correctly?
+2. **Error messages** - Are they clear when something goes wrong?
+3. **Dry-run accuracy** - Does the preview match what actually syncs?
+4. **Progress display** - Is sync progress clear and informative?
+5. **Transcoding** - Are FLACs converted to AAC correctly?
+6. **Artwork** - Does album art appear on device?
+7. **Metadata** - Are title/artist/album preserved correctly?
+8. **Performance** - How long does sync take for N tracks?
+
+### Known Limitations for First Test
+
+- **No artwork/format/bitrate in list output** (TASK-053 pending)
+- **No safe-to-unmount message** (TASK-054 pending)
+- **libgpod may log CRITICAL warnings** (TASK-041 - cosmetic, tests still work)
+
+### Verification Workarounds
+
+Until TASK-053 is complete, verify artwork/quality by:
+- Checking on physical device
+- Using `file` command on transcoded files in iPod_Control/Music/
+- Using `ffprobe` to check bitrate of transcoded files
+
+### After Testing
+
+Document any issues found and create follow-up tasks for:
+- Bugs discovered
+- UX improvements needed
+- Missing features identified
+- Documentation gaps
+
+## Dependency Update (2026-02-26)
+
+Removed TASK-027 and TASK-028 (getting-started guides) as dependencies. The first E2E test will be run before the guides are written - findings from testing will inform the guide content.
 <!-- SECTION:NOTES:END -->
