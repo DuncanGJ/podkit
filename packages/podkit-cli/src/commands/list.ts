@@ -19,6 +19,9 @@ export interface DisplayTrack {
   trackNumber?: number;
   discNumber?: number;
   filePath?: string;
+  artwork?: boolean; // whether track has artwork
+  format?: string; // audio format (AAC, MP3, FLAC, etc.)
+  bitrate?: number; // bitrate in kbps
 }
 
 /**
@@ -35,6 +38,9 @@ export const AVAILABLE_FIELDS = [
   'trackNumber',
   'discNumber',
   'filePath',
+  'artwork',
+  'format',
+  'bitrate',
 ] as const;
 
 export type FieldName = (typeof AVAILABLE_FIELDS)[number];
@@ -58,6 +64,9 @@ const FIELD_HEADERS: Record<FieldName, string> = {
   trackNumber: 'Track',
   discNumber: 'Disc',
   filePath: 'File',
+  artwork: 'Art',
+  format: 'Format',
+  bitrate: 'Bitrate',
 };
 
 /**
@@ -74,6 +83,9 @@ const DEFAULT_COLUMN_WIDTHS: Record<FieldName, number> = {
   trackNumber: 6,
   discNumber: 6,
   filePath: 50,
+  artwork: 3,
+  format: 8,
+  bitrate: 7,
 };
 
 /**
@@ -127,6 +139,12 @@ export function getFieldValue(track: DisplayTrack, field: FieldName): string {
       return track.discNumber ? String(track.discNumber) : '';
     case 'filePath':
       return track.filePath || '';
+    case 'artwork':
+      return track.artwork === true ? '✓' : track.artwork === false ? '✗' : '-';
+    case 'format':
+      return track.format || '';
+    case 'bitrate':
+      return track.bitrate ? `${track.bitrate}` : '';
     default:
       return '';
   }
@@ -278,6 +296,26 @@ export function formatCsv(tracks: DisplayTrack[], fields: FieldName[]): string {
 }
 
 /**
+ * Parse audio format from filetype string
+ * Example: "AAC audio file" -> "AAC"
+ */
+function parseFormat(filetype: string | undefined): string {
+  if (!filetype) return '';
+
+  // Extract format from common patterns
+  const match = filetype.match(/^(AAC|MPEG|MP3|ALAC|Apple Lossless|WAV|FLAC)/i);
+  if (match && match[1]) {
+    const format = match[1].toUpperCase();
+    // Normalize common variations
+    if (format === 'MPEG') return 'MP3';
+    if (format === 'APPLE LOSSLESS') return 'ALAC';
+    return format;
+  }
+
+  return filetype;
+}
+
+/**
  * Load tracks from an iPod device
  */
 async function loadIpodTracks(device: string | undefined): Promise<DisplayTrack[]> {
@@ -308,6 +346,9 @@ async function loadIpodTracks(device: string | undefined): Promise<DisplayTrack[
       trackNumber: t.trackNumber && t.trackNumber > 0 ? t.trackNumber : undefined,
       discNumber: t.discNumber && t.discNumber > 0 ? t.discNumber : undefined,
       filePath: t.filePath || undefined,
+      artwork: t.hasArtwork,
+      format: parseFormat(t.filetype),
+      bitrate: t.bitrate > 0 ? t.bitrate : undefined,
     }));
   } finally {
     ipod.close();
@@ -328,6 +369,14 @@ interface SourceTrack {
   trackNumber?: number;
   discNumber?: number;
   filePath: string;
+  fileType: string; // AudioFileType
+}
+
+/**
+ * Map AudioFileType to display format
+ */
+function mapFileTypeToFormat(fileType: string): string {
+  return fileType.toUpperCase();
 }
 
 /**
@@ -335,7 +384,7 @@ interface SourceTrack {
  */
 async function loadSourceTracks(sourcePath: string): Promise<DisplayTrack[]> {
   // Dynamic import to avoid loading podkit-core when not needed
-  const { createDirectoryAdapter } = await import('@podkit/core');
+  const { createDirectoryAdapter, getFilesDisplayMetadata } = await import('@podkit/core');
 
   const resolved = resolve(sourcePath);
   if (!existsSync(resolved)) {
@@ -346,18 +395,32 @@ async function loadSourceTracks(sourcePath: string): Promise<DisplayTrack[]> {
   await adapter.connect();
   try {
     const tracks = (await adapter.getTracks()) as SourceTrack[];
-    return tracks.map((t) => ({
-      title: t.title,
-      artist: t.artist,
-      album: t.album,
-      duration: t.duration,
-      albumArtist: t.albumArtist,
-      genre: t.genre,
-      year: t.year,
-      trackNumber: t.trackNumber,
-      discNumber: t.discNumber,
-      filePath: t.filePath,
-    }));
+
+    // Extract display metadata (artwork, bitrate) for all tracks in parallel
+    const filePaths = tracks.map((t) => t.filePath);
+    const metadataMap = await getFilesDisplayMetadata(filePaths);
+
+    // Build display tracks with metadata
+    const displayTracks = tracks.map((t) => {
+      const metadata = metadataMap.get(t.filePath);
+      return {
+        title: t.title,
+        artist: t.artist,
+        album: t.album,
+        duration: t.duration,
+        albumArtist: t.albumArtist,
+        genre: t.genre,
+        year: t.year,
+        trackNumber: t.trackNumber,
+        discNumber: t.discNumber,
+        filePath: t.filePath,
+        artwork: metadata?.hasArtwork,
+        format: mapFileTypeToFormat(t.fileType),
+        bitrate: metadata?.bitrate,
+      };
+    });
+
+    return displayTracks;
   } finally {
     await adapter.disconnect();
   }

@@ -151,6 +151,13 @@ export {
   extractAndSaveArtwork,
 } from './artwork/extractor.js';
 
+// Metadata extraction utilities
+export type { FileDisplayMetadata } from './metadata/extractor.js';
+export {
+  getFileDisplayMetadata,
+  getFilesDisplayMetadata,
+} from './metadata/extractor.js';
+
 // iPod database abstraction layer
 export type {
   TrackInput,

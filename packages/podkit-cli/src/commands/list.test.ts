@@ -139,6 +139,90 @@ describe('list command utilities', () => {
       expect(getFieldValue(emptyTrack, 'genre')).toBe('');
       expect(getFieldValue(emptyTrack, 'year')).toBe('');
     });
+
+    // Tests for new artwork, format, bitrate fields
+    describe('artwork field', () => {
+      it('returns ✓ when artwork is true', () => {
+        const trackWithArtwork: DisplayTrack = {
+          title: 'Test',
+          artist: 'Artist',
+          album: 'Album',
+          artwork: true,
+        };
+        expect(getFieldValue(trackWithArtwork, 'artwork')).toBe('✓');
+      });
+
+      it('returns ✗ when artwork is false', () => {
+        const trackWithoutArtwork: DisplayTrack = {
+          title: 'Test',
+          artist: 'Artist',
+          album: 'Album',
+          artwork: false,
+        };
+        expect(getFieldValue(trackWithoutArtwork, 'artwork')).toBe('✗');
+      });
+
+      it('returns - when artwork is undefined', () => {
+        const trackUndefinedArtwork: DisplayTrack = {
+          title: 'Test',
+          artist: 'Artist',
+          album: 'Album',
+        };
+        expect(getFieldValue(trackUndefinedArtwork, 'artwork')).toBe('-');
+      });
+    });
+
+    describe('format field', () => {
+      it('returns format when present', () => {
+        const trackWithFormat: DisplayTrack = {
+          title: 'Test',
+          artist: 'Artist',
+          album: 'Album',
+          format: 'FLAC',
+        };
+        expect(getFieldValue(trackWithFormat, 'format')).toBe('FLAC');
+      });
+
+      it('returns empty string when format is undefined', () => {
+        const trackNoFormat: DisplayTrack = {
+          title: 'Test',
+          artist: 'Artist',
+          album: 'Album',
+        };
+        expect(getFieldValue(trackNoFormat, 'format')).toBe('');
+      });
+    });
+
+    describe('bitrate field', () => {
+      it('returns bitrate as string when present', () => {
+        const trackWithBitrate: DisplayTrack = {
+          title: 'Test',
+          artist: 'Artist',
+          album: 'Album',
+          bitrate: 320,
+        };
+        expect(getFieldValue(trackWithBitrate, 'bitrate')).toBe('320');
+      });
+
+      it('returns empty string when bitrate is undefined', () => {
+        const trackNoBitrate: DisplayTrack = {
+          title: 'Test',
+          artist: 'Artist',
+          album: 'Album',
+        };
+        expect(getFieldValue(trackNoBitrate, 'bitrate')).toBe('');
+      });
+
+      it('returns empty string when bitrate is 0', () => {
+        const trackZeroBitrate: DisplayTrack = {
+          title: 'Test',
+          artist: 'Artist',
+          album: 'Album',
+          bitrate: 0,
+        };
+        expect(getFieldValue(trackZeroBitrate, 'bitrate')).toBe('');
+      });
+    });
   });
 
   describe('parseFields', () => {
@@ -176,7 +260,7 @@ describe('list command utilities', () => {
 
     it('includes all available fields when specified', () => {
       const allFields = parseFields(
-        'title,artist,album,duration,albumArtist,genre,year,trackNumber,discNumber,filePath'
+        'title,artist,album,duration,albumArtist,genre,year,trackNumber,discNumber,filePath,artwork,format,bitrate'
       );
       expect(allFields).toEqual([
         'title',
@@ -189,6 +273,21 @@ describe('list command utilities', () => {
         'trackNumber',
         'discNumber',
         'filePath',
+        'artwork',
+        'format',
+        'bitrate',
+      ]);
+    });
+
+    it('parses new artwork, format, bitrate fields', () => {
+      expect(parseFields('artwork')).toEqual(['artwork']);
+      expect(parseFields('format')).toEqual(['format']);
+      expect(parseFields('bitrate')).toEqual(['bitrate']);
+      expect(parseFields('title,artwork,format,bitrate')).toEqual([
+        'title',
+        'artwork',
+        'format',
+        'bitrate',
       ]);
     });
   });
@@ -299,6 +398,39 @@ describe('list command utilities', () => {
       expect(lines[2]).toContain('5:55');
       expect(lines[3]).toContain('3:36');
     });
+
+    it('displays artwork, format, and bitrate fields', () => {
+      const tracksWithMeta: DisplayTrack[] = [
+        {
+          title: 'With Artwork',
+          artist: 'Artist',
+          album: 'Album',
+          artwork: true,
+          format: 'FLAC',
+          bitrate: 320,
+        },
+        {
+          title: 'No Artwork',
+          artist: 'Artist',
+          album: 'Album',
+          artwork: false,
+          format: 'MP3',
+          bitrate: 256,
+        },
+      ];
+      const output = formatTable(tracksWithMeta, ['title', 'artwork', 'format', 'bitrate']);
+      const lines = output.split('\n');
+
+      expect(lines[0]).toContain('Art');
+      expect(lines[0]).toContain('Format');
+      expect(lines[0]).toContain('Bitrate');
+      expect(lines[2]).toContain('✓');
+      expect(lines[2]).toContain('FLAC');
+      expect(lines[2]).toContain('320');
+      expect(lines[3]).toContain('✗');
+      expect(lines[3]).toContain('MP3');
+      expect(lines[3]).toContain('256');
+    });
   });
 
   describe('formatJson', () => {
@@ -346,6 +478,43 @@ describe('list command utilities', () => {
       const output = formatJson([], ['title']);
       const parsed = JSON.parse(output);
       expect(parsed).toEqual([]);
+    });
+
+    it('includes artwork, format, and bitrate in JSON output', () => {
+      const tracksWithMeta: DisplayTrack[] = [
+        {
+          title: 'Test',
+          artist: 'Artist',
+          album: 'Album',
+          artwork: true,
+          format: 'FLAC',
+          bitrate: 320,
+        },
+      ];
+      const output = formatJson(tracksWithMeta, ['title', 'artwork', 'format', 'bitrate']);
+      const parsed = JSON.parse(output);
+
+      expect(parsed[0].title).toBe('Test');
+      expect(parsed[0].artwork).toBe(true);
+      expect(parsed[0].format).toBe('FLAC');
+      expect(parsed[0].bitrate).toBe(320);
+    });
+
+    it('includes artwork=false in JSON output', () => {
+      const tracksNoArtwork: DisplayTrack[] = [
+        {
+          title: 'Test',
+          artist: 'Artist',
+          album: 'Album',
+          artwork: false,
+          format: 'MP3',
+          bitrate: 256,
+        },
+      ];
+      const output = formatJson(tracksNoArtwork, ['title', 'artwork']);
+      const parsed = JSON.parse(output);
+
+      expect(parsed[0].artwork).toBe(false);
     });
   });
 

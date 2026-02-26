@@ -286,6 +286,7 @@ export const syncCommand = new Command('sync')
     const quality = (options.quality ?? config.quality) as QualityPreset;
     const dryRun = options.dryRun ?? false;
     const removeOrphans = options.delete ?? false;
+    const artwork = options.artwork ?? config.artwork;
 
     // JSON output helper
     const outputJson = (data: SyncOutput) => {
@@ -718,7 +719,7 @@ export const syncCommand = new Command('sync')
       // Create executor and iterate for progress updates
       const executor = new core.DefaultSyncExecutor({ ipod, transcoder });
 
-      for await (const progress of executor.execute(plan, { dryRun: false, continueOnError: true })) {
+      for await (const progress of executor.execute(plan, { dryRun: false, continueOnError: true, artwork })) {
         // Track operation results for JSON output
         if (progress.error) {
           operationResults.push({

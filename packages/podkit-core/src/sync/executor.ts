@@ -33,6 +33,7 @@ import type {
   TranscodePresetRef,
 } from './types.js';
 import type { IpodDatabase, IPodTrack as IpodDatabaseTrack, TrackInput } from '../ipod/index.js';
+import { extractArtwork } from '../artwork/extractor.js';
 
 // =============================================================================
 // Extended Types
@@ -208,10 +209,7 @@ function calculateTotalBytes(plan: SyncPlan): number {
  * 1. Check error message for specific keywords (most reliable)
  * 2. Fall back to operation type as a hint
  */
-export function categorizeError(
-  error: Error,
-  operationType: SyncOperation['type']
-): ErrorCategory {
+export function categorizeError(error: Error, operationType: SyncOperation['type']): ErrorCategory {
   const message = error.message.toLowerCase();
 
   // Check for database errors FIRST (most specific, no retry)
@@ -346,6 +344,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
       signal,
       tempDir = tmpdir(),
       retryConfig = {},
+      artwork = true, // Enable artwork transfer by default
     } = options;
 
     // Merge retry config with defaults
@@ -414,10 +413,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
           let success = false;
 
           // Determine max retries based on operation type
-          const category = categorizeError(
-            new Error('placeholder'),
-            operation.type
-          );
+          const category = categorizeError(new Error('placeholder'), operation.type);
           // Override category for known operation types
           const effectiveCategory =
             operation.type === 'transcode'
@@ -425,10 +421,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
               : operation.type === 'copy'
                 ? 'copy'
                 : category;
-          const maxRetries = getRetriesForCategory(
-            effectiveCategory,
-            mergedRetryConfig
-          );
+          const maxRetries = getRetriesForCategory(effectiveCategory, mergedRetryConfig);
 
           while (!success && retryAttempt <= maxRetries) {
             // Check abort signal before each attempt
@@ -437,11 +430,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
             }
 
             try {
-              const result = await this.executeOperation(
-                operation,
-                transcodeDir,
-                signal
-              );
+              const result = await this.executeOperation(operation, transcodeDir, signal, artwork);
 
               bytesProcessed += result.bytesTransferred;
               completed++;
@@ -459,13 +448,9 @@ export class DefaultSyncExecutor implements SyncExecutor {
                 retryAttempt: retryAttempt > 0 ? retryAttempt : undefined,
               };
             } catch (error) {
-              lastError =
-                error instanceof Error ? error : new Error(String(error));
+              lastError = error instanceof Error ? error : new Error(String(error));
               const errorCategory = categorizeError(lastError, operation.type);
-              const retriesForThisError = getRetriesForCategory(
-                errorCategory,
-                mergedRetryConfig
-              );
+              const retriesForThisError = getRetriesForCategory(errorCategory, mergedRetryConfig);
 
               // Check if we should retry this specific error
               if (retryAttempt < retriesForThisError) {
@@ -557,13 +542,14 @@ export class DefaultSyncExecutor implements SyncExecutor {
   private async executeOperation(
     operation: SyncOperation,
     transcodeDir: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    artworkEnabled?: boolean
   ): Promise<{ bytesTransferred: number; track?: IpodDatabaseTrack }> {
     switch (operation.type) {
       case 'transcode':
-        return this.executeTranscode(operation, transcodeDir, signal);
+        return this.executeTranscode(operation, transcodeDir, signal, artworkEnabled);
       case 'copy':
-        return this.executeCopy(operation);
+        return this.executeCopy(operation, artworkEnabled);
       case 'remove':
         return this.executeRemove(operation);
       case 'update-metadata':
@@ -573,12 +559,36 @@ export class DefaultSyncExecutor implements SyncExecutor {
   }
 
   /**
+   * Extract and transfer artwork for a track
+   *
+   * Handles artwork extraction from source file and transfers it to iPod.
+   * Errors are caught and logged, but don't fail the sync operation.
+   */
+  private async transferArtwork(track: IpodDatabaseTrack, sourceFilePath: string): Promise<void> {
+    try {
+      const artwork = await extractArtwork(sourceFilePath);
+      if (artwork) {
+        track.setArtworkFromData(artwork.data);
+      }
+    } catch (error) {
+      // Log error but don't fail the sync - artwork is optional
+      // The error will be categorized as 'artwork' type which doesn't retry
+      console.warn(
+        `Failed to extract/transfer artwork for ${track.artist} - ${track.title}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /**
    * Execute a transcode operation
    */
   private async executeTranscode(
     operation: Extract<SyncOperation, { type: 'transcode' }>,
     transcodeDir: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    artworkEnabled?: boolean
   ): Promise<{ bytesTransferred: number; track: IpodDatabaseTrack }> {
     const { source, preset: presetRef } = operation;
     const preset = getPreset(presetRef);
@@ -588,12 +598,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
     const outputPath = join(transcodeDir, `${baseName}-${randomUUID()}.m4a`);
 
     // Transcode the file
-    const result = await this.transcoder.transcode(
-      source.filePath,
-      outputPath,
-      preset,
-      { signal }
-    );
+    const result = await this.transcoder.transcode(source.filePath, outputPath, preset, { signal });
 
     // Add track to iPod database using IpodDatabase API
     const trackInput: TrackInput = {
@@ -607,6 +612,11 @@ export class DefaultSyncExecutor implements SyncExecutor {
     // Copy transcoded file to iPod using the fluent IPodTrack API
     track.copyFile(outputPath);
 
+    // Extract and transfer artwork if enabled
+    if (artworkEnabled) {
+      await this.transferArtwork(track, source.filePath);
+    }
+
     return { bytesTransferred: result.size, track };
   }
 
@@ -614,7 +624,8 @@ export class DefaultSyncExecutor implements SyncExecutor {
    * Execute a copy operation
    */
   private async executeCopy(
-    operation: Extract<SyncOperation, { type: 'copy' }>
+    operation: Extract<SyncOperation, { type: 'copy' }>,
+    artworkEnabled?: boolean
   ): Promise<{ bytesTransferred: number; track: IpodDatabaseTrack }> {
     const { source } = operation;
 
@@ -647,6 +658,11 @@ export class DefaultSyncExecutor implements SyncExecutor {
     // Copy source file to iPod using the fluent IPodTrack API
     track.copyFile(source.filePath);
 
+    // Extract and transfer artwork if enabled
+    if (artworkEnabled) {
+      await this.transferArtwork(track, source.filePath);
+    }
+
     // Estimate bytes transferred (we don't have actual file size)
     const bytesTransferred = source.duration
       ? Math.round((source.duration / 1000) * 32000) // ~256 kbps estimate
@@ -674,9 +690,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
     );
 
     if (!foundTrack) {
-      throw new Error(
-        `Track not found in database: ${targetTrack.artist} - ${targetTrack.title}`
-      );
+      throw new Error(`Track not found in database: ${targetTrack.artist} - ${targetTrack.title}`);
     }
 
     // Remove using the fluent IPodTrack API
@@ -689,9 +703,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
 /**
  * Get the phase name for an operation type
  */
-function getPhaseForOperation(
-  operation: SyncOperation
-): SyncProgress['phase'] {
+function getPhaseForOperation(operation: SyncOperation): SyncProgress['phase'] {
   switch (operation.type) {
     case 'transcode':
       return 'transcoding';
@@ -751,10 +763,7 @@ export async function executePlan(
       }
     } else if (progress.skipped) {
       skipped++;
-    } else if (
-      progress.phase !== 'preparing' &&
-      progress.phase !== 'updating-db'
-    ) {
+    } else if (progress.phase !== 'preparing' && progress.phase !== 'updating-db') {
       completed++;
     }
 

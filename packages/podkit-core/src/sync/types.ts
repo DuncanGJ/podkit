@@ -96,6 +96,8 @@ export interface ExecuteOptions {
   parallelism?: number;
   /** Abort signal for cancellation */
   signal?: AbortSignal;
+  /** Transfer artwork to iPod (default: true) */
+  artwork?: boolean;
 }
 
 /**
