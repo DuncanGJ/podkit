@@ -69,10 +69,10 @@ The `iPod_Control` folder is hidden by default. To see it in Finder:
 Unmount before disconnecting:
 
 ```bash
-sudo umount /Volumes/iPod
+diskutil unmount /Volumes/iPod
 ```
 
-Or use Disk Utility to eject the device.
+Note: `sudo umount` often fails with "Resource busy" on macOS. Use `diskutil unmount` instead.
 
 ## References
 

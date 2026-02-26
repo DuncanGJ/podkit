@@ -1,10 +1,10 @@
 ---
 id: TASK-029
 title: End-to-end user testing with real files and iPod
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-02-22 19:38'
-updated_date: '2026-02-26 00:25'
+updated_date: '2026-02-26 11:39'
 labels: []
 milestone: 'M3: Production Ready (v1.0.0)'
 dependencies:
@@ -44,10 +44,10 @@ Comprehensive testing session with real music files and physical iPod.
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Full workflow tested end-to-end
+- [x] #1 Full workflow tested end-to-end
 - [ ] #2 Documentation validated by following it
-- [ ] #3 Test scenarios completed
-- [ ] #4 Issues documented and triaged
+- [x] #3 Test scenarios completed
+- [x] #4 Issues documented and triaged
 - [ ] #5 Ready for 1.0 release
 <!-- AC:END -->
 
@@ -174,4 +174,48 @@ Document any issues found and create follow-up tasks for:
 ## Dependency Update (2026-02-26)
 
 Removed TASK-027 and TASK-028 (getting-started guides) as dependencies. The first E2E test will be run before the guides are written - findings from testing will inform the guide content.
+
+## First E2E Test Session Results (2026-02-26)
+
+### Test Summary
+
+**Environment:**
+- iPod Video (5th Gen) with 1TB iFlash
+- macOS (required manual mount workaround - documented in docs/MACOS-IPOD-MOUNTING.md)
+- 482 existing tracks on iPod
+- 6 test FLAC files with embedded artwork
+
+**Test Flow:**
+1. ✅ `podkit init` - created config successfully
+2. ✅ Config edited - source, device, quality, artwork set
+3. ✅ `podkit status` - showed iPod correctly (482 tracks)
+4. ⚠️ `podkit list` - BUG: showed source collection, not iPod
+5. ✅ `podkit list --source` - showed 6 test tracks
+6. ✅ `podkit sync --dry-run` - correct preview (6 to add, 0 to remove)
+7. ✅ `podkit sync` - completed in 2s, 6 tracks synced
+8. ✅ Verification - track count 482→488, re-sync shows "Already synced: 6"
+9. ✅ Physical device test - tracks play correctly
+10. ❌ Artwork - NOT displayed on device
+
+### Issues Found
+
+| Task | Issue | Severity |
+|------|-------|----------|
+| TASK-056 | `podkit list` defaults to source, not iPod | High (bug) |
+| TASK-057 | Artwork not transferred during sync | High (bug) |
+| TASK-058 | CLI commands ambiguous (status/list unclear) | Medium (UX) |
+| TASK-059 | "one" text leaked in sync progress output | Low (cosmetic) |
+
+### Documentation Added
+
+- `docs/MACOS-IPOD-MOUNTING.md` - workaround for large iFlash iPods not mounting on macOS
+
+### What Worked Well
+
+- Sync completed successfully and quickly (2s for 6 tracks)
+- Transcoding FLAC→AAC worked correctly
+- Existing tracks preserved (additive sync)
+- Dry-run accurately predicted sync
+- Metadata (title/artist/album) preserved correctly
+- Re-sync correctly detected already-synced tracks
 <!-- SECTION:NOTES:END -->
