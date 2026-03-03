@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * E2E tests for the `podkit sync` command.
  *

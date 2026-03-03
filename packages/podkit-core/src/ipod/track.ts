@@ -6,7 +6,7 @@
  */
 
 import type { TrackHandle, Track } from '@podkit/libgpod-node';
-import type { IPodTrack, TrackFields } from './types.js';
+import type { IPodTrack, TrackFields, RemoveTrackResult } from './types.js';
 import { IpodError } from './errors.js';
 
 /**
@@ -30,8 +30,9 @@ export interface IpodDatabaseInternal {
    * Removes a track from the database.
    *
    * @param track - The track to remove
+   * @returns Result indicating success and any file deletion errors
    */
-  removeTrack(track: IPodTrack): void;
+  removeTrack(track: IPodTrack): RemoveTrackResult;
 
   /**
    * Copies an audio file to the iPod for a track.

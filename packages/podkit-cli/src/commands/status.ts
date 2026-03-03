@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Status command - displays iPod device information
  *

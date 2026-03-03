@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Pre-flight checks for E2E testing.
  *

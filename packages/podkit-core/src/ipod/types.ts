@@ -482,3 +482,50 @@ export interface SaveResult {
    */
   readonly warnings: string[];
 }
+
+/**
+ * Result from removing a track from the database.
+ *
+ * The track is always removed from the database. If file deletion was
+ * requested but failed, the error is captured in `fileDeleteError`
+ * rather than throwing.
+ *
+ * @example
+ * ```typescript
+ * const result = ipod.removeTrack(track, { deleteFile: true });
+ * if (result.fileDeleteError) {
+ *   console.warn(`Track removed but file deletion failed: ${result.fileDeleteError}`);
+ * }
+ * ```
+ */
+export interface RemoveTrackResult {
+  /** Whether the track was removed from the database (always true on success) */
+  readonly removed: boolean;
+  /**
+   * Error message if file deletion was requested but failed.
+   * Undefined if file deletion was not requested or succeeded.
+   */
+  readonly fileDeleteError?: string;
+}
+
+/**
+ * Result from removing all tracks from the database.
+ *
+ * @example
+ * ```typescript
+ * const result = ipod.removeAllTracks({ deleteFiles: true });
+ * console.log(`Removed ${result.removedCount} tracks`);
+ * if (result.fileDeleteErrors.length > 0) {
+ *   console.warn(`${result.fileDeleteErrors.length} file(s) could not be deleted`);
+ * }
+ * ```
+ */
+export interface RemoveAllTracksResult {
+  /** Number of tracks removed from the database */
+  readonly removedCount: number;
+  /**
+   * Errors from file deletions that failed.
+   * Each entry describes which file failed and why.
+   */
+  readonly fileDeleteErrors: string[];
+}

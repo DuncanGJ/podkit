@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Reset command - removes all tracks from the iPod
  *
@@ -46,6 +45,8 @@ export interface ResetOutput {
   tracksRemoved?: number;
   dryRun?: boolean;
   error?: string;
+  /** Errors from file deletions that failed (non-fatal warnings) */
+  fileDeleteErrors?: string[];
 }
 
 export const resetCommand = new Command('reset')
@@ -223,16 +224,24 @@ export const resetCommand = new Command('reset')
         console.log('Removing tracks...');
       }
 
-      const removedCount = ipod.removeAllTracks({ deleteFiles: true });
+      const result = ipod.removeAllTracks({ deleteFiles: true });
       await ipod.save();
+
+      // Report any file deletion errors
+      if (result.fileDeleteErrors.length > 0 && !globalOpts.quiet) {
+        for (const error of result.fileDeleteErrors) {
+          console.warn(`Warning: ${error}`);
+        }
+      }
 
       if (globalOpts.json) {
         outputJson({
           success: true,
-          tracksRemoved: removedCount,
+          tracksRemoved: result.removedCount,
+          fileDeleteErrors: result.fileDeleteErrors.length > 0 ? result.fileDeleteErrors : undefined,
         });
       } else {
-        console.log(`Removed ${formatNumber(removedCount)} track${removedCount === 1 ? '' : 's'}.`);
+        console.log(`Removed ${formatNumber(result.removedCount)} track${result.removedCount === 1 ? '' : 's'}.`);
       }
     } finally {
       ipod.close();

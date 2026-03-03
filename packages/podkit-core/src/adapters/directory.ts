@@ -12,6 +12,16 @@ import type { CollectionAdapter, CollectionTrack } from './interface.js';
 import type { AudioFileType, TrackFilter } from '../types.js';
 
 /**
+ * Warning emitted during directory scanning
+ */
+export interface ScanWarning {
+  /** Path to the file that caused the warning */
+  file: string;
+  /** Warning message describing the issue */
+  message: string;
+}
+
+/**
  * Configuration for DirectoryAdapter
  */
 export interface DirectoryAdapterConfig {
@@ -21,6 +31,8 @@ export interface DirectoryAdapterConfig {
   extensions?: string[];
   /** Progress callback for scan updates */
   onProgress?: (progress: ScanProgress) => void;
+  /** Warning callback for non-fatal issues during scanning */
+  onWarning?: (warning: ScanWarning) => void;
 }
 
 /**
@@ -107,6 +119,7 @@ export class DirectoryAdapter implements CollectionAdapter {
   private rootPath: string;
   private extensions: string[];
   private onProgress?: (progress: ScanProgress) => void;
+  private onWarning?: (warning: ScanWarning) => void;
   private cache: CollectionTrack[] = [];
   private connected = false;
 
@@ -114,6 +127,7 @@ export class DirectoryAdapter implements CollectionAdapter {
     this.rootPath = resolve(config.path);
     this.extensions = config.extensions ?? DEFAULT_EXTENSIONS;
     this.onProgress = config.onProgress;
+    this.onWarning = config.onWarning;
   }
 
   /**
@@ -174,10 +188,12 @@ export class DirectoryAdapter implements CollectionAdapter {
         const track = await this.parseFile(filePath);
         this.cache.push(track);
       } catch (err) {
-        // Log warning but continue with other files
+        // Report warning but continue with other files
         // Users with unreadable files shouldn't have entire scan fail
-        // eslint-disable-next-line no-console
-        console.warn(`Failed to parse ${filePath}:`, err instanceof Error ? err.message : err);
+        this.onWarning?.({
+          file: filePath,
+          message: `Failed to parse: ${err instanceof Error ? err.message : String(err)}`,
+        });
       }
     }
 

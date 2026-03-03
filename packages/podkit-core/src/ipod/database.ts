@@ -15,6 +15,8 @@ import type {
   TrackInput,
   TrackFields,
   SaveResult,
+  RemoveTrackResult,
+  RemoveAllTracksResult,
 } from './types.js';
 import { IpodError } from './errors.js';
 import { IpodTrackImpl, type IpodDatabaseInternal } from './track.js';
@@ -325,12 +327,23 @@ export class IpodDatabase implements IpodDatabaseInternal, PlaylistDatabaseInter
    * @param track - The track to remove
    * @param options - Optional settings for the removal
    * @param options.deleteFile - If true, also delete the audio file from the iPod (default: false)
+   * @returns Result indicating success and any file deletion errors
    * @throws {IpodError} If the track is unknown (code: TRACK_REMOVED)
    * @throws {IpodError} If the database is closed (code: DATABASE_CLOSED)
+   *
+   * @example
+   * ```typescript
+   * const result = ipod.removeTrack(track, { deleteFile: true });
+   * if (result.fileDeleteError) {
+   *   console.warn(`File deletion failed: ${result.fileDeleteError}`);
+   * }
+   * ```
    */
-  removeTrack(track: IPodTrack, options?: { deleteFile?: boolean }): void {
+  removeTrack(track: IPodTrack, options?: { deleteFile?: boolean }): RemoveTrackResult {
     this.assertOpen();
     const handle = this.getTrackHandle(track);
+
+    let fileDeleteError: string | undefined;
 
     // Delete the audio file if requested
     if (options?.deleteFile) {
@@ -340,8 +353,7 @@ export class IpodDatabase implements IpodDatabaseInternal, PlaylistDatabaseInter
           fs.unlinkSync(filePath);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          // eslint-disable-next-line no-console
-          console.error(`Failed to delete track file ${filePath}: ${message}`);
+          fileDeleteError = `Failed to delete track file ${filePath}: ${message}`;
         }
       }
     }
@@ -352,6 +364,8 @@ export class IpodDatabase implements IpodDatabaseInternal, PlaylistDatabaseInter
       track._markRemoved();
     }
     // Remove from WeakMap is automatic when track is garbage collected
+
+    return { removed: true, fileDeleteError };
   }
 
   /**
@@ -362,27 +376,33 @@ export class IpodDatabase implements IpodDatabaseInternal, PlaylistDatabaseInter
    *
    * @param options - Optional settings for the removal
    * @param options.deleteFiles - If true, also delete audio files from the iPod (default: true)
-   * @returns The number of tracks removed
+   * @returns Result with count of tracks removed and any file deletion errors
    * @throws {IpodError} If the database is closed (code: DATABASE_CLOSED)
    *
    * @example
    * ```typescript
-   * const count = ipod.removeAllTracks();
-   * console.log(`Removed ${count} tracks`);
+   * const result = ipod.removeAllTracks();
+   * console.log(`Removed ${result.removedCount} tracks`);
+   * if (result.fileDeleteErrors.length > 0) {
+   *   console.warn(`${result.fileDeleteErrors.length} file(s) could not be deleted`);
+   * }
    * await ipod.save();
    * ```
    */
-  removeAllTracks(options?: { deleteFiles?: boolean }): number {
+  removeAllTracks(options?: { deleteFiles?: boolean }): RemoveAllTracksResult {
     this.assertOpen();
     const deleteFiles = options?.deleteFiles ?? true;
     const tracks = this.getTracks();
-    const count = tracks.length;
+    const fileDeleteErrors: string[] = [];
 
     for (const track of tracks) {
-      this.removeTrack(track, { deleteFile: deleteFiles });
+      const result = this.removeTrack(track, { deleteFile: deleteFiles });
+      if (result.fileDeleteError) {
+        fileDeleteErrors.push(result.fileDeleteError);
+      }
     }
 
-    return count;
+    return { removedCount: tracks.length, fileDeleteErrors };
   }
 
   /**

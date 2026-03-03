@@ -4,9 +4,9 @@
  * These tests use mocks to avoid filesystem and music-metadata dependencies.
  */
 
-import { describe, expect, it, beforeEach, mock, spyOn } from 'bun:test';
+import { describe, expect, it, beforeEach, mock } from 'bun:test';
 import { DirectoryAdapter, createDirectoryAdapter } from './directory.js';
-import type { ScanProgress } from './directory.js';
+import type { ScanProgress, ScanWarning } from './directory.js';
 
 // Mock the modules
 const mockGlob = mock(async () => [] as string[]);
@@ -310,7 +310,39 @@ describe('DirectoryAdapter', () => {
   });
 
   describe('error handling', () => {
-    it('continues parsing after file errors', async () => {
+    it('continues parsing after file errors and calls onWarning', async () => {
+      let callCount = 0;
+      mockGlob.mockImplementation(async () => [
+        '/music/good1.mp3',
+        '/music/bad.mp3',
+        '/music/good2.mp3',
+      ]);
+      mockParseFile.mockImplementation(async (path: string) => {
+        callCount++;
+        if (path.includes('bad')) {
+          throw new Error('Corrupted file');
+        }
+        return {
+          common: { title: `Track ${callCount}` },
+          format: {},
+        };
+      });
+
+      const warnings: ScanWarning[] = [];
+      const adapter = new DirectoryAdapter({
+        path: '/music',
+        onWarning: (warning) => warnings.push(warning),
+      });
+
+      const tracks = await adapter.getTracks();
+
+      expect(tracks).toHaveLength(2);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]!.file).toBe('/music/bad.mp3');
+      expect(warnings[0]!.message).toContain('Corrupted file');
+    });
+
+    it('continues parsing when onWarning is not provided', async () => {
       let callCount = 0;
       mockGlob.mockImplementation(async () => [
         '/music/good1.mp3',
@@ -329,13 +361,10 @@ describe('DirectoryAdapter', () => {
       });
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const consoleWarn = spyOn(console, 'warn').mockImplementation(() => {});
-
       const tracks = await adapter.getTracks();
 
+      // Should still continue and parse the good files
       expect(tracks).toHaveLength(2);
-      expect(consoleWarn).toHaveBeenCalled();
-      consoleWarn.mockRestore();
     });
   });
 

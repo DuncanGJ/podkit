@@ -41,6 +41,8 @@ export type {
   IpodDeviceInfo,
   IpodInfo,
   SaveResult,
+  RemoveTrackResult,
+  RemoveAllTracksResult,
 } from './types.js';
 
 // Error exports

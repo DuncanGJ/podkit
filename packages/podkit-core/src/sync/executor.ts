@@ -64,6 +64,26 @@ export interface CategorizedError {
 }
 
 /**
+ * Warning type for non-fatal issues during sync execution
+ */
+export type ExecutionWarningType = 'artwork' | 'metadata';
+
+/**
+ * A non-fatal warning generated during sync execution
+ *
+ * Warnings represent issues that don't prevent the sync from completing
+ * (e.g., artwork extraction failures) but should be reported to the user.
+ */
+export interface ExecutionWarning {
+  /** Type of warning */
+  type: ExecutionWarningType;
+  /** Track that triggered the warning */
+  track: { artist: string; title: string; album?: string };
+  /** Human-readable description of the issue */
+  message: string;
+}
+
+/**
  * Extended progress information for sync operations
  */
 export interface ExecutorProgress extends SyncProgress {
@@ -131,6 +151,8 @@ export interface ExecuteResult {
   errors: Array<{ operation: SyncOperation; error: Error }>;
   /** Categorized errors with full context */
   categorizedErrors: CategorizedError[];
+  /** Non-fatal warnings (e.g., artwork extraction failures) */
+  warnings: ExecutionWarning[];
   /** Total bytes transferred */
   bytesTransferred: number;
 }
@@ -304,10 +326,33 @@ function sleep(ms: number): Promise<void> {
 export class DefaultSyncExecutor implements SyncExecutor {
   private ipod: IpodDatabase;
   private transcoder: FFmpegTranscoder;
+  /** Warnings collected during execution */
+  private warnings: ExecutionWarning[] = [];
 
   constructor(deps: ExecutorDependencies) {
     this.ipod = deps.ipod;
     this.transcoder = deps.transcoder;
+  }
+
+  /**
+   * Get warnings collected during the most recent execution
+   */
+  getWarnings(): ExecutionWarning[] {
+    return [...this.warnings];
+  }
+
+  /**
+   * Clear collected warnings (called at start of each execution)
+   */
+  private clearWarnings(): void {
+    this.warnings = [];
+  }
+
+  /**
+   * Add a warning to the collection
+   */
+  private addWarning(warning: ExecutionWarning): void {
+    this.warnings.push(warning);
   }
 
   /**
@@ -334,6 +379,9 @@ export class DefaultSyncExecutor implements SyncExecutor {
       retryConfig = {},
       artwork = true, // Enable artwork transfer by default
     } = options;
+
+    // Clear warnings from previous execution
+    this.clearWarnings();
 
     // Merge retry config with defaults
     const mergedRetryConfig: Required<RetryConfig> = {
@@ -549,7 +597,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
    * Extract and transfer artwork for a track
    *
    * Handles artwork extraction from source file and transfers it to iPod.
-   * Errors are caught and logged, but don't fail the sync operation.
+   * Errors are caught and collected as warnings, but don't fail the sync operation.
    */
   private async transferArtwork(track: IpodDatabaseTrack, sourceFilePath: string): Promise<void> {
     try {
@@ -558,13 +606,18 @@ export class DefaultSyncExecutor implements SyncExecutor {
         track.setArtworkFromData(artwork.data);
       }
     } catch (error) {
-      // Log error but don't fail the sync - artwork is optional
-      // The error will be categorized as 'artwork' type which doesn't retry
-      console.warn(
-        `Failed to extract/transfer artwork for ${track.artist} - ${track.title}: ${
+      // Collect warning but don't fail the sync - artwork is optional
+      this.addWarning({
+        type: 'artwork',
+        track: {
+          artist: track.artist ?? 'Unknown Artist',
+          title: track.title ?? 'Unknown Title',
+          album: track.album,
+        },
+        message: `Failed to extract/transfer artwork: ${
           error instanceof Error ? error.message : String(error)
-        }`
-      );
+        }`,
+      });
     }
   }
 
@@ -830,12 +883,16 @@ export async function executePlan(
     bytesTransferred = progress.bytesProcessed;
   }
 
+  // Collect warnings from the executor
+  const warnings = executor.getWarnings();
+
   return {
     completed,
     failed,
     skipped,
     errors,
     categorizedErrors,
+    warnings,
     bytesTransferred,
   };
 }

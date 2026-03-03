@@ -31,6 +31,7 @@ export {
 export type {
   DirectoryAdapterConfig,
   ScanProgress,
+  ScanWarning,
 } from './adapters/directory.js';
 
 // Sync engine
@@ -105,6 +106,8 @@ export type {
   ErrorCategory,
   CategorizedError,
   RetryConfig,
+  ExecutionWarning,
+  ExecutionWarningType,
 } from './sync/executor.js';
 export {
   DefaultSyncExecutor,
@@ -194,6 +197,8 @@ export type {
   IpodDeviceInfo,
   IpodInfo,
   SaveResult,
+  RemoveTrackResult,
+  RemoveAllTracksResult,
 } from './ipod/types.js';
 export { IpodError } from './ipod/errors.js';
 export type { IpodErrorCode } from './ipod/errors.js';

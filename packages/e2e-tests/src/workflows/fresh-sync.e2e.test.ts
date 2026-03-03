@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * E2E workflow test: Fresh sync from empty iPod.
  *

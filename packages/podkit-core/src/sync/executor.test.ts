@@ -120,6 +120,7 @@ function createMockIpodDatabase(initialTracks: IPodTrack[] = []): MockIpodDataba
       if (index >= 0) {
         tracks.splice(index, 1);
       }
+      return { removed: true };
     }),
     save: mock(async () => ({ warnings: [] })),
   };

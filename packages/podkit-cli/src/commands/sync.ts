@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Sync command - synchronize music collection to iPod
  *
@@ -57,13 +56,30 @@ interface ErrorInfo {
 }
 
 /**
- * Warning info for JSON output
+ * Warning info for JSON output (plan warnings like lossy-to-lossy)
  */
-interface WarningInfo {
+interface PlanWarningInfo {
   type: string;
   message: string;
   trackCount: number;
   tracks?: string[];
+}
+
+/**
+ * Execution warning info for JSON output (artwork, metadata issues during sync)
+ */
+interface ExecutionWarningInfo {
+  type: string;
+  track: string;
+  message: string;
+}
+
+/**
+ * Scan warning info for JSON output (file parsing issues)
+ */
+interface ScanWarningInfo {
+  file: string;
+  message: string;
 }
 
 /**
@@ -118,7 +134,9 @@ interface SyncOutput {
     bytesTransferred: number;
     duration: number;
   };
-  warnings?: WarningInfo[];
+  planWarnings?: PlanWarningInfo[];
+  scanWarnings?: ScanWarningInfo[];
+  executionWarnings?: ExecutionWarningInfo[];
   errors?: ErrorInfo[];
   error?: string;
 }
@@ -298,6 +316,52 @@ function formatErrors(errors: CollectedError[], verbosity: number): string[] {
         }
       }
       lines.push('');
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Format execution warnings (artwork failures, etc.)
+ *
+ * By default, shows a summary count. With verbose, shows details.
+ */
+function formatExecutionWarnings(
+  warnings: Array<{ type: string; track: { artist: string; title: string; album?: string }; message: string }>,
+  verbosity: number
+): string[] {
+  const lines: string[] = [];
+
+  if (warnings.length === 0) {
+    return lines;
+  }
+
+  // Group warnings by type
+  const byType = new Map<string, typeof warnings>();
+  for (const warning of warnings) {
+    const existing = byType.get(warning.type) ?? [];
+    existing.push(warning);
+    byType.set(warning.type, existing);
+  }
+
+  lines.push('');
+  lines.push(`Warnings: ${warnings.length}`);
+
+  if (verbosity >= 1) {
+    lines.push('');
+    for (const [type, typeWarnings] of byType) {
+      const typeLabel = type === 'artwork' ? 'Artwork' : type.charAt(0).toUpperCase() + type.slice(1);
+      lines.push(`  ${typeLabel} issues (${typeWarnings.length}):`);
+      for (const warning of typeWarnings) {
+        const trackName = `${warning.track.artist} - ${warning.track.title}`;
+        if (verbosity >= 2) {
+          lines.push(`    - ${trackName}`);
+          lines.push(`      ${warning.message}`);
+        } else {
+          lines.push(`    - ${trackName}`);
+        }
+      }
     }
   }
 
@@ -528,6 +592,9 @@ export const syncCommand = new Command('sync')
       spinner.start('Scanning source directory...');
     }
 
+    // Collect scan warnings (files that failed to parse)
+    const scanWarnings: Array<{ file: string; message: string }> = [];
+
     const adapter = core.createDirectoryAdapter({
       path: sourcePath,
       onProgress: (progress) => {
@@ -540,6 +607,9 @@ export const syncCommand = new Command('sync')
             );
           }
         }
+      },
+      onWarning: (warning) => {
+        scanWarnings.push(warning);
       },
     });
 
@@ -567,6 +637,16 @@ export const syncCommand = new Command('sync')
 
     if (!globalOpts.json && !globalOpts.quiet) {
       spinner.stop(`Found ${formatNumber(collectionTracks.length)} tracks in source`);
+
+      // Display scan warnings if any
+      if (scanWarnings.length > 0) {
+        console.log(`  ${scanWarnings.length} file${scanWarnings.length === 1 ? '' : 's'} could not be parsed`);
+        if (globalOpts.verbose) {
+          for (const warning of scanWarnings) {
+            console.log(`    - ${warning.file}: ${warning.message}`);
+          }
+        }
+      }
     }
 
     // ----- Open iPod database -----
@@ -669,14 +749,20 @@ export const syncCommand = new Command('sync')
             return base;
           });
 
-          // Convert warnings to JSON format
-          const warningInfos: WarningInfo[] = plan.warnings.map((warning) => ({
+          // Convert plan warnings to JSON format
+          const planWarningInfos: PlanWarningInfo[] = plan.warnings.map((warning) => ({
             type: warning.type,
             message: warning.message,
             trackCount: warning.tracks.length,
             tracks: globalOpts.verbose
               ? warning.tracks.map((t) => `${t.artist} - ${t.title}`)
               : undefined,
+          }));
+
+          // Convert scan warnings to JSON format
+          const scanWarningInfos: ScanWarningInfo[] = scanWarnings.map((warning) => ({
+            file: warning.file,
+            message: warning.message,
           }));
 
           // Build transforms info
@@ -714,7 +800,8 @@ export const syncCommand = new Command('sync')
               estimatedTime: plan.estimatedTime,
             },
             operations,
-            warnings: warningInfos.length > 0 ? warningInfos : undefined,
+            planWarnings: planWarningInfos.length > 0 ? planWarningInfos : undefined,
+            scanWarnings: scanWarningInfos.length > 0 ? scanWarningInfos : undefined,
           });
         } else {
           console.log('');
@@ -978,6 +1065,9 @@ export const syncCommand = new Command('sync')
       // ----- Final output -----
       const duration = (Date.now() - startTime) / 1000;
 
+      // Collect execution warnings (e.g., artwork extraction failures)
+      const executionWarnings = executor.getWarnings();
+
       if (globalOpts.json) {
         // Convert collected errors to JSON format
         const errorInfos: ErrorInfo[] = collectedErrors.map((err) => ({
@@ -988,6 +1078,19 @@ export const syncCommand = new Command('sync')
           wasRetried: err.wasRetried,
           // Only include stack in verbose JSON mode
           ...(globalOpts.verbose >= 3 ? { stack: err.stack } : {}),
+        }));
+
+        // Convert execution warnings to JSON format
+        const executionWarningInfos: ExecutionWarningInfo[] = executionWarnings.map((w) => ({
+          type: w.type,
+          track: `${w.track.artist} - ${w.track.title}`,
+          message: w.message,
+        }));
+
+        // Convert scan warnings to JSON format
+        const scanWarningInfos: ScanWarningInfo[] = scanWarnings.map((w) => ({
+          file: w.file,
+          message: w.message,
         }));
 
         outputJson({
@@ -1012,6 +1115,8 @@ export const syncCommand = new Command('sync')
             bytesTransferred: plan.estimatedSize,
             duration,
           },
+          scanWarnings: scanWarningInfos.length > 0 ? scanWarningInfos : undefined,
+          executionWarnings: executionWarningInfos.length > 0 ? executionWarningInfos : undefined,
           errors: errorInfos.length > 0 ? errorInfos : undefined,
         });
       } else if (!globalOpts.quiet) {
@@ -1029,6 +1134,14 @@ export const syncCommand = new Command('sync')
 
         console.log(`Duration: ${formatDuration(duration)}`);
         console.log(`Data transferred: ~${formatBytes(plan.estimatedSize)}`);
+
+        // Display warnings based on verbosity
+        if (executionWarnings.length > 0) {
+          const warningLines = formatExecutionWarnings(executionWarnings, globalOpts.verbose);
+          for (const line of warningLines) {
+            console.log(line);
+          }
+        }
 
         // Display errors based on verbosity
         if (collectedErrors.length > 0) {

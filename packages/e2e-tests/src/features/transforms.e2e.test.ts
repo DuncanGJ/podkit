@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * E2E tests for metadata transforms (ftintitle).
  *

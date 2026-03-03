@@ -43,8 +43,9 @@ describe('reset command integration', () => {
       // Open again and remove all tracks
       ipod = await IpodDatabase.open(testIpod!.path);
       try {
-        const removedCount = ipod.removeAllTracks({ deleteFiles: false });
-        expect(removedCount).toBe(3);
+        const result = ipod.removeAllTracks({ deleteFiles: false });
+        expect(result.removedCount).toBe(3);
+        expect(result.fileDeleteErrors).toEqual([]);
         expect(ipod.trackCount).toBe(0);
         await ipod.save();
       } finally {
@@ -65,8 +66,9 @@ describe('reset command integration', () => {
       try {
         expect(ipod.trackCount).toBe(0);
 
-        const removedCount = ipod.removeAllTracks({ deleteFiles: false });
-        expect(removedCount).toBe(0);
+        const result = ipod.removeAllTracks({ deleteFiles: false });
+        expect(result.removedCount).toBe(0);
+        expect(result.fileDeleteErrors).toEqual([]);
         expect(ipod.trackCount).toBe(0);
       } finally {
         ipod.close();

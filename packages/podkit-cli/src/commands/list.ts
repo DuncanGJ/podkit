@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { Command } from 'commander';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
