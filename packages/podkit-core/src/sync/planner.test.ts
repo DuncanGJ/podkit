@@ -31,7 +31,6 @@ import {
   willFitInSpace,
   willWarnLossyToLossy,
 } from './planner.js';
-import type { SourceCategory } from './types.js';
 import type { CollectionTrack } from '../adapters/interface.js';
 import type { AudioFileType } from '../types.js';
 import type { IPodTrack, SyncDiff, SyncOperation } from './types.js';
@@ -131,6 +130,7 @@ function createEmptyDiff(): SyncDiff {
     toRemove: [],
     existing: [],
     conflicts: [],
+    toUpdate: [],
   };
 }
 
@@ -1668,5 +1668,197 @@ describe('createPlan - quality presets', () => {
 
     // ALAC ~900 kbps vs AAC ~256 kbps
     expect(planAlac.estimatedSize).toBeGreaterThan(planHigh.estimatedSize * 3);
+  });
+});
+
+// =============================================================================
+// Update Operations Tests (Transforms)
+// =============================================================================
+
+describe('createPlan - update operations', () => {
+  it('creates update-metadata operations for toUpdate tracks', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'mp3'),
+          ipod: createIPodTrack('Artist feat. B', 'Song', 'Album'),
+          reason: 'transform-apply',
+          changes: [
+            { field: 'artist', from: 'Artist feat. B', to: 'Artist' },
+            { field: 'title', from: 'Song', to: 'Song (feat. B)' },
+          ],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+
+    expect(plan.operations).toHaveLength(1);
+    expect(plan.operations[0]!.type).toBe('update-metadata');
+  });
+
+  it('includes correct metadata in update-metadata operation', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song (feat. B)', 'Album', 'mp3'),
+          ipod: createIPodTrack('Artist feat. B', 'Song', 'Album'),
+          reason: 'transform-apply',
+          changes: [
+            { field: 'artist', from: 'Artist feat. B', to: 'Artist' },
+            { field: 'title', from: 'Song', to: 'Song (feat. B)' },
+          ],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+    const op = plan.operations[0];
+
+    expect(op!.type).toBe('update-metadata');
+    if (op!.type === 'update-metadata') {
+      expect(op!.metadata.artist).toBe('Artist');
+      expect(op!.metadata.title).toBe('Song (feat. B)');
+    }
+  });
+
+  it('preserves iPod track reference in update-metadata operation', () => {
+    const ipodTrack = createIPodTrack('Artist feat. B', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:UPDATE.m4a',
+    });
+
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'mp3'),
+          ipod: ipodTrack,
+          reason: 'transform-apply',
+          changes: [{ field: 'artist', from: 'Artist feat. B', to: 'Artist' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+    const op = plan.operations[0];
+
+    expect(op!.type).toBe('update-metadata');
+    if (op!.type === 'update-metadata') {
+      expect(op!.track.filePath).toBe(':iPod_Control:Music:F00:UPDATE.m4a');
+    }
+  });
+
+  it('creates multiple update operations for multiple toUpdate tracks', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist 1', 'Song 1', 'Album', 'mp3'),
+          ipod: createIPodTrack('Artist 1 feat. B', 'Song 1', 'Album'),
+          reason: 'transform-apply',
+          changes: [{ field: 'artist', from: 'Artist 1 feat. B', to: 'Artist 1' }],
+        },
+        {
+          source: createCollectionTrack('Artist 2', 'Song 2', 'Album', 'mp3'),
+          ipod: createIPodTrack('Artist 2 feat. C', 'Song 2', 'Album'),
+          reason: 'transform-apply',
+          changes: [{ field: 'artist', from: 'Artist 2 feat. C', to: 'Artist 2' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+
+    expect(plan.operations).toHaveLength(2);
+    expect(plan.operations.every((op) => op.type === 'update-metadata')).toBe(true);
+  });
+
+  it('orders update operations after transcodes', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toAdd: [createCollectionTrack('Artist', 'New Song', 'Album', 'flac')],
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Existing', 'Album', 'mp3'),
+          ipod: createIPodTrack('Artist feat. B', 'Existing', 'Album'),
+          reason: 'transform-apply',
+          changes: [{ field: 'artist', from: 'Artist feat. B', to: 'Artist' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+    const types = plan.operations.map((op) => op.type);
+
+    // Transcode comes before update-metadata
+    expect(types.indexOf('transcode')).toBeLessThan(types.indexOf('update-metadata'));
+  });
+
+  it('handles transform-remove reason', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist feat. B', 'Song', 'Album', 'mp3'),
+          ipod: createIPodTrack('Artist', 'Song (feat. B)', 'Album'),
+          reason: 'transform-remove',
+          changes: [
+            { field: 'artist', from: 'Artist', to: 'Artist feat. B' },
+            { field: 'title', from: 'Song (feat. B)', to: 'Song' },
+          ],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+    const op = plan.operations[0];
+
+    expect(op!.type).toBe('update-metadata');
+    if (op!.type === 'update-metadata') {
+      // Reverting: artist goes back to original, title loses feat
+      expect(op!.metadata.artist).toBe('Artist feat. B');
+      expect(op!.metadata.title).toBe('Song');
+    }
+  });
+
+  it('does not count update operations in estimated size', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'mp3'),
+          ipod: createIPodTrack('Artist feat. B', 'Song', 'Album'),
+          reason: 'transform-apply',
+          changes: [{ field: 'artist', from: 'Artist feat. B', to: 'Artist' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+
+    expect(plan.estimatedSize).toBe(0);
+  });
+
+  it('includes update operations in getPlanSummary', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toAdd: [createCollectionTrack('Artist', 'New', 'Album', 'mp3')],
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Existing', 'Album', 'mp3'),
+          ipod: createIPodTrack('Artist feat. B', 'Existing', 'Album'),
+          reason: 'transform-apply',
+          changes: [{ field: 'artist', from: 'Artist feat. B', to: 'Artist' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+    const summary = getPlanSummary(plan);
+
+    expect(summary.copyCount).toBe(1);
+    expect(summary.updateCount).toBe(1);
   });
 });

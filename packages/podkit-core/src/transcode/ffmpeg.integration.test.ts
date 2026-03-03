@@ -18,7 +18,7 @@ import {
   FFmpegNotFoundError,
   TranscodeError,
 } from './ffmpeg.js';
-import type { TranscodeProgress, QualityPreset } from './types.js';
+import type { TranscodeProgress } from './types.js';
 import { requireFFmpeg } from '../__tests__/helpers/test-setup.js';
 
 // Fail early if FFmpeg is not available

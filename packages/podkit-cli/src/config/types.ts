@@ -3,11 +3,11 @@
  */
 
 // Import quality preset types from core
-export type { QualityPreset, AacQualityPreset } from '@podkit/core';
-export { QUALITY_PRESETS, AAC_QUALITY_PRESETS } from '@podkit/core';
+export type { QualityPreset, AacQualityPreset, TransformsConfig } from '@podkit/core';
+export { QUALITY_PRESETS, AAC_QUALITY_PRESETS, DEFAULT_TRANSFORMS_CONFIG } from '@podkit/core';
 
 // Import type for local use
-import type { QualityPreset, AacQualityPreset } from '@podkit/core';
+import type { QualityPreset, AacQualityPreset, TransformsConfig } from '@podkit/core';
 
 /**
  * Configuration that can be set via config file, env vars, or CLI
@@ -26,6 +26,8 @@ export interface PodkitConfig {
   fallback?: AacQualityPreset;
   /** Include artwork in sync */
   artwork: boolean;
+  /** Transform configuration */
+  transforms: TransformsConfig;
 }
 
 /**
@@ -53,6 +55,19 @@ export type PartialConfig = Partial<PodkitConfig>;
 
 /**
  * Config file content as parsed from TOML
+ *
+ * This represents the raw TOML structure before validation.
+ * Example config:
+ * ```toml
+ * source = "/path/to/music"
+ * device = "/Volumes/iPod"
+ * quality = "high"
+ *
+ * [transforms.ftintitle]
+ * enabled = true
+ * drop = false
+ * format = "feat. {}"
+ * ```
  */
 export interface ConfigFileContent {
   source?: string;
@@ -60,4 +75,11 @@ export interface ConfigFileContent {
   quality?: string;
   fallback?: string;
   artwork?: boolean;
+  transforms?: {
+    ftintitle?: {
+      enabled?: boolean;
+      drop?: boolean;
+      format?: string;
+    };
+  };
 }

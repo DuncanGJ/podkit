@@ -35,6 +35,7 @@ import {
 } from '../transcode/types.js';
 import type {
   IPodTrack,
+  MetadataChange,
   PlanOptions,
   SourceCategory,
   SyncDiff,
@@ -43,7 +44,9 @@ import type {
   SyncPlanner,
   SyncWarning,
   TranscodePresetRef,
+  UpdateTrack,
 } from './types.js';
+import type { TrackMetadata } from '../types.js';
 
 // =============================================================================
 // Constants
@@ -88,21 +91,6 @@ const INCOMPATIBLE_LOSSY_FORMATS: Set<AudioFileType> = new Set([
   'ogg',
   'opus',
 ]);
-
-/**
- * Lossless formats (can be transcoded to any target without quality warning)
- */
-const LOSSLESS_FORMATS: Set<AudioFileType> = new Set([
-  'flac',
-  'wav',
-  'aiff',
-  'alac',
-]);
-
-/**
- * Default transcode preset if none specified
- */
-const DEFAULT_PRESET: TranscodePresetRef = { name: 'high' };
 
 /**
  * Default transcode configuration
@@ -362,6 +350,45 @@ function createRemoveOperation(track: IPodTrack): SyncOperation {
 }
 
 /**
+ * Convert MetadataChange array to Partial<TrackMetadata>
+ *
+ * Extracts the 'to' values from each change to create the target metadata.
+ */
+function changesToMetadata(changes: MetadataChange[]): Partial<TrackMetadata> {
+  const metadata: Partial<TrackMetadata> = {};
+
+  for (const change of changes) {
+    switch (change.field) {
+      case 'artist':
+        metadata.artist = change.to;
+        break;
+      case 'title':
+        metadata.title = change.to;
+        break;
+      case 'album':
+        metadata.album = change.to;
+        break;
+      case 'albumArtist':
+        metadata.albumArtist = change.to;
+        break;
+    }
+  }
+
+  return metadata;
+}
+
+/**
+ * Create an update-metadata operation for an iPod track
+ */
+function createUpdateMetadataOperation(updateTrack: UpdateTrack): SyncOperation {
+  return {
+    type: 'update-metadata',
+    track: updateTrack.ipod,
+    metadata: changesToMetadata(updateTrack.changes),
+  };
+}
+
+/**
  * Result of planning add operations, including warnings
  */
 interface PlanAddResult {
@@ -370,23 +397,7 @@ interface PlanAddResult {
 }
 
 /**
- * Plan operations for tracks to be added (legacy version using preset ref)
- */
-function planAddOperations(
-  tracks: CollectionTrack[],
-  preset: TranscodePresetRef
-): SyncOperation[] {
-  return tracks.map((track) => {
-    if (isIPodCompatible(track.fileType)) {
-      return createCopyOperation(track);
-    } else {
-      return createTranscodeOperation(track, preset);
-    }
-  });
-}
-
-/**
- * Plan operations for tracks to be added with new categorization logic
+ * Plan operations for tracks to be added with source categorization
  *
  * This version uses source categorization to determine the appropriate
  * operation for each track and collects lossy-to-lossy warnings.
@@ -449,6 +460,16 @@ function planRemoveOperations(
     return [];
   }
   return tracks.map((track) => createRemoveOperation(track));
+}
+
+/**
+ * Plan operations for tracks that need metadata updates
+ *
+ * These are tracks that already exist on the iPod but need metadata changes,
+ * typically due to transform configuration changes (enable/disable ftintitle).
+ */
+function planUpdateOperations(tracks: UpdateTrack[]): SyncOperation[] {
+  return tracks.map((track) => createUpdateMetadataOperation(track));
 }
 
 /**
@@ -570,8 +591,11 @@ export function createPlan(
   // Plan remove operations (if enabled)
   const removeOperations = planRemoveOperations(diff.toRemove, removeOrphans);
 
+  // Plan update operations for metadata changes (e.g., transforms)
+  const updateOperations = planUpdateOperations(diff.toUpdate);
+
   // Combine and order operations
-  const allOperations = [...addResult.operations, ...removeOperations];
+  const allOperations = [...addResult.operations, ...removeOperations, ...updateOperations];
   const orderedOperations = orderOperations(allOperations);
 
   // Calculate totals

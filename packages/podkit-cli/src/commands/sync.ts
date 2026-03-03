@@ -20,7 +20,7 @@
 import { existsSync, statfsSync } from 'node:fs';
 import { Command } from 'commander';
 import { getContext } from '../context.js';
-import type { QualityPreset } from '../config/index.js';
+import type { QualityPreset, TransformsConfig } from '../config/index.js';
 
 // =============================================================================
 // Types
@@ -67,6 +67,25 @@ interface WarningInfo {
 }
 
 /**
+ * Transform info for JSON output
+ */
+interface TransformInfo {
+  name: string;
+  enabled: boolean;
+  mode?: string;
+  format?: string;
+}
+
+/**
+ * Update breakdown by reason for JSON output
+ */
+interface UpdateBreakdown {
+  'transform-apply'?: number;
+  'transform-remove'?: number;
+  'metadata-changed'?: number;
+}
+
+/**
  * JSON output structure for sync command
  */
 interface SyncOutput {
@@ -74,9 +93,12 @@ interface SyncOutput {
   dryRun: boolean;
   source?: string;
   device?: string;
+  transforms?: TransformInfo[];
   plan?: {
     tracksToAdd: number;
     tracksToRemove: number;
+    tracksToUpdate: number;
+    updateBreakdown?: UpdateBreakdown;
     tracksToTranscode: number;
     tracksToCopy: number;
     estimatedSize: number;
@@ -87,6 +109,7 @@ interface SyncOutput {
     track: string;
     status?: 'pending' | 'completed' | 'failed' | 'skipped';
     error?: string;
+    changes?: Array<{ field: string; from: string; to: string }>;
   }>;
   result?: {
     completed: number;
@@ -279,6 +302,44 @@ function formatErrors(errors: CollectedError[], verbosity: number): string[] {
   }
 
   return lines;
+}
+
+// =============================================================================
+// Transform Display Helpers
+// =============================================================================
+
+/**
+ * Format transforms configuration for display
+ *
+ * Returns a human-readable string describing enabled transforms.
+ * Returns null if no transforms are enabled.
+ */
+function formatTransformsConfig(transforms: TransformsConfig): string | null {
+  const parts: string[] = [];
+
+  if (transforms.ftintitle.enabled) {
+    if (transforms.ftintitle.drop) {
+      parts.push('ftintitle: enabled (drop mode)');
+    } else {
+      parts.push(`ftintitle: enabled (format: "${transforms.ftintitle.format}")`);
+    }
+  }
+
+  return parts.length > 0 ? parts.join(', ') : null;
+}
+
+/**
+ * Format update reason for display
+ */
+function formatUpdateReason(reason: 'transform-apply' | 'transform-remove' | 'metadata-changed'): string {
+  switch (reason) {
+    case 'transform-apply':
+      return 'Apply ftintitle';
+    case 'transform-remove':
+      return 'Revert ftintitle';
+    case 'metadata-changed':
+      return 'Metadata changed';
+  }
 }
 
 // =============================================================================
@@ -559,7 +620,8 @@ export const syncCommand = new Command('sync')
       }
 
       // IPodTrack from IpodDatabase already has the correct shape for diffing
-      const diff = core.computeDiff(collectionTracks, ipodTracks);
+      // Pass transforms config for dual-key matching (detect when transforms need apply/revert)
+      const diff = core.computeDiff(collectionTracks, ipodTracks, { transforms: config.transforms });
 
       if (!globalOpts.json && !globalOpts.quiet) {
         spinner.stop('Diff computed');
@@ -582,11 +644,30 @@ export const syncCommand = new Command('sync')
       // ----- Dry-run output -----
       if (dryRun) {
         if (globalOpts.json) {
-          const operations: SyncOutput['operations'] = plan.operations.map((op) => ({
-            type: op.type,
-            track: core.getOperationDisplayName(op),
-            status: 'pending' as const,
-          }));
+          const operations: SyncOutput['operations'] = plan.operations.map((op) => {
+            const base = {
+              type: op.type,
+              track: core.getOperationDisplayName(op),
+              status: 'pending' as const,
+            };
+            // Include change details for update-metadata operations
+            if (op.type === 'update-metadata') {
+              const updateInfo = diff.toUpdate.find(
+                (u) => u.ipod.title === op.track.title && u.ipod.artist === op.track.artist
+              );
+              if (updateInfo) {
+                return {
+                  ...base,
+                  changes: updateInfo.changes.map((c) => ({
+                    field: c.field,
+                    from: c.from,
+                    to: c.to,
+                  })),
+                };
+              }
+            }
+            return base;
+          });
 
           // Convert warnings to JSON format
           const warningInfos: WarningInfo[] = plan.warnings.map((warning) => ({
@@ -598,14 +679,35 @@ export const syncCommand = new Command('sync')
               : undefined,
           }));
 
+          // Build transforms info
+          const transformsInfo: TransformInfo[] = [];
+          if (config.transforms.ftintitle.enabled) {
+            transformsInfo.push({
+              name: 'ftintitle',
+              enabled: true,
+              mode: config.transforms.ftintitle.drop ? 'drop' : 'move',
+              format: config.transforms.ftintitle.drop ? undefined : config.transforms.ftintitle.format,
+            });
+          }
+
+          // Build update breakdown by reason
+          const updateBreakdown: UpdateBreakdown = {};
+          for (const update of diff.toUpdate) {
+            const count = updateBreakdown[update.reason] ?? 0;
+            updateBreakdown[update.reason] = count + 1;
+          }
+
           outputJson({
             success: true,
             dryRun: true,
             source: sourcePath,
             device: devicePath,
+            transforms: transformsInfo.length > 0 ? transformsInfo : undefined,
             plan: {
               tracksToAdd: diff.toAdd.length,
               tracksToRemove: removeOrphans ? diff.toRemove.length : 0,
+              tracksToUpdate: diff.toUpdate.length,
+              updateBreakdown: diff.toUpdate.length > 0 ? updateBreakdown : undefined,
               tracksToTranscode: summary.transcodeCount,
               tracksToCopy: summary.copyCount,
               estimatedSize: plan.estimatedSize,
@@ -622,6 +724,10 @@ export const syncCommand = new Command('sync')
           console.log(`Device: ${devicePath}`);
           const qualityDisplay = fallback ? `${quality} (fallback: ${fallback})` : quality;
           console.log(`Quality: ${qualityDisplay}`);
+          const transformsDisplay = formatTransformsConfig(config.transforms);
+          if (transformsDisplay) {
+            console.log(`Transforms: ${transformsDisplay}`);
+          }
           console.log('');
 
           // Summary
@@ -637,6 +743,19 @@ export const syncCommand = new Command('sync')
             console.log(`  Tracks to remove: ${formatNumber(diff.toRemove.length)}`);
           }
           console.log(`  Already synced: ${formatNumber(diff.existing.length)}`);
+          if (diff.toUpdate.length > 0) {
+            // Group updates by reason
+            const updatesByReason = new Map<string, number>();
+            for (const update of diff.toUpdate) {
+              const count = updatesByReason.get(update.reason) ?? 0;
+              updatesByReason.set(update.reason, count + 1);
+            }
+            const reasonParts: string[] = [];
+            for (const [reason, count] of updatesByReason) {
+              reasonParts.push(`${formatUpdateReason(reason as 'transform-apply' | 'transform-remove' | 'metadata-changed')}: ${count}`);
+            }
+            console.log(`  Tracks to update: ${formatNumber(diff.toUpdate.length)} (${reasonParts.join(', ')})`);
+          }
           if (diff.conflicts.length > 0) {
             console.log(`  Metadata conflicts: ${formatNumber(diff.conflicts.length)}`);
           }
@@ -659,9 +778,32 @@ export const syncCommand = new Command('sync')
             if (plan.operations.length > 0) {
               console.log('Operations:');
               for (const op of plan.operations) {
-                const symbol = op.type === 'remove' ? '-' : '+';
-                const typeStr = op.type.padEnd(10);
+                let symbol: string;
+                switch (op.type) {
+                  case 'remove':
+                    symbol = '-';
+                    break;
+                  case 'update-metadata':
+                    symbol = '~';
+                    break;
+                  default:
+                    symbol = '+';
+                }
+                const typeStr = op.type.padEnd(15);
                 console.log(`  ${symbol} [${typeStr}] ${core.getOperationDisplayName(op)}`);
+
+                // In verbose mode, show before/after for update operations
+                if (globalOpts.verbose && op.type === 'update-metadata') {
+                  // Find the corresponding UpdateTrack to get change details
+                  const updateInfo = diff.toUpdate.find(
+                    (u) => u.ipod.title === op.track.title && u.ipod.artist === op.track.artist
+                  );
+                  if (updateInfo) {
+                    for (const change of updateInfo.changes) {
+                      console.log(`      ${change.field}: "${change.from}" → "${change.to}"`);
+                    }
+                  }
+                }
               }
               console.log('');
             }
@@ -711,6 +853,7 @@ export const syncCommand = new Command('sync')
             plan: {
               tracksToAdd: diff.toAdd.length,
               tracksToRemove: removeOrphans ? diff.toRemove.length : 0,
+              tracksToUpdate: diff.toUpdate.length,
               tracksToTranscode: summary.transcodeCount,
               tracksToCopy: summary.copyCount,
               estimatedSize: plan.estimatedSize,
@@ -744,6 +887,7 @@ export const syncCommand = new Command('sync')
             plan: {
               tracksToAdd: 0,
               tracksToRemove: 0,
+              tracksToUpdate: 0,
               tracksToTranscode: 0,
               tracksToCopy: 0,
               estimatedSize: 0,
@@ -854,6 +998,7 @@ export const syncCommand = new Command('sync')
           plan: {
             tracksToAdd: diff.toAdd.length,
             tracksToRemove: removeOrphans ? diff.toRemove.length : 0,
+            tracksToUpdate: diff.toUpdate.length,
             tracksToTranscode: summary.transcodeCount,
             tracksToCopy: summary.copyCount,
             estimatedSize: plan.estimatedSize,

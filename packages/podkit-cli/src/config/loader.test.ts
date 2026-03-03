@@ -10,6 +10,7 @@ import {
   loadConfig,
 } from './loader.js';
 import { DEFAULT_CONFIG, ENV_KEYS } from './defaults.js';
+import { DEFAULT_TRANSFORMS_CONFIG } from './types.js';
 import type { GlobalOptions, PartialConfig } from './types.js';
 
 describe('config loader', () => {
@@ -86,7 +87,7 @@ quality = "invalid"
     });
 
     // Quality preset tests
-    const validPresets = ['alac', 'max', 'max-cbr', 'high', 'high-cbr', 'medium', 'medium-cbr', 'low', 'low-cbr'];
+    const validPresets = ['alac', 'max', 'max-cbr', 'high', 'high-cbr', 'medium', 'medium-cbr', 'low', 'low-cbr'] as const;
     for (const preset of validPresets) {
       it(`accepts quality = "${preset}"`, () => {
         const configPath = path.join(tempDir, 'config.toml');
@@ -120,7 +121,7 @@ fallback = "alac"
       expect(() => loadConfigFile(configPath)).toThrow(/Invalid fallback value/);
     });
 
-    const validFallbacks = ['max', 'max-cbr', 'high', 'high-cbr', 'medium', 'medium-cbr', 'low', 'low-cbr'];
+    const validFallbacks = ['max', 'max-cbr', 'high', 'high-cbr', 'medium', 'medium-cbr', 'low', 'low-cbr'] as const;
     for (const fallback of validFallbacks) {
       it(`accepts fallback = "${fallback}"`, () => {
         const configPath = path.join(tempDir, 'config.toml');
@@ -203,6 +204,129 @@ device = "/media/iPod Nano"
         device: '/media/iPod Nano',
       });
     });
+
+    describe('transforms config', () => {
+      it('parses [transforms.ftintitle] section', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+source = "/music"
+
+[transforms.ftintitle]
+enabled = true
+drop = false
+format = "feat. {}"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.transforms).toBeDefined();
+        expect(result?.transforms?.ftintitle).toEqual({
+          enabled: true,
+          drop: false,
+          format: 'feat. {}',
+        });
+      });
+
+      it('parses partial transforms config (enabled only)', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[transforms.ftintitle]
+enabled = true
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.transforms?.ftintitle.enabled).toBe(true);
+        // Other values should be defaults
+        expect(result?.transforms?.ftintitle.drop).toBe(false);
+        expect(result?.transforms?.ftintitle.format).toBe('feat. {}');
+      });
+
+      it('parses drop mode', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[transforms.ftintitle]
+enabled = true
+drop = true
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.transforms?.ftintitle.drop).toBe(true);
+      });
+
+      it('parses custom format string', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[transforms.ftintitle]
+enabled = true
+format = "with {}"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.transforms?.ftintitle.format).toBe('with {}');
+      });
+
+      it('throws on format without placeholder', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[transforms.ftintitle]
+enabled = true
+format = "no placeholder here"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/must contain "{}"/);
+      });
+
+      it('throws on wrong type for enabled (string instead of boolean)', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[transforms.ftintitle]
+enabled = "true"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "enabled"/);
+      });
+
+      it('throws on wrong type for drop (string instead of boolean)', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[transforms.ftintitle]
+drop = "yes"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "drop"/);
+      });
+
+      it('throws on wrong type for format (number instead of string)', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[transforms.ftintitle]
+format = 123
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "format"/);
+      });
+
+      it('returns defaults when transforms section missing', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+source = "/music"
+`);
+
+        const result = loadConfigFile(configPath);
+        // transforms should not be in the result if not specified
+        expect(result?.transforms).toBeUndefined();
+      });
+
+      it('handles empty transforms section', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[transforms]
+`);
+
+        const result = loadConfigFile(configPath);
+        // Should have transforms with defaults
+        expect(result?.transforms?.ftintitle).toEqual(DEFAULT_TRANSFORMS_CONFIG.ftintitle);
+      });
+    });
   });
 
   describe('loadEnvConfig', () => {
@@ -236,7 +360,7 @@ device = "/media/iPod Nano"
     });
 
     // All quality presets via env
-    const envPresets = ['alac', 'max', 'max-cbr', 'high', 'high-cbr', 'medium', 'medium-cbr', 'low', 'low-cbr'];
+    const envPresets = ['alac', 'max', 'max-cbr', 'high', 'high-cbr', 'medium', 'medium-cbr', 'low', 'low-cbr'] as const;
     for (const preset of envPresets) {
       it(`reads PODKIT_QUALITY=${preset}`, () => {
         process.env[ENV_KEYS.quality] = preset;
@@ -358,7 +482,7 @@ device = "/media/iPod Nano"
     });
 
     // All quality presets via CLI
-    const cliPresets = ['alac', 'max', 'max-cbr', 'high', 'high-cbr', 'medium', 'medium-cbr', 'low', 'low-cbr'];
+    const cliPresets = ['alac', 'max', 'max-cbr', 'high', 'high-cbr', 'medium', 'medium-cbr', 'low', 'low-cbr'] as const;
     for (const preset of cliPresets) {
       it(`extracts quality = "${preset}" from command options`, () => {
         const globalOpts: GlobalOptions = {
@@ -439,6 +563,58 @@ device = "/media/iPod Nano"
       expect(result.device).toBe('/cli-device'); // cli overrides all
       expect(result.quality).toBe('low'); // from file
       expect(result.artwork).toBe(true); // from default
+    });
+
+    describe('transforms merging', () => {
+      it('includes default transforms config', () => {
+        const result = mergeConfigs();
+        expect(result.transforms).toEqual(DEFAULT_TRANSFORMS_CONFIG);
+      });
+
+      it('merges transforms config from partial', () => {
+        const partial: PartialConfig = {
+          transforms: {
+            ftintitle: {
+              enabled: true,
+              drop: false,
+              format: 'feat. {}',
+            },
+          },
+        };
+        const result = mergeConfigs(partial);
+        expect(result.transforms.ftintitle.enabled).toBe(true);
+      });
+
+      it('deep merges transforms (later configs override all fields)', () => {
+        const first: PartialConfig = {
+          transforms: {
+            ftintitle: {
+              enabled: false,
+              drop: false,
+              format: 'ft. {}',
+            },
+          },
+        };
+        const second: PartialConfig = {
+          transforms: {
+            ftintitle: {
+              enabled: true,
+              drop: true,
+              format: 'feat. {}',
+            },
+          },
+        };
+        const result = mergeConfigs(first, second);
+        expect(result.transforms.ftintitle.enabled).toBe(true);
+        expect(result.transforms.ftintitle.drop).toBe(true);
+        expect(result.transforms.ftintitle.format).toBe('feat. {}');
+      });
+
+      it('preserves default transforms when partial has none', () => {
+        const partial: PartialConfig = { source: '/music' };
+        const result = mergeConfigs(partial);
+        expect(result.transforms).toEqual(DEFAULT_TRANSFORMS_CONFIG);
+      });
     });
   });
 
@@ -542,6 +718,49 @@ device = "/file/device"
       expect(result.config.quality).toBe('high');
       expect(result.config.artwork).toBe(true);
       expect(result.configFileExists).toBe(false);
+    });
+
+    it('loads transforms config and merges with defaults', () => {
+      const configPath = path.join(tempDir, 'config.toml');
+      fs.writeFileSync(configPath, `
+source = "/music"
+
+[transforms.ftintitle]
+enabled = true
+`);
+
+      const globalOpts: GlobalOptions = {
+        verbose: 0,
+        quiet: false,
+        json: false,
+        color: true,
+        config: configPath,
+      };
+
+      const result = loadConfig(globalOpts);
+      expect(result.config.transforms.ftintitle.enabled).toBe(true);
+      // Other values should be defaults
+      expect(result.config.transforms.ftintitle.drop).toBe(false);
+      expect(result.config.transforms.ftintitle.format).toBe('feat. {}');
+    });
+
+    it('uses default transforms when not specified in config', () => {
+      const configPath = path.join(tempDir, 'config.toml');
+      fs.writeFileSync(configPath, `
+source = "/music"
+quality = "low"
+`);
+
+      const globalOpts: GlobalOptions = {
+        verbose: 0,
+        quiet: false,
+        json: false,
+        color: true,
+        config: configPath,
+      };
+
+      const result = loadConfig(globalOpts);
+      expect(result.config.transforms).toEqual(DEFAULT_TRANSFORMS_CONFIG);
     });
   });
 });

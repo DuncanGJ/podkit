@@ -18,7 +18,7 @@ import type {
   AudioMetadata,
   QualityPreset,
 } from './types.js';
-import { AAC_PRESETS, ALAC_PRESET } from './types.js';
+import { AAC_PRESETS } from './types.js';
 
 /**
  * Error thrown when FFmpeg is not available

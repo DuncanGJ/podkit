@@ -22,7 +22,9 @@ export type {
   QualityPreset,
   GlobalOptions,
   ConfigFileContent,
+  TransformsConfig,
 } from './types.js';
+export { DEFAULT_TRANSFORMS_CONFIG } from './types.js';
 
 // Defaults
 export { DEFAULT_CONFIG, DEFAULT_CONFIG_PATH, ENV_PREFIX, ENV_KEYS } from './defaults.js';

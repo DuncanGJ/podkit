@@ -31,6 +31,45 @@ export interface ConflictTrack {
   conflicts: (keyof TrackMetadata)[];
 }
 
+// =============================================================================
+// Update Types (for transforms)
+// =============================================================================
+
+/**
+ * Reason why a track needs metadata update
+ *
+ * - transform-apply: Transform is enabled and iPod has original metadata
+ * - transform-remove: Transform is disabled and iPod has transformed metadata
+ * - metadata-changed: Source metadata changed (for future use)
+ */
+export type UpdateReason =
+  | 'transform-apply'
+  | 'transform-remove'
+  | 'metadata-changed';
+
+/**
+ * A single metadata field change
+ */
+export interface MetadataChange {
+  field: 'artist' | 'title' | 'album' | 'albumArtist';
+  from: string;
+  to: string;
+}
+
+/**
+ * A track that needs metadata update (no file transfer needed)
+ */
+export interface UpdateTrack {
+  /** Source track (always has original metadata) */
+  source: CollectionTrack;
+  /** iPod track to update */
+  ipod: IPodTrack;
+  /** Why the update is needed */
+  reason: UpdateReason;
+  /** What metadata fields are changing */
+  changes: MetadataChange[];
+}
+
 /**
  * Result of comparing collection to iPod
  */
@@ -43,6 +82,8 @@ export interface SyncDiff {
   existing: MatchedTrack[];
   /** Tracks with metadata mismatches */
   conflicts: ConflictTrack[];
+  /** Tracks that need metadata updates (e.g., transform applied/removed) */
+  toUpdate: UpdateTrack[];
 }
 
 /**
@@ -164,6 +205,20 @@ export interface SyncExecutor {
   ): AsyncIterable<SyncProgress>;
 }
 
+import type { TransformsConfig } from '../transforms/types.js';
+
+/**
+ * Options for diff computation
+ */
+export interface DiffOptions {
+  /**
+   * Transform configuration for dual-key matching.
+   * When transforms are enabled, tracks can match on either
+   * original or transformed metadata.
+   */
+  transforms?: TransformsConfig;
+}
+
 /**
  * Differ interface for comparing collections
  */
@@ -173,7 +228,8 @@ export interface SyncDiffer {
    */
   diff(
     collectionTracks: CollectionTrack[],
-    ipodTracks: IPodTrack[]
+    ipodTracks: IPodTrack[],
+    options?: DiffOptions
   ): SyncDiff;
 }
 

@@ -23,14 +23,12 @@ import { rm } from 'node:fs/promises';
 
 import type { CollectionTrack } from '../adapters/interface.js';
 import type { FFmpegTranscoder } from '../transcode/ffmpeg.js';
-import type { QualityPreset } from '../transcode/types.js';
 import type {
   ExecuteOptions,
   SyncExecutor,
   SyncOperation,
   SyncPlan,
   SyncProgress,
-  TranscodePresetRef,
 } from './types.js';
 import type { IpodDatabase, IPodTrack as IpodDatabaseTrack, TrackInput } from '../ipod/index.js';
 import { extractArtwork } from '../artwork/extractor.js';
@@ -543,8 +541,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
       case 'remove':
         return this.executeRemove(operation);
       case 'update-metadata':
-        // TODO: Implement metadata updates
-        return { bytesTransferred: 0 };
+        return this.executeUpdateMetadata(operation);
     }
   }
 
@@ -687,6 +684,78 @@ export class DefaultSyncExecutor implements SyncExecutor {
     // Remove using the fluent IPodTrack API
     foundTrack.remove();
 
+    return { bytesTransferred: 0 };
+  }
+
+  /**
+   * Execute an update-metadata operation
+   *
+   * Updates iPod track metadata without transferring any files.
+   * Used for transform changes (e.g., ftintitle enable/disable) where
+   * only artist/title fields need updating.
+   *
+   * Preserves play statistics (play count, rating, skip count).
+   */
+  private async executeUpdateMetadata(
+    operation: Extract<SyncOperation, { type: 'update-metadata' }>
+  ): Promise<{ bytesTransferred: number }> {
+    const { track: targetTrack, metadata } = operation;
+
+    // Find the matching track in the database
+    // Use filePath as primary identifier when available (most reliable)
+    const tracks = this.ipod.getTracks();
+    let foundTrack = tracks.find((t) => t.filePath === targetTrack.filePath);
+
+    // Fall back to metadata matching if filePath doesn't match
+    // (can happen if the operation was created from a different session)
+    if (!foundTrack) {
+      foundTrack = tracks.find(
+        (t) =>
+          t.title === targetTrack.title &&
+          t.artist === targetTrack.artist &&
+          t.album === targetTrack.album
+      );
+    }
+
+    if (!foundTrack) {
+      throw new Error(
+        `Track not found in database: ${targetTrack.artist} - ${targetTrack.title}`
+      );
+    }
+
+    // Convert TrackMetadata to TrackFields format for update()
+    // Only include fields that are actually being changed
+    const updateFields: Parameters<IpodDatabaseTrack['update']>[0] = {};
+
+    if (metadata.title !== undefined) {
+      updateFields.title = metadata.title;
+    }
+    if (metadata.artist !== undefined) {
+      updateFields.artist = metadata.artist;
+    }
+    if (metadata.album !== undefined) {
+      updateFields.album = metadata.album;
+    }
+    if (metadata.albumArtist !== undefined) {
+      updateFields.albumArtist = metadata.albumArtist;
+    }
+    if (metadata.genre !== undefined) {
+      updateFields.genre = metadata.genre;
+    }
+    if (metadata.year !== undefined) {
+      updateFields.year = metadata.year;
+    }
+    if (metadata.trackNumber !== undefined) {
+      updateFields.trackNumber = metadata.trackNumber;
+    }
+    if (metadata.discNumber !== undefined) {
+      updateFields.discNumber = metadata.discNumber;
+    }
+
+    // Update the track metadata (preserves play stats automatically)
+    foundTrack.update(updateFields);
+
+    // No bytes transferred for metadata-only updates
     return { bytesTransferred: 0 };
   }
 }

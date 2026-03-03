@@ -50,6 +50,11 @@ export type {
   SourceCategory,
   SyncWarning,
   SyncWarningType,
+  // Transform-related update types
+  UpdateReason,
+  MetadataChange,
+  UpdateTrack,
+  DiffOptions,
 } from './sync/types.js';
 
 // Differ
@@ -77,7 +82,7 @@ export {
 } from './sync/planner.js';
 
 // Track matching
-export type { Matchable, MatchResult } from './sync/matching.js';
+export type { Matchable, MatchResult, TransformMatchKeys } from './sync/matching.js';
 export {
   normalizeString,
   normalizeArtist,
@@ -88,6 +93,7 @@ export {
   buildMatchIndex,
   findMatches,
   findOrphanedTracks,
+  getTransformMatchKeys,
 } from './sync/matching.js';
 
 // Sync executor
@@ -194,3 +200,28 @@ export type { IpodErrorCode } from './ipod/errors.js';
 export { MediaType } from './ipod/constants.js';
 export type { MediaTypeValue } from './ipod/constants.js';
 export { IpodDatabase } from './ipod/database.js';
+
+// Transforms
+export type {
+  TransformableTrack,
+  TransformResult,
+  TrackTransform,
+  FtInTitleConfig,
+  TransformsConfig,
+} from './transforms/types.js';
+export {
+  DEFAULT_FTINTITLE_CONFIG,
+  DEFAULT_TRANSFORMS_CONFIG,
+} from './transforms/types.js';
+export {
+  applyTransforms,
+  hasEnabledTransforms,
+  getEnabledTransformsSummary,
+} from './transforms/pipeline.js';
+export { ftintitleTransform } from './transforms/ftintitle/index.js';
+export {
+  applyFtInTitle,
+  extractFeaturedArtist,
+  insertFeatIntoTitle,
+  titleContainsFeat,
+} from './transforms/ftintitle/index.js';

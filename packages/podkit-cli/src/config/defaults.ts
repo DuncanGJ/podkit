@@ -5,6 +5,7 @@
 import * as path from 'node:path';
 import * as os from 'node:os';
 import type { PodkitConfig } from './types.js';
+import { DEFAULT_TRANSFORMS_CONFIG } from './types.js';
 
 /**
  * Default location for config file
@@ -26,6 +27,7 @@ export const DEFAULT_CONFIG: PodkitConfig = {
   device: undefined,
   quality: 'high',
   artwork: true,
+  transforms: DEFAULT_TRANSFORMS_CONFIG,
 };
 
 /**

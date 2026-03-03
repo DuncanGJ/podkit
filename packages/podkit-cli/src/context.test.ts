@@ -8,6 +8,7 @@ import {
   type CliContext,
 } from './context.js';
 import type { PodkitConfig, GlobalOptions, LoadConfigResult } from './config/index.js';
+import { DEFAULT_TRANSFORMS_CONFIG } from './config/index.js';
 
 describe('CLI context', () => {
   const mockConfig: PodkitConfig = {
@@ -15,6 +16,7 @@ describe('CLI context', () => {
     device: '/test/ipod',
     quality: 'high',
     artwork: true,
+    transforms: DEFAULT_TRANSFORMS_CONFIG,
   };
 
   const mockGlobalOpts: GlobalOptions = {

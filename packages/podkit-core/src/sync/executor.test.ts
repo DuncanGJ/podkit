@@ -180,6 +180,7 @@ function createEmptyPlan(): SyncPlan {
     operations: [],
     estimatedTime: 0,
     estimatedSize: 0,
+    warnings: [],
   };
 }
 
@@ -268,6 +269,7 @@ describe('DefaultSyncExecutor - basic execution', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -292,6 +294,7 @@ describe('DefaultSyncExecutor - basic execution', () => {
       ],
       estimatedTime: 18,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -326,6 +329,7 @@ describe('DefaultSyncExecutor - basic execution', () => {
       ],
       estimatedTime: 0.1,
       estimatedSize: 0,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -368,6 +372,7 @@ describe('DefaultSyncExecutor - basic execution', () => {
       ],
       estimatedTime: 20,
       estimatedSize: 10000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -408,6 +413,7 @@ describe('DefaultSyncExecutor - progress reporting', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -430,6 +436,7 @@ describe('DefaultSyncExecutor - progress reporting', () => {
       ],
       estimatedTime: 3,
       estimatedSize: 15000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -460,6 +467,7 @@ describe('DefaultSyncExecutor - progress reporting', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -483,6 +491,7 @@ describe('DefaultSyncExecutor - progress reporting', () => {
       ],
       estimatedTime: 18,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -504,6 +513,7 @@ describe('DefaultSyncExecutor - progress reporting', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -523,6 +533,7 @@ describe('DefaultSyncExecutor - progress reporting', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -564,6 +575,7 @@ describe('DefaultSyncExecutor - dry-run mode', () => {
       ],
       estimatedTime: 20,
       estimatedSize: 10000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -585,6 +597,7 @@ describe('DefaultSyncExecutor - dry-run mode', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -605,6 +618,7 @@ describe('DefaultSyncExecutor - dry-run mode', () => {
       ],
       estimatedTime: 2,
       estimatedSize: 10000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -651,6 +665,7 @@ describe('DefaultSyncExecutor - error handling', () => {
       ],
       estimatedTime: 20,
       estimatedSize: 10000000,
+      warnings: [],
     };
 
     let errorThrown = false;
@@ -687,6 +702,7 @@ describe('DefaultSyncExecutor - error handling', () => {
       ],
       estimatedTime: 20,
       estimatedSize: 10000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -716,6 +732,7 @@ describe('DefaultSyncExecutor - error handling', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -760,6 +777,7 @@ describe('DefaultSyncExecutor - abort signal', () => {
       ],
       estimatedTime: 3,
       estimatedSize: 15000000,
+      warnings: [],
     };
 
     // Abort after first operation
@@ -794,6 +812,7 @@ describe('DefaultSyncExecutor - abort signal', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     let errorThrown = false;
@@ -841,6 +860,7 @@ describe('executePlan', () => {
       ],
       estimatedTime: 2,
       estimatedSize: 10000000,
+      warnings: [],
     };
 
     const result = await executePlan(plan, deps);
@@ -863,6 +883,7 @@ describe('executePlan', () => {
       ],
       estimatedTime: 2,
       estimatedSize: 10000000,
+      warnings: [],
     };
 
     const result = await executePlan(plan, deps, { dryRun: true });
@@ -894,6 +915,7 @@ describe('executePlan', () => {
       ],
       estimatedTime: 2,
       estimatedSize: 10000000,
+      warnings: [],
     };
 
     const result = await executePlan(plan, deps, { continueOnError: true, retryConfig: { retryDelayMs: 0 } });
@@ -932,6 +954,7 @@ describe('phase detection', () => {
       ],
       estimatedTime: 18,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -951,6 +974,7 @@ describe('phase detection', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -991,6 +1015,7 @@ describe('filetype detection', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     for await (const _p of executor.execute(plan)) {
@@ -1014,6 +1039,7 @@ describe('filetype detection', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     for await (const _p of executor.execute(plan)) {
@@ -1145,6 +1171,7 @@ describe('DefaultSyncExecutor - retry logic', () => {
       ],
       estimatedTime: 18,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -1180,6 +1207,7 @@ describe('DefaultSyncExecutor - retry logic', () => {
       ],
       estimatedTime: 18,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -1227,6 +1255,7 @@ describe('DefaultSyncExecutor - retry logic', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -1259,6 +1288,7 @@ describe('DefaultSyncExecutor - retry logic', () => {
       ],
       estimatedTime: 1,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -1303,6 +1333,7 @@ describe('DefaultSyncExecutor - retry logic', () => {
       ],
       estimatedTime: 18,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     const progress: ExecutorProgress[] = [];
@@ -1337,6 +1368,7 @@ describe('DefaultSyncExecutor - retry logic', () => {
       ],
       estimatedTime: 18,
       estimatedSize: 5000000,
+      warnings: [],
     };
 
     for await (const _p of executor.execute(plan, {
@@ -1378,6 +1410,7 @@ describe('executePlan - categorized errors', () => {
       ],
       estimatedTime: 20,
       estimatedSize: 10000000,
+      warnings: [],
     };
 
     const result = await executePlan(plan, deps, {
@@ -1391,5 +1424,359 @@ describe('executePlan - categorized errors', () => {
     expect(result.categorizedErrors[0]!.category).toBe('transcode');
     expect(result.categorizedErrors[0]!.trackName).toBe('A - S1');
     expect(result.categorizedErrors[0]!.wasRetried).toBe(true);
+  });
+});
+
+// =============================================================================
+// Update Metadata Operation Tests
+// =============================================================================
+
+describe('DefaultSyncExecutor - update-metadata operations', () => {
+  let mockDb: MockIpodDatabase;
+  let mockTranscoder: MockTranscoder;
+  let deps: ExecutorDependencies;
+
+  beforeEach(() => {
+    mockDb = createMockIpodDatabase();
+    mockTranscoder = createMockTranscoder();
+    deps = createDependencies(mockDb, mockTranscoder);
+  });
+
+  it('executes update-metadata operation', async () => {
+    // Track already on iPod that needs updating
+    let updateCalled = false;
+    let updateFields: Record<string, unknown> | null = null;
+    const ipodTrack = createMockIPodTrack('Artist feat. B', 'Song', 'Album', ':iPod_Control:Music:F00:UPDATE.m4a', {
+      update: (fields: Record<string, unknown>) => {
+        updateCalled = true;
+        updateFields = fields;
+        return ipodTrack;
+      },
+    });
+
+    mockDb = createMockIpodDatabase([ipodTrack]);
+    deps = createDependencies(mockDb, mockTranscoder);
+
+    const executor = new DefaultSyncExecutor(deps);
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'update-metadata',
+          track: ipodTrack,
+          metadata: {
+            artist: 'Artist',
+            title: 'Song (feat. B)',
+          },
+        },
+      ],
+      estimatedTime: 0.01,
+      estimatedSize: 0,
+      warnings: [],
+    };
+
+    for await (const _p of executor.execute(plan)) {
+      // iterate
+    }
+
+    expect(updateCalled).toBe(true);
+    expect(updateFields).not.toBeNull();
+    expect(updateFields!.artist).toBe('Artist');
+    expect(updateFields!.title).toBe('Song (feat. B)');
+    expect(mockDb.save.mock.calls.length).toBe(1);
+  });
+
+  it('finds track by filePath for update', async () => {
+    let foundByPath = false;
+    const ipodTrack = createMockIPodTrack('Old Artist', 'Old Title', 'Album', ':iPod_Control:Music:F00:PATH.m4a', {
+      update: () => {
+        foundByPath = true;
+        return ipodTrack;
+      },
+    });
+
+    mockDb = createMockIpodDatabase([ipodTrack]);
+    deps = createDependencies(mockDb, mockTranscoder);
+
+    const executor = new DefaultSyncExecutor(deps);
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'update-metadata',
+          track: ipodTrack, // Same filePath
+          metadata: { artist: 'New Artist' },
+        },
+      ],
+      estimatedTime: 0.01,
+      estimatedSize: 0,
+      warnings: [],
+    };
+
+    for await (const _p of executor.execute(plan)) {
+      // iterate
+    }
+
+    expect(foundByPath).toBe(true);
+  });
+
+  it('falls back to metadata matching when filePath differs', async () => {
+    let updateCalled = false;
+    const ipodTrack = createMockIPodTrack('Artist', 'Song', 'Album', ':iPod_Control:Music:F00:ACTUAL.m4a', {
+      update: () => {
+        updateCalled = true;
+        return ipodTrack;
+      },
+    });
+
+    mockDb = createMockIpodDatabase([ipodTrack]);
+    deps = createDependencies(mockDb, mockTranscoder);
+
+    const executor = new DefaultSyncExecutor(deps);
+    // Use different filePath in operation, but same metadata
+    const operationTrack = createMockIPodTrack('Artist', 'Song', 'Album', ':iPod_Control:Music:F00:DIFFERENT.m4a');
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'update-metadata',
+          track: operationTrack,
+          metadata: { genre: 'Rock' },
+        },
+      ],
+      estimatedTime: 0.01,
+      estimatedSize: 0,
+      warnings: [],
+    };
+
+    for await (const _p of executor.execute(plan)) {
+      // iterate
+    }
+
+    expect(updateCalled).toBe(true);
+  });
+
+  it('throws error when track not found', async () => {
+    mockDb = createMockIpodDatabase([]); // Empty database
+    deps = createDependencies(mockDb, mockTranscoder);
+
+    const executor = new DefaultSyncExecutor(deps);
+    const nonExistentTrack = createMockIPodTrack('Missing', 'Track', 'Album', ':iPod_Control:Music:F00:MISSING.m4a');
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'update-metadata',
+          track: nonExistentTrack,
+          metadata: { artist: 'New Artist' },
+        },
+      ],
+      estimatedTime: 0.01,
+      estimatedSize: 0,
+      warnings: [],
+    };
+
+    let errorThrown = false;
+    try {
+      for await (const _p of executor.execute(plan)) {
+        // iterate
+      }
+    } catch (err) {
+      errorThrown = true;
+      expect((err as Error).message).toContain('Track not found in database');
+    }
+
+    expect(errorThrown).toBe(true);
+  });
+
+  it('reports updating-db phase for update-metadata operations', async () => {
+    const ipodTrack = createMockIPodTrack('Artist', 'Song', 'Album', ':iPod_Control:Music:F00:UPDATE.m4a');
+    mockDb = createMockIpodDatabase([ipodTrack]);
+    deps = createDependencies(mockDb, mockTranscoder);
+
+    const executor = new DefaultSyncExecutor(deps);
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'update-metadata',
+          track: ipodTrack,
+          metadata: { artist: 'New Artist' },
+        },
+      ],
+      estimatedTime: 0.01,
+      estimatedSize: 0,
+      warnings: [],
+    };
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan)) {
+      progress.push(p);
+    }
+
+    // Should have updating-db phase (that's what getPhaseForOperation returns for update-metadata)
+    const dbEvents = progress.filter((p) => p.phase === 'updating-db');
+    expect(dbEvents.length).toBeGreaterThan(0);
+  });
+
+  it('does not transfer bytes for update-metadata', async () => {
+    const ipodTrack = createMockIPodTrack('Artist', 'Song', 'Album', ':iPod_Control:Music:F00:UPDATE.m4a');
+    mockDb = createMockIpodDatabase([ipodTrack]);
+    deps = createDependencies(mockDb, mockTranscoder);
+
+    const executor = new DefaultSyncExecutor(deps);
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'update-metadata',
+          track: ipodTrack,
+          metadata: { artist: 'New Artist' },
+        },
+      ],
+      estimatedTime: 0.01,
+      estimatedSize: 0,
+      warnings: [],
+    };
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan)) {
+      progress.push(p);
+    }
+
+    const completeEvent = progress.find((p) => p.phase === 'complete');
+    expect(completeEvent!.bytesProcessed).toBe(0);
+  });
+
+  it('skips update-metadata in dry-run mode', async () => {
+    let updateCalled = false;
+    const ipodTrack = createMockIPodTrack('Artist', 'Song', 'Album', ':iPod_Control:Music:F00:UPDATE.m4a', {
+      update: () => {
+        updateCalled = true;
+        return ipodTrack;
+      },
+    });
+
+    mockDb = createMockIpodDatabase([ipodTrack]);
+    deps = createDependencies(mockDb, mockTranscoder);
+
+    const executor = new DefaultSyncExecutor(deps);
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'update-metadata',
+          track: ipodTrack,
+          metadata: { artist: 'New Artist' },
+        },
+      ],
+      estimatedTime: 0.01,
+      estimatedSize: 0,
+      warnings: [],
+    };
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan, { dryRun: true })) {
+      progress.push(p);
+    }
+
+    expect(updateCalled).toBe(false);
+    expect(mockDb.save.mock.calls.length).toBe(0);
+    const skippedEvents = progress.filter((p) => p.skipped === true);
+    expect(skippedEvents.length).toBeGreaterThan(0);
+  });
+
+  it('updates only specified fields', async () => {
+    let updateFields: Record<string, unknown> | null = null;
+    const ipodTrack = createMockIPodTrack('Artist', 'Song', 'Album', ':iPod_Control:Music:F00:UPDATE.m4a', {
+      update: (fields: Record<string, unknown>) => {
+        updateFields = fields;
+        return ipodTrack;
+      },
+    });
+
+    mockDb = createMockIpodDatabase([ipodTrack]);
+    deps = createDependencies(mockDb, mockTranscoder);
+
+    const executor = new DefaultSyncExecutor(deps);
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'update-metadata',
+          track: ipodTrack,
+          metadata: {
+            artist: 'New Artist',
+            // title not specified - should not be included
+          },
+        },
+      ],
+      estimatedTime: 0.01,
+      estimatedSize: 0,
+      warnings: [],
+    };
+
+    for await (const _p of executor.execute(plan)) {
+      // iterate
+    }
+
+    // Only artist should be in the update
+    expect(updateFields).not.toBeNull();
+    expect(updateFields!.artist).toBe('New Artist');
+    expect(updateFields).not.toHaveProperty('title');
+  });
+
+  it('handles all metadata fields', async () => {
+    let updateFields: Record<string, unknown> | null = null;
+    const ipodTrack = createMockIPodTrack('Artist', 'Song', 'Album', ':iPod_Control:Music:F00:UPDATE.m4a', {
+      update: (fields: Record<string, unknown>) => {
+        updateFields = fields;
+        return ipodTrack;
+      },
+    });
+
+    mockDb = createMockIpodDatabase([ipodTrack]);
+    deps = createDependencies(mockDb, mockTranscoder);
+
+    const executor = new DefaultSyncExecutor(deps);
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'update-metadata',
+          track: ipodTrack,
+          metadata: {
+            artist: 'New Artist',
+            title: 'New Title',
+            album: 'New Album',
+            albumArtist: 'New Album Artist',
+            genre: 'New Genre',
+            year: 2024,
+            trackNumber: 5,
+            discNumber: 2,
+          },
+        },
+      ],
+      estimatedTime: 0.01,
+      estimatedSize: 0,
+      warnings: [],
+    };
+
+    for await (const _p of executor.execute(plan)) {
+      // iterate
+    }
+
+    expect(updateFields).not.toBeNull();
+    expect(updateFields!.artist).toBe('New Artist');
+    expect(updateFields!.title).toBe('New Title');
+    expect(updateFields!.album).toBe('New Album');
+    expect(updateFields!.albumArtist).toBe('New Album Artist');
+    expect(updateFields!.genre).toBe('New Genre');
+    expect(updateFields!.year).toBe(2024);
+    expect(updateFields!.trackNumber).toBe(5);
+    expect(updateFields!.discNumber).toBe(2);
+  });
+});
+
+describe('getOperationDisplayName - update-metadata', () => {
+  it('returns artist - title for update-metadata operation', () => {
+    const op: SyncOperation = {
+      type: 'update-metadata',
+      track: createIPodTrack('Daft Punk', 'Get Lucky', 'Random Access Memories'),
+      metadata: { artist: 'Daft Punk', title: 'Get Lucky (feat. Pharrell Williams)' },
+    };
+
+    expect(getOperationDisplayName(op)).toBe('Daft Punk - Get Lucky');
   });
 });

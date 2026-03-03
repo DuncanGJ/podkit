@@ -1050,3 +1050,393 @@ describe('computeDiff - edge cases', () => {
     expect(diff.existing).toHaveLength(0);
   });
 });
+
+// =============================================================================
+// Transform-Aware Matching Tests (Dual-Key)
+// =============================================================================
+
+describe('computeDiff - transform-aware matching', () => {
+  const TRANSFORMS_ENABLED = {
+    ftintitle: { enabled: true, drop: false, format: 'feat. {}' },
+  };
+
+  const TRANSFORMS_DISABLED = {
+    ftintitle: { enabled: false, drop: false, format: 'feat. {}' },
+  };
+
+  // -------------------------------------------------------------------------
+  // Basic toUpdate array behavior
+  // -------------------------------------------------------------------------
+
+  describe('toUpdate array', () => {
+    it('returns empty toUpdate when no transforms configured', () => {
+      const collectionTracks = [
+        createCollectionTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+      const ipodTracks = [
+        createIPodTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks);
+
+      expect(diff.toUpdate).toHaveLength(0);
+      expect(diff.existing).toHaveLength(1);
+    });
+
+    it('returns empty toUpdate when transforms disabled', () => {
+      const collectionTracks = [
+        createCollectionTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+      const ipodTracks = [
+        createIPodTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_DISABLED,
+      });
+
+      expect(diff.toUpdate).toHaveLength(0);
+      expect(diff.existing).toHaveLength(1);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // transform-apply scenario
+  // -------------------------------------------------------------------------
+
+  describe('transform-apply', () => {
+    it('detects when transform should be applied (iPod has original metadata)', () => {
+      // Source has "Artist feat. B" which should transform to "Artist"
+      const collectionTracks = [
+        createCollectionTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+      // iPod has original (untransformed) metadata
+      const ipodTracks = [
+        createIPodTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_ENABLED,
+      });
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('transform-apply');
+      expect(diff.toUpdate[0]!.changes).toContainEqual({
+        field: 'artist',
+        from: 'Artist feat. B',
+        to: 'Artist',
+      });
+      expect(diff.toUpdate[0]!.changes).toContainEqual({
+        field: 'title',
+        from: 'Song',
+        to: 'Song (feat. B)',
+      });
+      expect(diff.existing).toHaveLength(0);
+      expect(diff.toAdd).toHaveLength(0);
+      expect(diff.toRemove).toHaveLength(0);
+    });
+
+    it('correctly sets source and ipod references in UpdateTrack', () => {
+      const collectionTracks = [
+        createCollectionTrack('Drake feat. Rihanna', 'Take Care', 'Take Care', {
+          id: 'source-123',
+        }),
+      ];
+      const ipodTracks = [
+        createIPodTrack('Drake feat. Rihanna', 'Take Care', 'Take Care', {
+          filePath: ':iPod:Music:F00:ABC.m4a',
+        }),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_ENABLED,
+      });
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.source.id).toBe('source-123');
+      expect(diff.toUpdate[0]!.ipod.filePath).toBe(':iPod:Music:F00:ABC.m4a');
+    });
+
+    it('handles multiple tracks needing transform-apply', () => {
+      const collectionTracks = [
+        createCollectionTrack('Artist A feat. X', 'Song 1', 'Album'),
+        createCollectionTrack('Artist B ft. Y', 'Song 2', 'Album'),
+        createCollectionTrack('Artist C featuring Z', 'Song 3', 'Album'),
+      ];
+      const ipodTracks = [
+        createIPodTrack('Artist A feat. X', 'Song 1', 'Album'),
+        createIPodTrack('Artist B ft. Y', 'Song 2', 'Album'),
+        createIPodTrack('Artist C featuring Z', 'Song 3', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_ENABLED,
+      });
+
+      expect(diff.toUpdate).toHaveLength(3);
+      expect(diff.toUpdate.every((u) => u.reason === 'transform-apply')).toBe(true);
+    });
+
+    it('does not add to toUpdate when track has no featured artist', () => {
+      const collectionTracks = [
+        createCollectionTrack('Solo Artist', 'Song', 'Album'),
+      ];
+      const ipodTracks = [
+        createIPodTrack('Solo Artist', 'Song', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_ENABLED,
+      });
+
+      expect(diff.toUpdate).toHaveLength(0);
+      expect(diff.existing).toHaveLength(1);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // transform-remove scenario
+  // -------------------------------------------------------------------------
+
+  describe('transform-remove', () => {
+    it('detects when transform should be removed (iPod has transformed metadata, config disabled)', () => {
+      // Source has original "Artist feat. B"
+      const collectionTracks = [
+        createCollectionTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+      // iPod has transformed metadata (was previously synced with transforms enabled)
+      const ipodTracks = [
+        createIPodTrack('Artist', 'Song (feat. B)', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_DISABLED,
+      });
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('transform-remove');
+      expect(diff.toUpdate[0]!.changes).toContainEqual({
+        field: 'artist',
+        from: 'Artist',
+        to: 'Artist feat. B',
+      });
+      expect(diff.toUpdate[0]!.changes).toContainEqual({
+        field: 'title',
+        from: 'Song (feat. B)',
+        to: 'Song',
+      });
+      expect(diff.existing).toHaveLength(0);
+      expect(diff.toAdd).toHaveLength(0);
+      expect(diff.toRemove).toHaveLength(0);
+    });
+
+    it('handles multiple tracks needing transform-remove', () => {
+      const collectionTracks = [
+        createCollectionTrack('Artist A feat. X', 'Song 1', 'Album'),
+        createCollectionTrack('Artist B ft. Y', 'Song 2', 'Album'),
+      ];
+      // iPod has transformed metadata
+      const ipodTracks = [
+        createIPodTrack('Artist A', 'Song 1 (feat. X)', 'Album'),
+        createIPodTrack('Artist B', 'Song 2 (feat. Y)', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_DISABLED,
+      });
+
+      expect(diff.toUpdate).toHaveLength(2);
+      expect(diff.toUpdate.every((u) => u.reason === 'transform-remove')).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Already correct scenarios (no update needed)
+  // -------------------------------------------------------------------------
+
+  describe('already correct', () => {
+    it('does not update when iPod already has transformed metadata (transforms enabled)', () => {
+      const collectionTracks = [
+        createCollectionTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+      // iPod already has transformed metadata
+      const ipodTracks = [
+        createIPodTrack('Artist', 'Song (feat. B)', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_ENABLED,
+      });
+
+      expect(diff.toUpdate).toHaveLength(0);
+      expect(diff.existing).toHaveLength(1);
+    });
+
+    it('does not update when iPod has original metadata (transforms disabled)', () => {
+      const collectionTracks = [
+        createCollectionTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+      const ipodTracks = [
+        createIPodTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_DISABLED,
+      });
+
+      expect(diff.toUpdate).toHaveLength(0);
+      expect(diff.existing).toHaveLength(1);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // toAdd scenarios with transforms
+  // -------------------------------------------------------------------------
+
+  describe('toAdd with transforms', () => {
+    it('adds track to toAdd when neither key matches', () => {
+      const collectionTracks = [
+        createCollectionTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+      // iPod has completely different track
+      const ipodTracks = [
+        createIPodTrack('Other Artist', 'Other Song', 'Other Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_ENABLED,
+      });
+
+      expect(diff.toAdd).toHaveLength(1);
+      // Transforms are applied to toAdd tracks when transforms are enabled
+      expect(diff.toAdd[0]!.artist).toBe('Artist');
+      expect(diff.toAdd[0]!.title).toBe('Song (feat. B)');
+      expect(diff.toRemove).toHaveLength(1);
+      expect(diff.toUpdate).toHaveLength(0);
+    });
+
+    it('preserves original metadata when transforms disabled', () => {
+      const collectionTracks = [
+        createCollectionTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+      const ipodTracks: IPodTrack[] = [];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_DISABLED,
+      });
+
+      expect(diff.toAdd).toHaveLength(1);
+      // Transforms disabled - original metadata preserved
+      expect(diff.toAdd[0]!.artist).toBe('Artist feat. B');
+      expect(diff.toAdd[0]!.title).toBe('Song');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Mixed scenarios
+  // -------------------------------------------------------------------------
+
+  describe('mixed scenarios', () => {
+    it('handles mix of toAdd, toRemove, existing, and toUpdate', () => {
+      const collectionTracks = [
+        // Needs transform-apply (iPod has original)
+        createCollectionTrack('A feat. X', 'Song 1', 'Album'),
+        // Already correct (iPod has transformed)
+        createCollectionTrack('B feat. Y', 'Song 2', 'Album'),
+        // New track (not on iPod)
+        createCollectionTrack('C feat. Z', 'Song 3', 'Album'),
+        // No featured artist (existing, no transform)
+        createCollectionTrack('Solo', 'Song 4', 'Album'),
+      ];
+
+      const ipodTracks = [
+        // Original metadata → needs transform-apply
+        createIPodTrack('A feat. X', 'Song 1', 'Album'),
+        // Already transformed → existing
+        createIPodTrack('B', 'Song 2 (feat. Y)', 'Album'),
+        // To be removed
+        createIPodTrack('Old Artist', 'Old Song', 'Old Album'),
+        // No featured artist → existing
+        createIPodTrack('Solo', 'Song 4', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: TRANSFORMS_ENABLED,
+      });
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.source.artist).toBe('A feat. X');
+      expect(diff.toUpdate[0]!.reason).toBe('transform-apply');
+
+      expect(diff.existing).toHaveLength(2);
+      const existingArtists = diff.existing.map((e) => e.collection.artist);
+      expect(existingArtists).toContain('B feat. Y');
+      expect(existingArtists).toContain('Solo');
+
+      expect(diff.toAdd).toHaveLength(1);
+      // Transforms are applied to toAdd tracks
+      expect(diff.toAdd[0]!.artist).toBe('C');
+      expect(diff.toAdd[0]!.title).toBe('Song 3 (feat. Z)');
+
+      expect(diff.toRemove).toHaveLength(1);
+      expect(diff.toRemove[0]!.artist).toBe('Old Artist');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Format string variations
+  // -------------------------------------------------------------------------
+
+  describe('format string variations', () => {
+    it('respects custom format string in transform config', () => {
+      const customTransforms = {
+        ftintitle: { enabled: true, drop: false, format: 'with {}' },
+      };
+
+      const collectionTracks = [
+        createCollectionTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+      const ipodTracks = [
+        createIPodTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: customTransforms,
+      });
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.changes).toContainEqual({
+        field: 'title',
+        from: 'Song',
+        to: 'Song (with B)',
+      });
+    });
+
+    it('handles drop mode (featured info removed, not moved to title)', () => {
+      const dropTransforms = {
+        ftintitle: { enabled: true, drop: true, format: 'feat. {}' },
+      };
+
+      const collectionTracks = [
+        createCollectionTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+      const ipodTracks = [
+        createIPodTrack('Artist feat. B', 'Song', 'Album'),
+      ];
+
+      const diff = computeDiff(collectionTracks, ipodTracks, {
+        transforms: dropTransforms,
+      });
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.changes).toContainEqual({
+        field: 'artist',
+        from: 'Artist feat. B',
+        to: 'Artist',
+      });
+      // Title should not have feat. added since drop mode
+      const titleChange = diff.toUpdate[0]!.changes.find((c) => c.field === 'title');
+      expect(titleChange).toBeUndefined();
+    });
+  });
+});

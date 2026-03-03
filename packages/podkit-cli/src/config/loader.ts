@@ -18,8 +18,9 @@ import type {
   AacQualityPreset,
   ConfigFileContent,
   GlobalOptions,
+  TransformsConfig,
 } from './types.js';
-import { QUALITY_PRESETS, AAC_QUALITY_PRESETS } from './types.js';
+import { QUALITY_PRESETS, AAC_QUALITY_PRESETS, DEFAULT_TRANSFORMS_CONFIG } from './types.js';
 import { DEFAULT_CONFIG, DEFAULT_CONFIG_PATH, ENV_KEYS } from './defaults.js';
 
 /**
@@ -85,6 +86,65 @@ export function loadConfigFile(configPath: string): PartialConfig | undefined {
 
   if (typeof parsed.artwork === 'boolean') {
     config.artwork = parsed.artwork;
+  }
+
+  // Parse transforms section
+  if (parsed.transforms !== undefined) {
+    config.transforms = parseTransformsConfig(parsed.transforms);
+  }
+
+  return config;
+}
+
+/**
+ * Parse and validate transforms config from TOML
+ *
+ * Merges provided values with defaults and validates types.
+ */
+function parseTransformsConfig(raw: ConfigFileContent['transforms']): TransformsConfig {
+  const config: TransformsConfig = { ...DEFAULT_TRANSFORMS_CONFIG };
+
+  if (raw?.ftintitle !== undefined) {
+    const ftRaw = raw.ftintitle;
+    config.ftintitle = {
+      ...DEFAULT_TRANSFORMS_CONFIG.ftintitle,
+    };
+
+    // Validate types and set values
+    if (ftRaw.enabled !== undefined) {
+      if (typeof ftRaw.enabled !== 'boolean') {
+        throw new Error(
+          `Invalid type for "enabled" in [transforms.ftintitle]. ` +
+            `Expected boolean, got ${typeof ftRaw.enabled}.`
+        );
+      }
+      config.ftintitle.enabled = ftRaw.enabled;
+    }
+    if (ftRaw.drop !== undefined) {
+      if (typeof ftRaw.drop !== 'boolean') {
+        throw new Error(
+          `Invalid type for "drop" in [transforms.ftintitle]. ` +
+            `Expected boolean, got ${typeof ftRaw.drop}.`
+        );
+      }
+      config.ftintitle.drop = ftRaw.drop;
+    }
+    if (ftRaw.format !== undefined) {
+      if (typeof ftRaw.format !== 'string') {
+        throw new Error(
+          `Invalid type for "format" in [transforms.ftintitle]. ` +
+            `Expected string, got ${typeof ftRaw.format}.`
+        );
+      }
+      // Validate format contains placeholder
+      if (!ftRaw.format.includes('{}')) {
+        throw new Error(
+          `Invalid format "${ftRaw.format}" in [transforms.ftintitle]. ` +
+            'Format must contain "{}" placeholder for featured artist(s).'
+        );
+      }
+      config.ftintitle.format = ftRaw.format;
+    }
   }
 
   return config;
@@ -185,7 +245,10 @@ export function loadCliConfig(
  * Merge multiple partial configs with priority (later configs win)
  */
 export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
-  const merged: PodkitConfig = { ...DEFAULT_CONFIG };
+  const merged: PodkitConfig = {
+    ...DEFAULT_CONFIG,
+    transforms: { ...DEFAULT_CONFIG.transforms },
+  };
 
   for (const config of configs) {
     if (config.source !== undefined) {
@@ -202,6 +265,16 @@ export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
     }
     if (config.artwork !== undefined) {
       merged.artwork = config.artwork;
+    }
+    if (config.transforms !== undefined) {
+      // Deep merge transforms config
+      // NOTE: When adding new transforms, update this block to include them
+      merged.transforms = {
+        ftintitle: {
+          ...merged.transforms.ftintitle,
+          ...config.transforms.ftintitle,
+        },
+      };
     }
   }
 

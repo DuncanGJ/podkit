@@ -23,6 +23,8 @@
 
 import type { CollectionTrack } from '../adapters/interface.js';
 import type { IPodTrack } from './types.js';
+import type { TransformsConfig } from '../transforms/types.js';
+import { applyTransforms } from '../transforms/pipeline.js';
 
 /**
  * Interface for objects that can be matched (must have artist, title, album)
@@ -303,4 +305,75 @@ export function findOrphanedTracks(
   }
 
   return orphaned;
+}
+
+// =============================================================================
+// Transform-Aware Matching
+// =============================================================================
+
+/**
+ * Result of generating match keys with transforms
+ */
+export interface TransformMatchKeys {
+  /** Key generated from original metadata */
+  originalKey: string;
+  /** Key generated from transformed metadata */
+  transformedKey: string;
+  /** True if transform was applied (keys differ) */
+  transformApplied: boolean;
+  /** The transformed track data (for generating update changes) */
+  transformedTrack: Matchable;
+}
+
+/**
+ * Generate both original and transformed match keys for a track
+ *
+ * When transforms are configured, a source track may match an iPod track
+ * by either its original key (iPod has original metadata) or its
+ * transformed key (iPod was previously synced with transforms enabled).
+ *
+ * IMPORTANT: This function ALWAYS computes the transformed key, even when
+ * transforms are disabled. This is necessary for dual-key matching:
+ * - When transforms are enabled: we need the transformed key to know what to apply
+ * - When transforms are disabled: we need the transformed key to find iPod tracks
+ *   that were previously synced with transforms enabled (so we can revert them)
+ *
+ * @param track - The source track (always has original metadata)
+ * @param transforms - Transform configuration (may have enabled transforms)
+ * @returns Both keys plus metadata about whether transform would be applied
+ */
+export function getTransformMatchKeys(
+  track: Matchable,
+  transforms?: TransformsConfig
+): TransformMatchKeys {
+  const originalKey = getMatchKey(track);
+
+  if (!transforms) {
+    return {
+      originalKey,
+      transformedKey: originalKey,
+      transformApplied: false,
+      transformedTrack: track,
+    };
+  }
+
+  // Force-enable transforms for key generation purposes.
+  // We always need to compute the transformed key for dual-key matching,
+  // even when the transform is currently disabled (to find tracks that
+  // were previously transformed and need reverting).
+  const forceEnabledConfig: TransformsConfig = {
+    ftintitle: {
+      ...transforms.ftintitle,
+      enabled: true, // Force enable for matching purposes
+    },
+  };
+
+  const result = applyTransforms(track, forceEnabledConfig);
+
+  return {
+    originalKey,
+    transformedKey: getMatchKey(result.transformed),
+    transformApplied: result.applied,
+    transformedTrack: result.transformed,
+  };
 }

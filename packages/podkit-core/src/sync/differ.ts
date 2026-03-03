@@ -23,16 +23,20 @@
 
 import type { CollectionTrack } from '../adapters/interface.js';
 import type { TrackMetadata } from '../types.js';
+import { hasEnabledTransforms } from '../transforms/pipeline.js';
 import {
   buildMatchIndex,
-  getMatchKey,
+  getTransformMatchKeys,
 } from './matching.js';
 import type {
   ConflictTrack,
+  DiffOptions,
   IPodTrack,
   MatchedTrack,
+  MetadataChange,
   SyncDiff,
   SyncDiffer,
+  UpdateTrack,
 } from './types.js';
 
 /**
@@ -105,6 +109,35 @@ function findConflictingFields(
 }
 
 /**
+ * Build metadata changes array from source to target track
+ */
+function buildMetadataChanges(
+  from: { artist: string; title: string; album: string; albumArtist?: string },
+  to: { artist: string; title: string; album: string; albumArtist?: string }
+): MetadataChange[] {
+  const changes: MetadataChange[] = [];
+
+  if (from.artist !== to.artist) {
+    changes.push({ field: 'artist', from: from.artist, to: to.artist });
+  }
+  if (from.title !== to.title) {
+    changes.push({ field: 'title', from: from.title, to: to.title });
+  }
+  if (from.album !== to.album) {
+    changes.push({ field: 'album', from: from.album, to: to.album });
+  }
+  if (from.albumArtist !== to.albumArtist) {
+    changes.push({
+      field: 'albumArtist',
+      from: from.albumArtist ?? '',
+      to: to.albumArtist ?? '',
+    });
+  }
+
+  return changes;
+}
+
+/**
  * Compute the diff between collection tracks and iPod tracks
  *
  * This function is the core of the sync engine. It determines:
@@ -112,12 +145,24 @@ function findConflictingFields(
  * - Which iPod tracks should be removed (not in collection)
  * - Which tracks exist on both (matched pairs)
  * - Which matched tracks have conflicting metadata
+ * - Which tracks need metadata updates (e.g., transform applied/removed)
+ *
+ * ## Dual-Key Matching (with transforms)
+ *
+ * When transforms are enabled, each source track generates TWO match keys:
+ * 1. Original key (from source metadata as-is)
+ * 2. Transformed key (from metadata after applying transforms)
+ *
+ * The iPod track can match either key:
+ * - Match on original key: iPod has original metadata → may need transform-apply
+ * - Match on transformed key: iPod has transformed metadata → may need transform-remove
  *
  * The algorithm runs in O(n + m) time where n = collection size, m = iPod size,
  * using hash-based indexing for efficient lookups.
  *
  * @param collectionTracks - Tracks from the collection source
  * @param ipodTracks - Tracks currently on the iPod
+ * @param options - Diff options including transform configuration
  * @returns The computed diff
  *
  * @example
@@ -128,7 +173,8 @@ function findConflictingFields(
  */
 export function computeDiff(
   collectionTracks: CollectionTrack[],
-  ipodTracks: IPodTrack[]
+  ipodTracks: IPodTrack[],
+  options?: DiffOptions
 ): SyncDiff {
   // Build index from iPod tracks for O(1) lookup
   const ipodIndex = buildMatchIndex(ipodTracks);
@@ -142,17 +188,61 @@ export function computeDiff(
   const toAdd: CollectionTrack[] = [];
   const existing: MatchedTrack[] = [];
   const conflicts: ConflictTrack[] = [];
+  const toUpdate: UpdateTrack[] = [];
+
+  // Check if transforms are enabled
+  const transforms = options?.transforms;
+  const transformsEnabled = transforms && hasEnabledTransforms(transforms);
 
   // Process each collection track
   for (const collectionTrack of collectionTracks) {
-    const key = getMatchKey(collectionTrack);
-    const ipodMatch = ipodIndex.get(key);
+    // Get both original and transformed keys
+    const { originalKey, transformedKey, transformApplied, transformedTrack } =
+      getTransformMatchKeys(collectionTrack, transforms);
+
+    // Try to find iPod match - check original key first, then transformed
+    let ipodMatch = ipodIndex.get(originalKey);
+    let matchedByOriginalKey = !!ipodMatch;
+
+    // If no match by original key and transform was applied, try transformed key
+    if (!ipodMatch && transformApplied) {
+      ipodMatch = ipodIndex.get(transformedKey);
+      matchedByOriginalKey = false;
+    }
 
     if (ipodMatch) {
       // Track exists on iPod - mark as matched
       matchedIpodPaths.add(ipodMatch.filePath);
 
-      // Check for conflicts
+      // Determine if update is needed for transforms
+      if (transformApplied) {
+        if (matchedByOriginalKey) {
+          // iPod has original metadata, transforms are enabled → apply transform
+          if (transformsEnabled) {
+            toUpdate.push({
+              source: collectionTrack,
+              ipod: ipodMatch,
+              reason: 'transform-apply',
+              changes: buildMetadataChanges(ipodMatch, transformedTrack),
+            });
+            continue;
+          }
+        } else {
+          // iPod has transformed metadata (matched by transformed key)
+          // If transforms are now disabled, need to revert
+          if (!transformsEnabled) {
+            toUpdate.push({
+              source: collectionTrack,
+              ipod: ipodMatch,
+              reason: 'transform-remove',
+              changes: buildMetadataChanges(ipodMatch, collectionTrack),
+            });
+            continue;
+          }
+        }
+      }
+
+      // Check for other metadata conflicts (not transform-related)
       const conflictingFields = findConflictingFields(collectionTrack, ipodMatch);
 
       if (conflictingFields.length > 0) {
@@ -171,7 +261,19 @@ export function computeDiff(
       }
     } else {
       // Track not on iPod - needs to be added
-      toAdd.push(collectionTrack);
+      // Apply transforms to the track metadata if enabled
+      if (transformsEnabled && transformApplied) {
+        // Create a copy of the track with transformed metadata
+        // Preserves original filePath and other source info
+        const transformedSource: CollectionTrack = {
+          ...collectionTrack,
+          artist: transformedTrack.artist,
+          title: transformedTrack.title,
+        };
+        toAdd.push(transformedSource);
+      } else {
+        toAdd.push(collectionTrack);
+      }
     }
   }
 
@@ -189,6 +291,7 @@ export function computeDiff(
     toRemove,
     existing,
     conflicts,
+    toUpdate,
   };
 }
 
@@ -204,13 +307,15 @@ export class DefaultSyncDiffer implements SyncDiffer {
    *
    * @param collectionTracks - Tracks from the collection source
    * @param ipodTracks - Tracks currently on the iPod
+   * @param options - Diff options including transform configuration
    * @returns The computed diff
    */
   diff(
     collectionTracks: CollectionTrack[],
-    ipodTracks: IPodTrack[]
+    ipodTracks: IPodTrack[],
+    options?: DiffOptions
   ): SyncDiff {
-    return computeDiff(collectionTracks, ipodTracks);
+    return computeDiff(collectionTracks, ipodTracks, options);
   }
 }
 

@@ -199,6 +199,7 @@ describe('SyncExecutor integration', () => {
             ],
             estimatedTime: 1,
             estimatedSize: 50000,
+        warnings: [],
           };
 
           const result = await executePlan(plan, deps);
@@ -251,6 +252,7 @@ describe('SyncExecutor integration', () => {
             ],
             estimatedTime: 5,
             estimatedSize: 100000,
+        warnings: [],
           };
 
           const result = await executePlan(plan, deps);
@@ -313,6 +315,7 @@ describe('SyncExecutor integration', () => {
             ],
             estimatedTime: 0.1,
             estimatedSize: 0,
+        warnings: [],
           };
 
           const result = await executePlan(plan, deps);
@@ -373,6 +376,7 @@ describe('SyncExecutor integration', () => {
             ],
             estimatedTime: 10,
             estimatedSize: 500000,
+        warnings: [],
           };
 
           const result = await executePlan(plan, deps);
@@ -414,6 +418,7 @@ describe('SyncExecutor integration', () => {
             ],
             estimatedTime: 1,
             estimatedSize: 50000,
+        warnings: [],
           };
 
           const executor = new DefaultSyncExecutor(deps);
@@ -465,6 +470,7 @@ describe('SyncExecutor integration', () => {
             ],
             estimatedTime: 1,
             estimatedSize: 50000,
+        warnings: [],
           };
 
           const result = await executePlan(plan, deps, { dryRun: true });
