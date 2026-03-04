@@ -212,7 +212,8 @@ class Spinner {
   start(message: string): void {
     this.message = message;
     this.interval = setInterval(() => {
-      process.stdout.write(`\r${this.frames[this.current]} ${this.message}`);
+      // \x1b[K clears from cursor to end of line to prevent remnant characters
+      process.stdout.write(`\r\x1b[K${this.frames[this.current]} ${this.message}`);
       this.current = (this.current + 1) % this.frames.length;
     }, 100);
   }
@@ -226,10 +227,11 @@ class Spinner {
       clearInterval(this.interval);
       this.interval = null;
     }
+    // \x1b[K clears from cursor to end of line to prevent remnant characters
     if (finalMessage) {
-      process.stdout.write(`\r${finalMessage}\n`);
+      process.stdout.write(`\r\x1b[K${finalMessage}\n`);
     } else {
-      process.stdout.write('\r');
+      process.stdout.write('\r\x1b[K');
     }
   }
 }
@@ -1050,14 +1052,14 @@ export const syncCommand = new Command('sync')
             process.stdout.write('\x1b[2K\r');
             console.log('Sync complete!');
           } else if (progress.phase === 'updating-db') {
-            process.stdout.write('\rSaving iPod database...' + ' '.repeat(40));
+            process.stdout.write('\r\x1b[KSaving iPod database...');
           } else if (progress.phase !== 'preparing') {
             const bar = renderProgressBar(progress.current + 1, progress.total);
             const phaseStr = progress.phase.charAt(0).toUpperCase() + progress.phase.slice(1);
             const trackStr = progress.currentTrack
               ? ` ${progress.currentTrack.substring(0, 40)}`
               : '';
-            process.stdout.write(`\r${bar} ${phaseStr}${trackStr}` + ' '.repeat(20));
+            process.stdout.write(`\r\x1b[K${bar} ${phaseStr}${trackStr}`);
           }
         }
       }
