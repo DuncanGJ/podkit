@@ -537,6 +537,9 @@ export class DefaultSyncExecutor implements SyncExecutor {
     }
     const producerFailures: FailedOperation[] = [];
 
+    // Track completed inline operations (remove/update-metadata) for yielding
+    const inlineCompletions: SyncOperation[] = [];
+
     // Producer: prepare files and handle inline operations
     const producer = async () => {
       for (const operation of plan.operations) {
@@ -583,9 +586,11 @@ export class DefaultSyncExecutor implements SyncExecutor {
             }
           } else if (operation.type === 'remove') {
             await this.executeRemove(operation);
+            inlineCompletions.push(operation);
             inlineCompleted++;
           } else if (operation.type === 'update-metadata') {
             await this.executeUpdateMetadata(operation);
+            inlineCompletions.push(operation);
             inlineCompleted++;
           }
         } catch (error) {
@@ -695,6 +700,20 @@ export class DefaultSyncExecutor implements SyncExecutor {
         bytesTotal: totalBytes,
         error: failure.error,
         categorizedError,
+      };
+    }
+
+    // Yield progress for completed inline operations (remove/update-metadata)
+    for (const operation of inlineCompletions) {
+      yield {
+        phase: getPhaseForOperation(operation),
+        operation,
+        index: completed + failed + inlineCompleted - 1,
+        current: completed + failed + inlineCompleted,
+        total,
+        currentTrack: getOperationDisplayName(operation),
+        bytesProcessed,
+        bytesTotal: totalBytes,
       };
     }
 

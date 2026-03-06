@@ -428,9 +428,9 @@ describe('SyncExecutor integration', () => {
             progress.push(p);
           }
 
-          // Should have preparing, copying, updating-db, and complete phases
+          // Should have copying, updating-db, and complete phases
+          // (preparing phase was removed in the pipelined architecture)
           const phases = progress.map((p) => p.phase);
-          expect(phases).toContain('preparing');
           expect(phases).toContain('copying');
           expect(phases).toContain('updating-db');
           expect(phases).toContain('complete');
