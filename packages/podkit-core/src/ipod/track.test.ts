@@ -69,7 +69,7 @@ function createMockDatabase(): IpodDatabaseInternal & {
   removeTrackArtworkMock: ReturnType<typeof mock>;
 } {
   const updateTrackMock = mock(() => ({}) as IPodTrack);
-  const removeTrackMock = mock(() => {});
+  const removeTrackMock = mock(() => ({ removed: true }));
   const copyFileToTrackMock = mock(() => ({}) as IPodTrack);
   const setTrackArtworkMock = mock(() => ({}) as IPodTrack);
   const setTrackArtworkFromDataMock = mock(() => ({}) as IPodTrack);
@@ -243,6 +243,7 @@ describe('IpodTrackImpl', () => {
       // Mock removeTrack to call _markRemoved on the track
       db.removeTrackMock.mockImplementation((t: IpodTrackImpl) => {
         t._markRemoved();
+        return { removed: true };
       });
 
       track.remove();
