@@ -255,3 +255,15 @@ export {
   getPresetSettings,
   getPresetSettingsWithFallback,
 } from './video/types.js';
+
+// Video probe
+export type { VideoProbeConfig } from './video/probe.js';
+export { probeVideo, VideoProbeError } from './video/probe.js';
+
+// Video compatibility
+export {
+  checkVideoCompatibility,
+  isCompatibleVideoCodec,
+  isCompatibleAudioCodec,
+  isCompatibleContainer,
+} from './video/compatibility.js';
