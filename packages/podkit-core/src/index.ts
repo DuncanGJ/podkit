@@ -375,3 +375,21 @@ export {
   getVideoOperationDisplayName,
   createVideoExecutor,
 } from './sync/video-executor.js';
+
+// Device management
+export type {
+  DeviceInfo,
+  DeviceManager,
+  EjectResult,
+  MountResult,
+  EjectOptions,
+  MountOptions,
+  IpodIdentity,
+} from './device/index.js';
+export {
+  getDeviceManager,
+  createDeviceManager,
+  clearDeviceManagerCache,
+  getPlatform,
+  isPlatformSupported,
+} from './device/index.js';

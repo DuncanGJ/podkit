@@ -20,6 +20,7 @@ import type {
   GlobalOptions,
   TransformsConfig,
   VideoQualityPreset,
+  IpodIdentity,
 } from './types.js';
 import { QUALITY_PRESETS, AAC_QUALITY_PRESETS, DEFAULT_TRANSFORMS_CONFIG, VIDEO_QUALITY_PRESETS } from './types.js';
 import { DEFAULT_CONFIG, DEFAULT_CONFIG_PATH, ENV_KEYS } from './defaults.js';
@@ -121,7 +122,37 @@ export function loadConfigFile(configPath: string): PartialConfig | undefined {
     }
   }
 
+  // Parse iPod identity section
+  if (parsed.ipod !== undefined) {
+    config.ipod = parseIpodIdentity(parsed.ipod);
+  }
+
   return config;
+}
+
+/**
+ * Parse and validate iPod identity config from TOML
+ */
+function parseIpodIdentity(raw: ConfigFileContent['ipod']): IpodIdentity | undefined {
+  if (!raw) return undefined;
+
+  const volumeUuid = raw.volumeUuid;
+  const volumeName = raw.volumeName;
+
+  // Both fields are required for a valid identity
+  if (typeof volumeUuid !== 'string' || typeof volumeName !== 'string') {
+    return undefined;
+  }
+
+  // Validate UUID format (basic check)
+  if (!volumeUuid || volumeUuid.trim() === '') {
+    return undefined;
+  }
+
+  return {
+    volumeUuid: volumeUuid.trim(),
+    volumeName: volumeName.trim(),
+  };
 }
 
 /**
@@ -328,6 +359,10 @@ export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
     }
     if (config.videoQuality !== undefined) {
       merged.videoQuality = config.videoQuality;
+    }
+    // iPod identity
+    if (config.ipod !== undefined) {
+      merged.ipod = config.ipod;
     }
   }
 

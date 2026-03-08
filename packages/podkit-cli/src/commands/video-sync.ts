@@ -22,6 +22,7 @@ import { getContext } from '../context.js';
 import type { VideoQualityPreset } from '../config/index.js';
 import type { IPodVideo, CollectionVideo } from '@podkit/core';
 import { MediaType } from '@podkit/core';
+import { resolveDevicePath, formatDeviceError } from '../device-resolver.js';
 
 // =============================================================================
 // Types
@@ -272,7 +273,6 @@ export const videoSyncCommand = new Command('video-sync')
 
     // Merge options with config
     const sourcePath = options.source ?? config.videoSource;
-    const devicePath = config.device;
     const quality = options.quality ?? config.videoQuality ?? 'high';
     const dryRun = options.dryRun ?? false;
     const removeOrphans = options.delete ?? false;
@@ -336,28 +336,60 @@ export const videoSyncCommand = new Command('video-sync')
       return;
     }
 
-    // ----- Validate device -----
-    if (!devicePath) {
+    // ----- Load dependencies dynamically -----
+    let core: typeof import('@podkit/core');
+
+    try {
+      core = await import('@podkit/core');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load podkit-core';
       if (globalOpts.json) {
         outputJson({
           success: false,
           dryRun,
           source: sourcePath,
-          error: 'No device specified',
+          error: message,
         });
       } else {
-        console.error('No iPod device specified.');
-        console.error('');
-        console.error('Specify a device using:');
-        console.error('  --device /path/to/ipod');
-        console.error('  or set "device" in config file');
-        if (configResult.configPath) {
-          console.error(`  Config: ${configResult.configPath}`);
+        console.error('Failed to load podkit-core.');
+        if (globalOpts.verbose) {
+          console.error('Details:', message);
         }
       }
       process.exitCode = 1;
       return;
     }
+
+    // ----- Resolve device path (CLI > UUID auto-detect > config) -----
+    const manager = core.getDeviceManager();
+    if (!globalOpts.quiet && !globalOpts.json && config.ipod?.volumeUuid) {
+      console.log('Looking for iPod...');
+    }
+
+    const resolved = await resolveDevicePath({
+      cliDevice: globalOpts.device,
+      config,
+      manager,
+      requireMounted: true,
+      quiet: globalOpts.quiet,
+    });
+
+    if (!resolved.path) {
+      if (globalOpts.json) {
+        outputJson({
+          success: false,
+          dryRun,
+          source: sourcePath,
+          error: resolved.error ?? formatDeviceError(resolved),
+        });
+      } else {
+        console.error(resolved.error ?? formatDeviceError(resolved));
+      }
+      process.exitCode = 1;
+      return;
+    }
+
+    const devicePath = resolved.path;
 
     if (!existsSync(devicePath)) {
       if (globalOpts.json) {
@@ -372,35 +404,6 @@ export const videoSyncCommand = new Command('video-sync')
         console.error(`iPod not found at: ${devicePath}`);
         console.error('');
         console.error('Make sure the iPod is connected and mounted.');
-      }
-      process.exitCode = 1;
-      return;
-    }
-
-    // ----- Load dependencies dynamically -----
-    let core: typeof import('@podkit/core');
-
-    try {
-      core = await import('@podkit/core');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load podkit-core';
-      if (globalOpts.json) {
-        outputJson({
-          success: false,
-          dryRun,
-          source: sourcePath,
-          device: devicePath,
-          error: message,
-        });
-      } else {
-        console.error('Failed to load podkit-core.');
-        console.error('');
-        console.error('Make sure podkit-core is built:');
-        console.error('  bun run build');
-        if (globalOpts.verbose) {
-          console.error('');
-          console.error('Details:', message);
-        }
       }
       process.exitCode = 1;
       return;

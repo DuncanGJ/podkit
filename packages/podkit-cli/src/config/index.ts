@@ -24,6 +24,7 @@ export type {
   ConfigFileContent,
   TransformsConfig,
   VideoQualityPreset,
+  IpodIdentity,
 } from './types.js';
 export { DEFAULT_TRANSFORMS_CONFIG, VIDEO_QUALITY_PRESETS } from './types.js';
 
@@ -39,3 +40,12 @@ export {
   mergeConfigs,
   type LoadConfigResult,
 } from './loader.js';
+
+// Writer functions
+export {
+  updateIpodIdentity,
+  removeIpodIdentity,
+  removeDeviceField,
+  type UpdateConfigOptions,
+  type UpdateConfigResult,
+} from './writer.js';

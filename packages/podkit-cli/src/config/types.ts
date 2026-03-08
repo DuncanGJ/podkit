@@ -3,11 +3,11 @@
  */
 
 // Import quality preset types from core
-export type { QualityPreset, AacQualityPreset, TransformsConfig, VideoQualityPreset } from '@podkit/core';
+export type { QualityPreset, AacQualityPreset, TransformsConfig, VideoQualityPreset, IpodIdentity } from '@podkit/core';
 export { QUALITY_PRESETS, AAC_QUALITY_PRESETS, DEFAULT_TRANSFORMS_CONFIG, VIDEO_QUALITY_PRESETS } from '@podkit/core';
 
 // Import type for local use
-import type { QualityPreset, AacQualityPreset, TransformsConfig, VideoQualityPreset } from '@podkit/core';
+import type { QualityPreset, AacQualityPreset, TransformsConfig, VideoQualityPreset, IpodIdentity } from '@podkit/core';
 
 /**
  * Configuration that can be set via config file, env vars, or CLI
@@ -34,6 +34,10 @@ export interface PodkitConfig {
   videoSource?: string;
   /** Video transcoding quality preset */
   videoQuality?: VideoQualityPreset;
+
+  // iPod identity for auto-detection
+  /** Stored iPod identity for mount auto-detection */
+  ipod?: IpodIdentity;
 }
 
 /**
@@ -100,5 +104,10 @@ export interface ConfigFileContent {
   video?: {
     source?: string;
     quality?: string;
+  };
+  // iPod identity for auto-detection
+  ipod?: {
+    volumeUuid?: string;
+    volumeName?: string;
   };
 }

@@ -105,8 +105,9 @@ export function formatSuccessMessage(configPath: string): string {
     'Next steps:',
     `  1. Edit ${configPath} to set your music source directory`,
     '  2. Connect your iPod',
-    '  3. Run: podkit status',
-    '  4. Run: podkit sync --dry-run',
+    '  3. Run: podkit add-device  (register your iPod for auto-mount)',
+    '  4. Run: podkit status',
+    '  5. Run: podkit sync --dry-run',
   ];
   return lines.join('\n');
 }

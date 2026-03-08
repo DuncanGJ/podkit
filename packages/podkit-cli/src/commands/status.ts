@@ -17,6 +17,7 @@
 import { existsSync, statfsSync } from 'node:fs';
 import { Command } from 'commander';
 import { getContext } from '../context.js';
+import { resolveDevicePath, formatDeviceError } from '../device-resolver.js';
 
 /**
  * Format bytes as human-readable size with appropriate unit.
@@ -138,62 +139,23 @@ export interface StatusOutput {
 export const statusCommand = new Command('status')
   .description('show iPod device information and connection status')
   .action(async () => {
-    const { config, globalOpts, configResult } = getContext();
-
-    // Determine device path from CLI option or config
-    const devicePath = config.device;
+    const { config, globalOpts } = getContext();
 
     // Helper to output JSON or handle errors
     const outputJson = (data: StatusOutput) => {
       console.log(JSON.stringify(data, null, 2));
     };
 
-    // No device specified
-    if (!devicePath) {
-      if (globalOpts.json) {
-        outputJson({
-          connected: false,
-          error: 'No device specified',
-        });
-      } else {
-        console.error('No iPod device specified.');
-        console.error('');
-        console.error('Specify a device using:');
-        console.error('  --device /path/to/ipod');
-        console.error('  or set "device" in config file');
-        if (configResult.configPath) {
-          console.error(`  Config: ${configResult.configPath}`);
-        }
-      }
-      process.exitCode = 1;
-      return;
-    }
-
-    // Device path doesn't exist
-    if (!existsSync(devicePath)) {
-      if (globalOpts.json) {
-        outputJson({
-          connected: false,
-          error: `Device path not found: ${devicePath}`,
-        });
-      } else {
-        console.error(`iPod not found at: ${devicePath}`);
-        console.error('');
-        console.error('Make sure the iPod is connected and mounted.');
-      }
-      process.exitCode = 1;
-      return;
-    }
-
-    // Try to open the iPod database
     // Dynamically import to handle native binding errors gracefully
     let IpodDatabase: typeof import('@podkit/core').IpodDatabase;
     let IpodError: typeof import('@podkit/core').IpodError;
+    let getDeviceManager: typeof import('@podkit/core').getDeviceManager;
 
     try {
       const core = await import('@podkit/core');
       IpodDatabase = core.IpodDatabase;
       IpodError = core.IpodError;
+      getDeviceManager = core.getDeviceManager;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Failed to load podkit-core';
@@ -211,6 +173,50 @@ export const statusCommand = new Command('status')
           console.error('');
           console.error('Details:', message);
         }
+      }
+      process.exitCode = 1;
+      return;
+    }
+
+    // Resolve device path (CLI > UUID auto-detect > config)
+    const manager = getDeviceManager();
+    if (!globalOpts.quiet && !globalOpts.json && config.ipod?.volumeUuid) {
+      console.log('Looking for iPod...');
+    }
+
+    const resolved = await resolveDevicePath({
+      cliDevice: globalOpts.device,
+      config,
+      manager,
+      requireMounted: true,
+      quiet: globalOpts.quiet,
+    });
+
+    if (!resolved.path) {
+      if (globalOpts.json) {
+        outputJson({
+          connected: false,
+          error: resolved.error ?? formatDeviceError(resolved),
+        });
+      } else {
+        console.error(resolved.error ?? formatDeviceError(resolved));
+      }
+      process.exitCode = 1;
+      return;
+    }
+
+    const devicePath = resolved.path;
+
+    if (!existsSync(devicePath)) {
+      if (globalOpts.json) {
+        outputJson({
+          connected: false,
+          error: `Device path not found: ${devicePath}`,
+        });
+      } else {
+        console.error(`iPod not found at: ${devicePath}`);
+        console.error('');
+        console.error('Make sure the iPod is connected and mounted.');
       }
       process.exitCode = 1;
       return;

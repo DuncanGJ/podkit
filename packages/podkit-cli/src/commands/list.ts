@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { getContext } from '../context.js';
+import { resolveDevicePath, formatDeviceError } from '../device-resolver.js';
 
 /**
  * Unified track type for display purposes
@@ -446,8 +447,28 @@ export const listCommand = new Command('list')
         // Load from source directory
         tracks = await loadSourceTracks(source);
       } else {
+        // Resolve device path via UUID auto-detect
+        const core = await import('@podkit/core');
+        const manager = core.getDeviceManager();
+
+        if (!globalOpts.quiet && config.ipod?.volumeUuid) {
+          console.error('Looking for iPod...');
+        }
+
+        const resolved = await resolveDevicePath({
+          cliDevice: globalOpts.device,
+          config,
+          manager,
+          requireMounted: true,
+          quiet: globalOpts.quiet,
+        });
+
+        if (!resolved.path) {
+          throw new Error(resolved.error ?? formatDeviceError(resolved));
+        }
+
         // Load from iPod
-        tracks = await loadIpodTracks(config.device);
+        tracks = await loadIpodTracks(resolved.path);
       }
 
       // Format and output
