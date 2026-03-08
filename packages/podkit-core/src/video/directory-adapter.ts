@@ -14,6 +14,40 @@ import { probeVideo, VideoProbeError } from './probe.js';
 import { detectContentType } from './content-type.js';
 
 // =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Check if a title looks like a scene release name
+ *
+ * Scene releases typically have:
+ * - Dots separating words instead of spaces
+ * - Quality indicators (720p, 1080p, BluRay, etc.)
+ * - Release group names
+ *
+ * We want to detect these so we can prefer filename-parsed titles instead.
+ */
+function looksLikeSceneRelease(title: string): boolean {
+  // If it has multiple dots with words between them (e.g., "Movie.Name.2020")
+  const dotCount = (title.match(/\./g) || []).length;
+  if (dotCount >= 3) {
+    return true;
+  }
+
+  // Quality/release indicators
+  const scenePatterns = [
+    /\b(720p|1080p|2160p|4K|480p|576p)\b/i,
+    /\b(HDTV|WEB-?DL|WEB-?Rip|BluRay|BRRip|DVDRip|BDRip)\b/i,
+    /\b(x264|x265|h\.?264|h\.?265|HEVC|XviD|DivX|AVC)\b/i,
+    /\b(AAC|AC3|DTS|DTS-HD|DD5\.1|FLAC|TrueHD)\b/i,
+    /\b(REMUX|REPACK|PROPER|INTERNAL)\b/i,
+    /-[A-Z0-9]+$/i, // Release group suffix like "-FraMeSToR"
+  ];
+
+  return scenePatterns.some((pattern) => pattern.test(title));
+}
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -306,17 +340,49 @@ export class VideoDirectoryAdapter {
     // Determine content type and extract additional info
     const contentTypeResult = detectContentType(filePath, metadata ?? undefined);
 
+    // Determine title based on content type
+    let title: string;
+    const metadataTitle = metadata?.title;
+    const metadataTitleIsSceneRelease = metadataTitle && looksLikeSceneRelease(metadataTitle);
+
+    if (contentTypeResult.type === 'tvshow') {
+      // For TV shows, title should be episode-specific, not series title
+      // Use episode ID format (e.g., "S01E01") or leave for later formatting
+      if (metadataTitle && !metadataTitleIsSceneRelease) {
+        // Use clean metadata title as episode title
+        title = metadataTitle;
+      } else if (contentTypeResult.episodeId) {
+        // Use episode ID as title (e.g., "S01E01")
+        title = contentTypeResult.episodeId;
+      } else {
+        // Fallback to filename
+        title = this.getTitleFromPath(filePath);
+      }
+    } else if (metadataTitle && !metadataTitleIsSceneRelease) {
+      // Prefer embedded metadata title if it's clean (not a scene release name)
+      title = metadataTitle;
+    } else if (contentTypeResult.type === 'movie' && contentTypeResult.parsedTitle) {
+      // For movies, use library-parsed title
+      title = contentTypeResult.parsedTitle;
+    } else {
+      // Fallback to filename-based title
+      title = this.getTitleFromPath(filePath);
+    }
+
+    // Determine year (for movies)
+    const year =
+      metadata?.year ??
+      (contentTypeResult.type === 'movie' ? contentTypeResult.parsedYear : undefined);
+
     // Build CollectionVideo
     const video: CollectionVideo = {
       id: filePath,
       filePath,
       contentType: contentTypeResult.type,
-
-      // Title from metadata, or from content type detection, or from filename
-      title: metadata?.title ?? contentTypeResult.seriesTitle ?? this.getTitleFromPath(filePath),
+      title,
 
       // Metadata fields
-      year: metadata?.year,
+      year,
       description: metadata?.description,
       genre: metadata?.genre,
 
@@ -324,11 +390,8 @@ export class VideoDirectoryAdapter {
       director: metadata?.contentType === 'movie' ? metadata.director : undefined,
       studio: metadata?.contentType === 'movie' ? metadata.studio : undefined,
 
-      // TV-specific (prefer metadata, fall back to content type detection)
-      seriesTitle:
-        metadata?.contentType === 'tvshow'
-          ? metadata.seriesTitle
-          : contentTypeResult.seriesTitle,
+      // TV-specific (use content type detection which already handles metadata)
+      seriesTitle: contentTypeResult.seriesTitle,
       seasonNumber:
         metadata?.contentType === 'tvshow'
           ? metadata.seasonNumber

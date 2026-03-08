@@ -20,7 +20,7 @@ import { existsSync, statfsSync } from 'node:fs';
 import { Command } from 'commander';
 import { getContext } from '../context.js';
 import type { VideoQualityPreset } from '../config/index.js';
-import type { IPodVideo } from '@podkit/core';
+import type { IPodVideo, CollectionVideo } from '@podkit/core';
 import { MediaType } from '@podkit/core';
 
 // =============================================================================
@@ -183,6 +183,72 @@ export function renderProgressBar(current: number, total: number, width = 30): s
  */
 function isValidVideoQualityPreset(value: string): value is VideoQualityPreset {
   return ['max', 'high', 'medium', 'low'].includes(value);
+}
+
+/**
+ * Render metadata preview section showing detected movies and TV shows
+ */
+function renderMetadataPreview(videos: CollectionVideo[]): void {
+  const movies = videos.filter(v => v.contentType === 'movie');
+  const tvShows = videos.filter(v => v.contentType === 'tvshow');
+
+  console.log('Detected Content:');
+  console.log('');
+
+  // Movies section
+  if (movies.length > 0) {
+    console.log(`  Movies (${movies.length}):`);
+    // Sort alphabetically by title
+    const sortedMovies = [...movies].sort((a, b) => a.title.localeCompare(b.title));
+    for (const movie of sortedMovies) {
+      const yearStr = movie.year ? ` (${movie.year})` : '';
+      console.log(`    - ${movie.title}${yearStr}`);
+    }
+    console.log('');
+  }
+
+  // TV Shows section
+  if (tvShows.length > 0) {
+    // Group by series
+    const seriesMap = new Map<string, CollectionVideo[]>();
+    for (const ep of tvShows) {
+      const seriesKey = ep.seriesTitle || 'Unknown Series';
+      const existing = seriesMap.get(seriesKey) || [];
+      existing.push(ep);
+      seriesMap.set(seriesKey, existing);
+    }
+
+    const seriesCount = seriesMap.size;
+    console.log(`  TV Shows (${tvShows.length} episodes, ${seriesCount} series):`);
+
+    // Sort series alphabetically
+    const sortedSeries = [...seriesMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+
+    for (const [seriesTitle, episodes] of sortedSeries) {
+      console.log(`    ${seriesTitle} (${episodes.length} episodes)`);
+
+      // Group by season
+      const seasonMap = new Map<number, number[]>();
+      for (const ep of episodes) {
+        const season = ep.seasonNumber ?? 0;
+        const episodeNum = ep.episodeNumber ?? 0;
+        const existing = seasonMap.get(season) || [];
+        existing.push(episodeNum);
+        seasonMap.set(season, existing);
+      }
+
+      // Sort seasons
+      const sortedSeasons = [...seasonMap.entries()].sort((a, b) => a[0] - b[0]);
+
+      for (const [season, episodeNums] of sortedSeasons) {
+        // Sort episode numbers and format
+        const sortedEps = [...episodeNums].sort((a, b) => a - b);
+        const epList = sortedEps.map(n => `E${String(n).padStart(2, '0')}`).join(', ');
+        console.log(`      Season ${season}: ${epList}`);
+      }
+    }
+    console.log('');
+  }
 }
 
 // =============================================================================
@@ -570,6 +636,9 @@ export const videoSyncCommand = new Command('video-sync')
           console.log(`    - Movies: ${formatNumber(movieCount)}`);
           console.log(`    - TV Shows: ${formatNumber(tvShowCount)}`);
           console.log('');
+
+          // Metadata preview
+          renderMetadataPreview(collectionVideos);
 
           console.log('Changes:');
           console.log(`  Videos to add: ${formatNumber(diff.toAdd.length)}`);

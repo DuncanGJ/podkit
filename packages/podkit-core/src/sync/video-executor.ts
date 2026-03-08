@@ -540,8 +540,19 @@ export class PlaceholderVideoSyncExecutor implements VideoSyncExecutor {
 export function getVideoOperationDisplayName(operation: SyncOperation): string {
   switch (operation.type) {
     case 'video-transcode':
-    case 'video-copy':
-      return operation.source.title;
+    case 'video-copy': {
+      const video = operation.source;
+      if (video.contentType === 'tvshow' && video.episodeId) {
+        // Format: "Series Title - S01E01" or "Title - S01E01" if no series title
+        const showName = video.seriesTitle || video.title;
+        return `${showName} - ${video.episodeId}`;
+      }
+      // For movies, just use the title (with year if available)
+      if (video.year) {
+        return `${video.title} (${video.year})`;
+      }
+      return video.title;
+    }
     default:
       return 'Unknown operation';
   }

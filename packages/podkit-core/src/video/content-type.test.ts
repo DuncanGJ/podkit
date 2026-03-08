@@ -289,11 +289,13 @@ describe('detectContentType - confidence levels', () => {
     expect(result.confidence).toBe('medium');
   });
 
-  it('returns low confidence for movie fallback', () => {
+  it('returns medium confidence for movie fallback when title is parseable', () => {
     const result = detectContentType('/Movies/Inception (2010).mp4');
 
     expect(result.type).toBe('movie');
-    expect(result.confidence).toBe('low');
+    // Medium confidence because library can extract title from filename
+    expect(result.confidence).toBe('medium');
+    expect(result.parsedTitle).toBe('Inception');
   });
 });
 
@@ -393,25 +395,29 @@ describe('detectContentType - metadata override', () => {
 // =============================================================================
 
 describe('detectContentType - movie fallback', () => {
-  it('falls back to movie for generic path', () => {
+  it('detects movie with parsed title from generic path', () => {
     const result = detectContentType('/Videos/random_video.mp4');
 
     expect(result.type).toBe('movie');
-    expect(result.confidence).toBe('low');
+    // Medium confidence because library can extract title
+    expect(result.confidence).toBe('medium');
+    expect(result.parsedTitle).toBe('Random Video');
   });
 
-  it('falls back to movie for Movies folder', () => {
+  it('detects movie with parsed title from Movies folder', () => {
     const result = detectContentType('/Movies/Inception (2010).mp4');
 
     expect(result.type).toBe('movie');
-    expect(result.confidence).toBe('low');
+    expect(result.confidence).toBe('medium');
+    expect(result.parsedTitle).toBe('Inception');
   });
 
-  it('falls back to movie when no TV indicators', () => {
+  it('detects movie when no TV indicators', () => {
     const result = detectContentType('/Media/Action/The Matrix.mp4');
 
     expect(result.type).toBe('movie');
-    expect(result.confidence).toBe('low');
+    expect(result.confidence).toBe('medium');
+    expect(result.parsedTitle).toBe('The Matrix');
   });
 
   it('does not have TV show properties for movies', () => {
@@ -455,14 +461,17 @@ describe('detectContentType - real-world examples', () => {
     const result = detectContentType('/Movies/Inception (2010).mp4');
 
     expect(result.type).toBe('movie');
-    expect(result.confidence).toBe('low');
+    // Medium confidence due to title parsing
+    expect(result.confidence).toBe('medium');
+    expect(result.parsedTitle).toBe('Inception');
   });
 
   it('handles random video file', () => {
     const result = detectContentType('/Videos/random_video.mp4');
 
     expect(result.type).toBe('movie');
-    expect(result.confidence).toBe('low');
+    // Medium confidence due to title parsing
+    expect(result.confidence).toBe('medium');
   });
 
   it('handles Netflix-style naming', () => {
@@ -544,5 +553,72 @@ describe('detectContentType - edge cases', () => {
     expect(result.type).toBe('tvshow');
     expect(result.seasonNumber).toBe(1);
     expect(result.episodeNumber).toBe(1);
+  });
+});
+
+// =============================================================================
+// Scene Release Parsing Tests (using @ctrl/video-filename-parser)
+// =============================================================================
+
+describe('detectContentType - scene release parsing', () => {
+  describe('movie scene releases', () => {
+    it('parses standard scene release format with title and year', () => {
+      const result = detectContentType('/Movies/Movie.Name.2024.1080p.BluRay.x264-GROUP.mkv');
+
+      expect(result.type).toBe('movie');
+      expect(result.confidence).toBe('medium');
+      expect(result.parsedTitle).toBe('Movie Name');
+      expect(result.parsedYear).toBe(2024);
+    });
+
+    it('parses The Matrix remastered release', () => {
+      const result = detectContentType('/Movies/The.Matrix.1999.REMASTERED.1080p.BluRay.mkv');
+
+      expect(result.type).toBe('movie');
+      expect(result.confidence).toBe('medium');
+      expect(result.parsedTitle).toBe('The Matrix');
+      expect(result.parsedYear).toBe(1999);
+    });
+
+    it('parses minimal filename', () => {
+      const result = detectContentType('/Movies/inception.mkv');
+
+      expect(result.type).toBe('movie');
+      expect(result.parsedTitle).toBe('Inception');
+    });
+
+    it('parses movie with special characters', () => {
+      const result = detectContentType('/Movies/Spider-Man.No.Way.Home.2021.1080p.WEB-DL.mkv');
+
+      expect(result.type).toBe('movie');
+      expect(result.parsedTitle).toBe('Spider-Man No Way Home');
+      expect(result.parsedYear).toBe(2021);
+    });
+
+    it('parses movie with dots as separators', () => {
+      const result = detectContentType('/Videos/Blade.Runner.2049.2017.mkv');
+
+      expect(result.type).toBe('movie');
+      expect(result.parsedTitle).toBe('Blade Runner 2049');
+      expect(result.parsedYear).toBe(2017);
+    });
+  });
+
+  describe('confidence levels with scene releases', () => {
+    it('returns medium confidence when library extracts valid data', () => {
+      const result = detectContentType('/Videos/Some.Movie.2020.1080p.mkv');
+
+      expect(result.type).toBe('movie');
+      expect(result.confidence).toBe('medium');
+    });
+
+    it('returns medium confidence when library extracts title', () => {
+      // Even simple filenames get medium confidence when title can be extracted
+      const result = detectContentType('/Videos/random_video.mp4');
+
+      expect(result.type).toBe('movie');
+      expect(result.confidence).toBe('medium');
+      expect(result.parsedTitle).toBe('Random Video');
+    });
   });
 });

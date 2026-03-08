@@ -5,9 +5,15 @@
  * 1. Embedded metadata (if provided)
  * 2. Filename patterns (S01E01, 1x01, etc.)
  * 3. Folder structure (/TV Shows/, /Season X/, etc.)
+ * 4. Scene release parsing via @ctrl/video-filename-parser (fallback)
  */
 
 import * as path from 'node:path';
+import {
+  parseSeason,
+  parseTitleAndYear,
+  removeFileExtension,
+} from '@ctrl/video-filename-parser';
 import type { ContentType, VideoMetadata } from './metadata.js';
 import { formatEpisodeId } from './metadata.js';
 
@@ -41,6 +47,12 @@ export interface ContentTypeResult {
 
   /** Episode identifier string (e.g., 'S01E01') */
   episodeId?: string;
+
+  /** Parsed title from filename (for movies) */
+  parsedTitle?: string;
+
+  /** Parsed year from filename (for movies) */
+  parsedYear?: number;
 }
 
 /**
@@ -137,6 +149,8 @@ export function detectContentType(
   filePath: string,
   metadata?: Partial<VideoMetadata>
 ): ContentTypeResult {
+  const fileName = path.basename(filePath);
+
   // Priority 1: Explicit content type in metadata
   if (metadata?.contentType) {
     if (metadata.contentType === 'tvshow') {
@@ -148,10 +162,23 @@ export function detectContentType(
         episodeId: string;
       }>;
 
+      // Try to get series title from metadata, but use library if metadata looks like scene release
+      let seriesTitle = tvMetadata.seriesTitle;
+      const metadataSeriesTitleIsSceneRelease =
+        seriesTitle && looksLikeSceneReleaseSeriesTitle(seriesTitle);
+
+      if (!seriesTitle || metadataSeriesTitleIsSceneRelease) {
+        // Try to parse series title from filename
+        const libraryResult = parseSeason(fileName);
+        if (libraryResult?.seriesTitle && libraryResult.seriesTitle.length > 0) {
+          seriesTitle = cleanupSeriesTitle(libraryResult.seriesTitle);
+        }
+      }
+
       return {
         type: 'tvshow',
         confidence: 'high',
-        seriesTitle: tvMetadata.seriesTitle,
+        seriesTitle,
         seasonNumber: tvMetadata.seasonNumber,
         episodeNumber: tvMetadata.episodeNumber,
         episodeId:
@@ -161,7 +188,14 @@ export function detectContentType(
             : undefined),
       };
     }
-    return { type: 'movie', confidence: 'high' };
+    // For movies, also parse title/year from filename
+    const parsed = parseFilenameWithLibrary(fileName);
+    return {
+      type: 'movie',
+      confidence: 'high',
+      parsedTitle: parsed.title,
+      parsedYear: parsed.year,
+    };
   }
 
   // Priority 2: TV show indicators in metadata (without explicit contentType)
@@ -194,7 +228,6 @@ export function detectContentType(
   }
 
   // Priority 3 & 4: Analyze path for TV patterns
-  const fileName = path.basename(filePath);
   const dirPath = path.dirname(filePath);
 
   const episodeMatch = matchEpisodePattern(fileName);
@@ -231,7 +264,18 @@ export function detectContentType(
     };
   }
 
-  // Priority 5: Fall back to movie
+  // Priority 5: Fall back to movie with library-based parsing
+  const parsed = parseFilenameWithLibrary(fileName);
+
+  if (parsed.title || parsed.year) {
+    return {
+      type: 'movie',
+      confidence: 'medium',
+      parsedTitle: parsed.title,
+      parsedYear: parsed.year,
+    };
+  }
+
   return { type: 'movie', confidence: 'low' };
 }
 
@@ -290,7 +334,7 @@ function extractSeasonFromFolder(dirPath: string): { seasonNumber: number } | nu
 /**
  * Extract series title from file path when episode pattern is found
  */
-function extractSeriesTitle(filePath: string, episodeMatch: EpisodePatternMatch): string {
+function extractSeriesTitle(filePath: string, _episodeMatch: EpisodePatternMatch): string {
   const fileName = path.basename(filePath);
   const dirPath = path.dirname(filePath);
 
@@ -300,22 +344,25 @@ function extractSeriesTitle(filePath: string, episodeMatch: EpisodePatternMatch)
     return folderTitle;
   }
 
-  // Fall back to extracting from filename (text before episode pattern)
-  const textBeforePattern = fileName.substring(0, episodeMatch.matchIndex);
-
-  // Clean up the extracted title
-  const title = cleanupTitle(textBeforePattern);
-
-  // If we got a reasonable title, return it
-  if (title && title.length > 0) {
-    return title;
+  // Second, try using the library for scene release parsing (better than regex)
+  const libraryResult = parseSeason(fileName);
+  if (libraryResult?.seriesTitle && libraryResult.seriesTitle.length > 0) {
+    // Clean up any trailing brackets or artifacts from the library
+    const cleaned = cleanupSeriesTitle(libraryResult.seriesTitle);
+    if (cleaned.length > 0) {
+      return cleaned;
+    }
   }
 
-  // Last resort: use the immediate parent folder name
+  // Third, try extracting from parent folder (for files like "S01E01.mkv")
   const parts = dirPath.split(path.sep);
   const lastFolder = parts[parts.length - 1];
   if (lastFolder) {
-    return cleanupTitle(lastFolder) || lastFolder;
+    // Check if the folder looks like a series name (not a season folder)
+    const isSeasonFolder = SEASON_FOLDER_PATTERNS.some((p) => p.test(lastFolder));
+    if (!isSeasonFolder) {
+      return cleanupTitle(lastFolder) || lastFolder;
+    }
   }
 
   return 'Unknown Series';
@@ -398,4 +445,83 @@ function cleanupTitle(raw: string): string {
   title = title.replace(/[-.\s]+$/, '').trim();
 
   return title;
+}
+
+/**
+ * Clean up a series title from the library parser
+ *
+ * The library sometimes leaves trailing brackets or other artifacts.
+ */
+function cleanupSeriesTitle(raw: string): string {
+  let title = raw;
+
+  // Remove trailing brackets or partial brackets
+  title = title.replace(/\s*\[.*$/, '');
+  title = title.replace(/\s*\(.*$/, '');
+
+  // Remove trailing dashes, dots, or whitespace
+  title = title.replace(/[-.\s]+$/, '').trim();
+
+  return title;
+}
+
+/**
+ * Check if a series title from embedded metadata looks like scene release garbage
+ *
+ * Examples of bad series titles:
+ * - "DVDRip XviD-KIDSROCK"
+ * - "WEB-DL 1080p"
+ */
+function looksLikeSceneReleaseSeriesTitle(title: string): boolean {
+  // Quality/release indicators that shouldn't be in a real series title
+  const scenePatterns = [
+    /\b(720p|1080p|2160p|4K|480p|576p)\b/i,
+    /\b(HDTV|WEB-?DL|WEB-?Rip|BluRay|BRRip|DVDRip|BDRip)\b/i,
+    /\b(x264|x265|h\.?264|h\.?265|HEVC|XviD|DivX|AVC)\b/i,
+    /\b(AAC|AC3|DTS|DTS-HD|DD5\.1|FLAC|TrueHD)\b/i,
+    /\b(REMUX|REPACK|PROPER|INTERNAL)\b/i,
+    /-[A-Z0-9]+$/i, // Release group suffix
+  ];
+
+  return scenePatterns.some((pattern) => pattern.test(title));
+}
+
+/**
+ * Parse filename using @ctrl/video-filename-parser library
+ *
+ * Used as a fallback for scene release detection when standard patterns don't match.
+ */
+function parseFilenameWithLibrary(fileName: string): {
+  title?: string;
+  year?: number;
+} {
+  // Remove extension for better parsing
+  const nameWithoutExt = removeFileExtension(fileName);
+
+  // Use library to extract title and year
+  const parsed = parseTitleAndYear(nameWithoutExt);
+
+  const result: { title?: string; year?: number } = {};
+
+  // Clean and validate parsed title
+  if (parsed.title) {
+    // Replace dots and underscores with spaces
+    let title = parsed.title.replace(/[._]/g, ' ').trim();
+    // Capitalize first letter of each word (title case)
+    title = title.replace(/\b\w/g, (c) => c.toUpperCase());
+    // Only use if it looks like a valid title (not just quality info)
+    if (title.length > 1 && !/^\d+p$/i.test(title)) {
+      result.title = title;
+    }
+  }
+
+  // Parse year if available
+  if (parsed.year) {
+    const year = parseInt(parsed.year, 10);
+    if (year >= 1888 && year <= new Date().getFullYear() + 2) {
+      result.year = year;
+    }
+  }
+
+  return result;
 }

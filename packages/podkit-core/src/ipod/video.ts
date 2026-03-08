@@ -159,17 +159,19 @@ export function createVideoTrackInput(
 
 /**
  * Format episode title from video metadata
+ *
+ * Creates a title like "S01E01" or "Episode 1" for display on iPod
  */
 function formatEpisodeTitle(video: CollectionVideo): string {
   if (video.episodeId) {
-    return `${video.episodeId} - ${video.seriesTitle ?? 'Episode'}`;
+    return video.episodeId;
   }
-  if (video.seasonNumber && video.episodeNumber) {
+  if (video.seasonNumber !== undefined && video.episodeNumber !== undefined) {
     const ep = String(video.episodeNumber).padStart(2, '0');
     const season = String(video.seasonNumber).padStart(2, '0');
-    return `S${season}E${ep} - ${video.seriesTitle ?? 'Episode'}`;
+    return `S${season}E${ep}`;
   }
-  return video.seriesTitle ?? 'Unknown Episode';
+  return `Episode ${video.episodeNumber ?? 1}`;
 }
 
 /**
