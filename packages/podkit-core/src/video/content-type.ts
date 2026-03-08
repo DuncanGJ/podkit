@@ -226,7 +226,7 @@ export function detectContentType(
     return {
       type: 'tvshow',
       confidence: 'medium',
-      seriesTitle,
+      seriesTitle: seriesTitle ?? undefined,
       seasonNumber: seasonInfo?.seasonNumber,
     };
   }

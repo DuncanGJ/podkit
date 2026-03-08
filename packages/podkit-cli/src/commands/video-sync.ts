@@ -481,7 +481,8 @@ export const videoSyncCommand = new Command('video-sync')
       // const ipodTracks = ipod.getTracks().filter(t =>
       //   t.mediaType === core.MediaType.Movie || t.mediaType === core.MediaType.TVShow
       // );
-      const ipodVideos: core.IPodVideo[] = []; // Placeholder
+      type IPodVideo = Awaited<ReturnType<typeof core.diffVideos>>['existing'][0]['ipod'];
+      const ipodVideos: IPodVideo[] = []; // Placeholder
 
       // ----- Compute diff -----
       if (!globalOpts.json && !globalOpts.quiet) {

@@ -579,6 +579,7 @@ source = "/music"
               enabled: true,
               drop: false,
               format: 'feat. {}',
+              ignore: [],
             },
           },
         };
@@ -593,6 +594,7 @@ source = "/music"
               enabled: false,
               drop: false,
               format: 'ft. {}',
+              ignore: [],
             },
           },
         };
@@ -602,6 +604,7 @@ source = "/music"
               enabled: true,
               drop: true,
               format: 'feat. {}',
+              ignore: [],
             },
           },
         };
