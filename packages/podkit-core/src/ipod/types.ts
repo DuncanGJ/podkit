@@ -571,3 +571,27 @@ export interface RemoveAllTracksResult {
    */
   readonly fileDeleteErrors: string[];
 }
+
+/**
+ * Result from removing tracks by content type from the database.
+ *
+ * @example
+ * ```typescript
+ * const result = ipod.removeTracksByContentType('video', { deleteFiles: true });
+ * console.log(`Removed ${result.removedCount} video tracks`);
+ * if (result.fileDeleteErrors.length > 0) {
+ *   console.warn(`${result.fileDeleteErrors.length} file(s) could not be deleted`);
+ * }
+ * ```
+ */
+export interface RemoveTracksByContentTypeResult {
+  /** Number of tracks removed from the database */
+  readonly removedCount: number;
+  /** Total number of tracks of this content type before removal */
+  readonly totalCount: number;
+  /**
+   * Errors from file deletions that failed.
+   * Each entry describes which file failed and why.
+   */
+  readonly fileDeleteErrors: string[];
+}

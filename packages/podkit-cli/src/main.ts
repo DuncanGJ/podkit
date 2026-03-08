@@ -12,6 +12,7 @@ import { videoSyncCommand } from './commands/video-sync.js';
 import { statusCommand } from './commands/status.js';
 import { listCommand } from './commands/list.js';
 import { resetCommand } from './commands/reset.js';
+import { clearCommand } from './commands/clear.js';
 import { loadConfig, DEFAULT_CONFIG_PATH } from './config/index.js';
 import type { GlobalOptions } from './config/index.js';
 import { setContext } from './context.js';
@@ -73,5 +74,6 @@ program.addCommand(videoSyncCommand);
 program.addCommand(statusCommand);
 program.addCommand(listCommand);
 program.addCommand(resetCommand);
+program.addCommand(clearCommand);
 
 program.parse();

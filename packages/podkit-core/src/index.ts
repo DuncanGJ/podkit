@@ -199,12 +199,14 @@ export type {
   SaveResult,
   RemoveTrackResult,
   RemoveAllTracksResult,
+  RemoveTracksByContentTypeResult,
 } from './ipod/types.js';
 export { IpodError } from './ipod/errors.js';
 export type { IpodErrorCode } from './ipod/errors.js';
-export { MediaType } from './ipod/constants.js';
-export type { MediaTypeValue } from './ipod/constants.js';
+export { MediaType, isMusicMediaType } from './ipod/constants.js';
+export type { MediaTypeValue, ContentType as MediaContentType } from './ipod/constants.js';
 export { IpodDatabase } from './ipod/database.js';
+export { isVideoMediaType } from './ipod/video.js';
 
 // Transforms
 export type {

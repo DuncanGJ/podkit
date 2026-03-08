@@ -17,7 +17,10 @@ import type {
   SaveResult,
   RemoveTrackResult,
   RemoveAllTracksResult,
+  RemoveTracksByContentTypeResult,
 } from './types.js';
+import { type ContentType, isMusicMediaType } from './constants.js';
+import { isVideoMediaType } from './video.js';
 import { IpodError } from './errors.js';
 import { IpodTrackImpl, type IpodDatabaseInternal } from './track.js';
 import { IpodPlaylistImpl, type PlaylistDatabaseInternal } from './playlist.js';
@@ -403,6 +406,55 @@ export class IpodDatabase implements IpodDatabaseInternal, PlaylistDatabaseInter
     }
 
     return { removedCount: tracks.length, fileDeleteErrors };
+  }
+
+  /**
+   * Removes all tracks of a specific content type from the database.
+   *
+   * This removes either all music tracks or all video tracks (movies, TV shows,
+   * music videos) from the iPod. The database must be saved after calling this method.
+   *
+   * @param contentType - The type of content to remove: 'music' or 'video'
+   * @param options - Optional settings for the removal
+   * @param options.deleteFiles - If true, also delete media files from the iPod (default: true)
+   * @returns Result with count of tracks removed and any file deletion errors
+   * @throws {IpodError} If the database is closed (code: DATABASE_CLOSED)
+   *
+   * @example
+   * ```typescript
+   * // Remove all video content
+   * const result = ipod.removeTracksByContentType('video');
+   * console.log(`Removed ${result.removedCount} videos`);
+   * await ipod.save();
+   *
+   * // Remove all music
+   * const result = ipod.removeTracksByContentType('music');
+   * console.log(`Removed ${result.removedCount} music tracks`);
+   * await ipod.save();
+   * ```
+   */
+  removeTracksByContentType(
+    contentType: ContentType,
+    options?: { deleteFiles?: boolean }
+  ): RemoveTracksByContentTypeResult {
+    this.assertOpen();
+    const deleteFiles = options?.deleteFiles ?? true;
+    const allTracks = this.getTracks();
+
+    // Filter tracks by content type
+    const matchFn = contentType === 'video' ? isVideoMediaType : isMusicMediaType;
+    const tracksToRemove = allTracks.filter((track) => matchFn(track.mediaType));
+    const totalCount = tracksToRemove.length;
+    const fileDeleteErrors: string[] = [];
+
+    for (const track of tracksToRemove) {
+      const result = this.removeTrack(track, { deleteFile: deleteFiles });
+      if (result.fileDeleteError) {
+        fileDeleteErrors.push(result.fileDeleteError);
+      }
+    }
+
+    return { removedCount: tracksToRemove.length, totalCount, fileDeleteErrors };
   }
 
   /**

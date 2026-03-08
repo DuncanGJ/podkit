@@ -43,6 +43,7 @@ export type {
   SaveResult,
   RemoveTrackResult,
   RemoveAllTracksResult,
+  RemoveTracksByContentTypeResult,
 } from './types.js';
 
 // Error exports
@@ -50,8 +51,8 @@ export { IpodError } from './errors.js';
 export type { IpodErrorCode } from './errors.js';
 
 // Constant exports
-export { MediaType } from './constants.js';
-export type { MediaTypeValue } from './constants.js';
+export { MediaType, isMusicMediaType } from './constants.js';
+export type { MediaTypeValue, ContentType } from './constants.js';
 
 // Implementation exports
 export { IpodDatabase } from './database.js';

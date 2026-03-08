@@ -41,3 +41,27 @@ export const MediaType = {
  * Type representing valid media type values.
  */
 export type MediaTypeValue = (typeof MediaType)[keyof typeof MediaType];
+
+/**
+ * Content type for bulk operations (clear, etc.).
+ */
+export type ContentType = 'music' | 'video';
+
+/**
+ * Checks if a media type represents music content.
+ *
+ * Music is identified as audio tracks that are NOT video, podcast, or audiobook.
+ */
+export function isMusicMediaType(mediaType: number): boolean {
+  // Music is audio that's not a podcast, audiobook, or video
+  const isAudio = (mediaType & MediaType.Audio) !== 0;
+  const isPodcast = (mediaType & MediaType.Podcast) !== 0;
+  const isAudiobook = (mediaType & MediaType.Audiobook) !== 0;
+  // Inline video check to avoid importing from video.ts (circular dependency)
+  const isVideo =
+    (mediaType & MediaType.Movie) !== 0 ||
+    (mediaType & MediaType.TVShow) !== 0 ||
+    (mediaType & MediaType.MusicVideo) !== 0;
+
+  return isAudio && !isPodcast && !isAudiobook && !isVideo;
+}
