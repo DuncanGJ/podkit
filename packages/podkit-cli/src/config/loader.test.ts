@@ -223,6 +223,7 @@ format = "feat. {}"
           enabled: true,
           drop: false,
           format: 'feat. {}',
+          ignore: [],
         });
       });
 
