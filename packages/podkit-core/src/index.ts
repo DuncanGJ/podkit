@@ -230,3 +230,28 @@ export {
   insertFeatIntoTitle,
   titleContainsFeat,
 } from './transforms/ftintitle/index.js';
+
+// Video transcoding
+export type {
+  VideoQualityPreset,
+  VideoCodec,
+  VideoProfile,
+  VideoAudioCodec,
+  VideoDeviceProfile,
+  VideoSourceAnalysis,
+  VideoTranscodeSettings,
+  VideoCompatibilityStatus,
+  VideoCompatibility,
+  VideoPresetSettings,
+} from './video/types.js';
+export {
+  VIDEO_QUALITY_PRESETS,
+  DEVICE_PROFILES,
+  VIDEO_PRESET_SETTINGS,
+  isValidVideoQualityPreset,
+  getDeviceProfile,
+  getDefaultDeviceProfile,
+  getDeviceProfileNames,
+  getPresetSettings,
+  getPresetSettingsWithFallback,
+} from './video/types.js';
