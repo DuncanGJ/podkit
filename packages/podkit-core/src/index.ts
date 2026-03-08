@@ -256,6 +256,22 @@ export {
   getPresetSettingsWithFallback,
 } from './video/types.js';
 
+// Video metadata
+export type {
+  ContentType,
+  VideoMetadata,
+  VideoMetadataBase,
+  MovieMetadata,
+  TVShowMetadata,
+  VideoMetadataAdapter,
+} from './video/metadata.js';
+export {
+  isMovieMetadata,
+  isTVShowMetadata,
+  formatEpisodeId,
+  parseEpisodeId,
+} from './video/metadata.js';
+
 // Video probe
 export type { VideoProbeConfig } from './video/probe.js';
 export { probeVideo, VideoProbeError } from './video/probe.js';

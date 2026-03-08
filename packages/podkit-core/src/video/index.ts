@@ -17,6 +17,35 @@ export type {
   VideoPresetSettings,
 } from './types.js';
 
+// Video metadata
+export type {
+  ContentType,
+  VideoMetadata,
+  VideoMetadataBase,
+  MovieMetadata,
+  TVShowMetadata,
+  VideoMetadataAdapter,
+} from './metadata.js';
+
+export {
+  isMovieMetadata,
+  isTVShowMetadata,
+  formatEpisodeId,
+  parseEpisodeId,
+} from './metadata.js';
+
+// Embedded video metadata adapter
+export type { EmbeddedVideoMetadataConfig } from './metadata-embedded.js';
+export {
+  EmbeddedVideoMetadataAdapter,
+  VideoMetadataError,
+  parseFilename,
+} from './metadata-embedded.js';
+
+// Content type detection
+export type { ContentTypeConfidence, ContentTypeResult } from './content-type.js';
+export { detectContentType } from './content-type.js';
+
 export {
   VIDEO_QUALITY_PRESETS,
   DEVICE_PROFILES,
