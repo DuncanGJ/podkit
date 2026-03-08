@@ -145,6 +145,24 @@ function parseTransformsConfig(raw: ConfigFileContent['transforms']): Transforms
       }
       config.ftintitle.format = ftRaw.format;
     }
+    if (ftRaw.ignore !== undefined) {
+      if (!Array.isArray(ftRaw.ignore)) {
+        throw new Error(
+          `Invalid type for "ignore" in [transforms.ftintitle]. ` +
+            `Expected array of strings, got ${typeof ftRaw.ignore}.`
+        );
+      }
+      // Validate each element is a string
+      for (const item of ftRaw.ignore) {
+        if (typeof item !== 'string') {
+          throw new Error(
+            `Invalid item in "ignore" array in [transforms.ftintitle]. ` +
+              `Expected string, got ${typeof item}.`
+          );
+        }
+      }
+      config.ftintitle.ignore = ftRaw.ignore;
+    }
   }
 
   return config;

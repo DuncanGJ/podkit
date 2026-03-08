@@ -51,6 +51,7 @@ export const ftintitleTransform: TrackTransform<FtInTitleConfig> = {
     const result = applyFtInTitle(track.artist, track.title, {
       drop: config.drop,
       format: config.format,
+      ignore: config.ignore,
     });
 
     // If nothing changed, return original track object

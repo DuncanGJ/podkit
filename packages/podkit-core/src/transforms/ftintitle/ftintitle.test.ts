@@ -141,6 +141,54 @@ describe('extractFeaturedArtist', () => {
       expect(result.featuredArtist).toBe('Artist B');
     });
   });
+
+  describe('ignore list', () => {
+    it('does not split ignored artist on ambiguous separators', () => {
+      const result = extractFeaturedArtist('Coheed and Cambria', {
+        ignore: ['Coheed and Cambria'],
+      });
+      expect(result.mainArtist).toBe('Coheed and Cambria');
+      expect(result.featuredArtist).toBeNull();
+    });
+
+    it('still splits ignored artist on explicit feat token', () => {
+      const result = extractFeaturedArtist('Coheed and Cambria feat. Guest Artist', {
+        ignore: ['Coheed and Cambria'],
+      });
+      expect(result.mainArtist).toBe('Coheed and Cambria');
+      expect(result.featuredArtist).toBe('Guest Artist');
+    });
+
+    it('handles ignored artist with featured artist using "and"', () => {
+      const result = extractFeaturedArtist('Coheed and Cambria and Other Artist', {
+        ignore: ['Coheed and Cambria'],
+      });
+      expect(result.mainArtist).toBe('Coheed and Cambria');
+      expect(result.featuredArtist).toBe('Other Artist');
+    });
+
+    it('is case-insensitive for ignore matching', () => {
+      const result = extractFeaturedArtist('COHEED AND CAMBRIA', {
+        ignore: ['Coheed and Cambria'],
+      });
+      expect(result.mainArtist).toBe('COHEED AND CAMBRIA');
+      expect(result.featuredArtist).toBeNull();
+    });
+
+    it('handles multiple ignored artists', () => {
+      const result1 = extractFeaturedArtist('Simon & Garfunkel', {
+        ignore: ['Coheed and Cambria', 'Simon & Garfunkel'],
+      });
+      expect(result1.mainArtist).toBe('Simon & Garfunkel');
+      expect(result1.featuredArtist).toBeNull();
+
+      const result2 = extractFeaturedArtist('Florence and the Machine', {
+        ignore: ['Florence and the Machine'],
+      });
+      expect(result2.mainArtist).toBe('Florence and the Machine');
+      expect(result2.featuredArtist).toBeNull();
+    });
+  });
 });
 
 // =============================================================================
@@ -359,6 +407,41 @@ describe('applyFtInTitle', () => {
         format: 'ft. {}',
       });
       expect(result.title).toBe('Song Name (ft. Artist B)');
+    });
+  });
+
+  describe('ignore option', () => {
+    it('does not transform ignored artist', () => {
+      const result = applyFtInTitle('Coheed and Cambria', 'Song Name', {
+        drop: false,
+        format: 'feat. {}',
+        ignore: ['Coheed and Cambria'],
+      });
+      expect(result.artist).toBe('Coheed and Cambria');
+      expect(result.title).toBe('Song Name');
+      expect(result.changed).toBe(false);
+    });
+
+    it('transforms ignored artist with explicit feat token', () => {
+      const result = applyFtInTitle('Coheed and Cambria feat. Guest', 'Song Name', {
+        drop: false,
+        format: 'feat. {}',
+        ignore: ['Coheed and Cambria'],
+      });
+      expect(result.artist).toBe('Coheed and Cambria');
+      expect(result.title).toBe('Song Name (feat. Guest)');
+      expect(result.changed).toBe(true);
+    });
+
+    it('handles ignored artist with "and" featured artist', () => {
+      const result = applyFtInTitle('Coheed and Cambria and Guest Artist', 'Song Name', {
+        drop: false,
+        format: 'feat. {}',
+        ignore: ['Coheed and Cambria'],
+      });
+      expect(result.artist).toBe('Coheed and Cambria');
+      expect(result.title).toBe('Song Name (feat. Guest Artist)');
+      expect(result.changed).toBe(true);
     });
   });
 });

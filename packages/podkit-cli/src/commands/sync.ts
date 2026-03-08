@@ -408,6 +408,57 @@ function formatUpdateReason(reason: 'transform-apply' | 'transform-remove' | 'me
   }
 }
 
+/**
+ * A grouped artist transform for the preview
+ */
+interface TransformPreviewEntry {
+  originalArtist: string;
+  transformedArtist: string;
+  count: number;
+}
+
+/**
+ * Build a transform preview from tracks that will have transforms applied
+ *
+ * Groups tracks by their unique artist transformation pattern and counts occurrences.
+ * Used to show users a summary of how artists will be transformed before syncing.
+ */
+function buildTransformPreview(
+  tracks: Array<{ artist: string; title: string; album: string }>,
+  config: TransformsConfig,
+  applyTransformsFn: (
+    track: { artist: string; title: string; album: string },
+    config: TransformsConfig
+  ) => { original: { artist: string }; transformed: { artist: string }; applied: boolean }
+): TransformPreviewEntry[] {
+  // Map of "original → transformed" to count
+  const transformMap = new Map<string, TransformPreviewEntry>();
+
+  for (const track of tracks) {
+    const result = applyTransformsFn(track, config);
+
+    if (result.applied && result.original.artist !== result.transformed.artist) {
+      const key = `${result.original.artist} → ${result.transformed.artist}`;
+      const existing = transformMap.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        transformMap.set(key, {
+          originalArtist: result.original.artist,
+          transformedArtist: result.transformed.artist,
+          count: 1,
+        });
+      }
+    }
+  }
+
+  // Sort by count descending, then by original artist name
+  return Array.from(transformMap.values()).sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return a.originalArtist.localeCompare(b.originalArtist);
+  });
+}
+
 // =============================================================================
 // Sync Command
 // =============================================================================
@@ -872,6 +923,33 @@ export const syncCommand = new Command('sync')
             }
           }
           console.log('');
+
+          // Show transform preview if transforms are enabled
+          if (config.transforms.ftintitle.enabled) {
+            // Collect all tracks that will have transforms applied
+            // This includes new tracks being added and existing tracks being updated
+            const tracksToTransform = [
+              ...diff.toAdd,
+              ...diff.toUpdate.filter((u) => u.reason === 'transform-apply').map((u) => u.source),
+            ];
+
+            if (tracksToTransform.length > 0) {
+              const preview = buildTransformPreview(
+                tracksToTransform,
+                config.transforms,
+                core.applyTransforms
+              );
+
+              if (preview.length > 0) {
+                console.log('Artist transforms:');
+                for (const entry of preview) {
+                  const countStr = entry.count > 1 ? `  [${entry.count} tracks]` : '';
+                  console.log(`  "${entry.originalArtist}" → "${entry.transformedArtist}"${countStr}`);
+                }
+                console.log('');
+              }
+            }
+          }
 
           // Show operations (verbose mode or small number)
           if (globalOpts.verbose || plan.operations.length <= 20) {

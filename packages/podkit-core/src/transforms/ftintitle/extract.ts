@@ -13,6 +13,7 @@ import {
   createFeatSplitPattern,
   findInsertPosition,
   titleContainsFeat,
+  FEAT_WORDS_ARTIST,
 } from './patterns.js';
 
 /**
@@ -38,6 +39,39 @@ export interface FtInTitleResult {
 }
 
 /**
+ * Options for extractFeaturedArtist
+ */
+export interface ExtractOptions {
+  /**
+   * Artist names to ignore when splitting on ambiguous separators.
+   * Case-insensitive matching.
+   */
+  ignore?: string[];
+}
+
+/**
+ * Check if an artist string starts with an ignored artist name
+ *
+ * @param artist - The artist string to check
+ * @param ignoreList - List of artist names to ignore
+ * @returns The matching ignored name, or null if no match
+ */
+function findIgnoredArtist(artist: string, ignoreList: string[]): string | null {
+  const lowerArtist = artist.toLowerCase();
+  for (const ignored of ignoreList) {
+    const lowerIgnored = ignored.toLowerCase();
+    if (lowerArtist.startsWith(lowerIgnored)) {
+      // Check that it's a complete match or followed by a separator
+      const remainder = artist.slice(ignored.length);
+      if (remainder === '' || /^\s+/.test(remainder)) {
+        return ignored;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Extract featured artist from an artist string
  *
  * Splits the artist string on featuring tokens (feat., ft., featuring, etc.)
@@ -47,10 +81,11 @@ export interface FtInTitleResult {
  * 1. First tries explicit tokens only (feat, ft, featuring)
  * 2. Falls back to all tokens including generic separators (with, &, and)
  *
- * This prevents incorrectly splitting "Simon & Garfunkel" while still
- * handling "Artist & Guest" when more explicit tokens aren't present.
+ * If an artist name is in the ignore list, the fallback step will preserve
+ * the ignored name and only split on what follows.
  *
  * @param artist - The artist string to split
+ * @param options - Extraction options including ignore list
  * @returns Main artist and featured artist (or null)
  *
  * @example
@@ -58,10 +93,17 @@ export interface FtInTitleResult {
  * // { mainArtist: 'Artist A', featuredArtist: 'Artist B' }
  *
  * @example
- * extractFeaturedArtist('Artist A')
- * // { mainArtist: 'Artist A', featuredArtist: null }
+ * extractFeaturedArtist('Coheed and Cambria', { ignore: ['Coheed and Cambria'] })
+ * // { mainArtist: 'Coheed and Cambria', featuredArtist: null }
+ *
+ * @example
+ * extractFeaturedArtist('Coheed and Cambria and Other Artist', { ignore: ['Coheed and Cambria'] })
+ * // { mainArtist: 'Coheed and Cambria', featuredArtist: 'Other Artist' }
  */
-export function extractFeaturedArtist(artist: string): ExtractResult {
+export function extractFeaturedArtist(
+  artist: string,
+  options?: ExtractOptions
+): ExtractResult {
   // First try with explicit tokens only (most reliable)
   const explicitPattern = createFeatSplitPattern(false);
   let match = artist.match(explicitPattern);
@@ -71,6 +113,43 @@ export function extractFeaturedArtist(artist: string): ExtractResult {
       mainArtist: match[1].trim(),
       featuredArtist: match[2].trim(),
     };
+  }
+
+  // Check if artist starts with an ignored name
+  const ignoreList = options?.ignore ?? [];
+  const ignoredName = findIgnoredArtist(artist, ignoreList);
+
+  if (ignoredName) {
+    // Check if there's anything after the ignored name
+    const remainder = artist.slice(ignoredName.length).trim();
+
+    if (!remainder) {
+      // Entire string is the ignored artist
+      return { mainArtist: artist, featuredArtist: null };
+    }
+
+    // Check if remainder starts with a separator token followed by the featured artist
+    // e.g., "and Other Artist" or "& Guest"
+    const lowerRemainder = remainder.toLowerCase();
+    for (const token of FEAT_WORDS_ARTIST) {
+      const lowerToken = token.toLowerCase();
+      if (lowerRemainder.startsWith(lowerToken)) {
+        // Check that it's followed by whitespace
+        const afterToken = remainder.slice(token.length);
+        if (afterToken.length > 0 && /^\s+/.test(afterToken)) {
+          const featuredArtist = afterToken.trim();
+          if (featuredArtist) {
+            return {
+              mainArtist: ignoredName,
+              featuredArtist,
+            };
+          }
+        }
+      }
+    }
+
+    // Remainder doesn't match separator pattern, treat entire string as artist
+    return { mainArtist: artist, featuredArtist: null };
   }
 
   // Fall back to all tokens including generic separators
@@ -154,10 +233,12 @@ export function insertFeatIntoTitle(
 export function applyFtInTitle(
   artist: string,
   title: string,
-  options: { drop: boolean; format: string }
+  options: { drop: boolean; format: string; ignore?: string[] }
 ): FtInTitleResult {
   // Extract featured artist from artist string
-  const { mainArtist, featuredArtist } = extractFeaturedArtist(artist);
+  const { mainArtist, featuredArtist } = extractFeaturedArtist(artist, {
+    ignore: options.ignore,
+  });
 
   // If no featured artist found, nothing to do
   if (!featuredArtist) {

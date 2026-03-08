@@ -75,6 +75,14 @@ export interface FtInTitleConfig {
   drop: boolean;
   /** Format string for featuring text in title. {} is replaced with artist(s) */
   format: string;
+  /**
+   * Artist names to ignore when splitting on ambiguous separators (and, &, with).
+   * These artists will only be split on explicit feat/ft/featuring tokens.
+   * Case-insensitive matching.
+   *
+   * @example ['Coheed and Cambria', 'Simon & Garfunkel', 'Florence and the Machine']
+   */
+  ignore: string[];
 }
 
 /**
@@ -84,6 +92,7 @@ export const DEFAULT_FTINTITLE_CONFIG: FtInTitleConfig = {
   enabled: false,
   drop: false,
   format: 'feat. {}',
+  ignore: [],
 };
 
 /**

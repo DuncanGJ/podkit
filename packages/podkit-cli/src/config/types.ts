@@ -80,6 +80,7 @@ export interface ConfigFileContent {
       enabled?: boolean;
       drop?: boolean;
       format?: string;
+      ignore?: string[];
     };
   };
 }

@@ -1229,7 +1229,7 @@ function getPhaseForOperation(operation: SyncOperation): SyncProgress['phase'] {
     case 'remove':
       return 'removing';
     case 'update-metadata':
-      return 'updating-db';
+      return 'updating-metadata';
   }
 }
 
