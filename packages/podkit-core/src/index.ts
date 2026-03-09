@@ -159,6 +159,13 @@ export {
 } from './transcode/ffmpeg.js';
 export type { FFmpegTranscoderConfig } from './transcode/ffmpeg.js';
 
+// Transcode progress parsing (shared utilities)
+export {
+  parseFFmpegProgress,
+  parseFFmpegProgressLine,
+  parseTimeString,
+} from './transcode/progress.js';
+
 // Artwork
 export type {
   ArtworkFormat,
@@ -308,7 +315,6 @@ export {
 
 // Video transcoding
 export type {
-  VideoTranscodeProgress,
   VideoTranscodeOptions,
   HardwareAccelerationInfo,
 } from './video/transcode.js';

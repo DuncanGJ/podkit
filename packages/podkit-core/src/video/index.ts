@@ -84,7 +84,6 @@ export {
 
 // Video transcoding
 export type {
-  VideoTranscodeProgress,
   VideoTranscodeOptions,
   HardwareAccelerationInfo,
 } from './transcode.js';

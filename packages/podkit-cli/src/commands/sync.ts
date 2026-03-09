@@ -39,6 +39,7 @@ import { resolveDevicePath, formatDeviceError, getDeviceIdentity, formatDeviceLo
 import type { IPodVideo, CollectionVideo } from '@podkit/core';
 import { MediaType } from '@podkit/core';
 import { formatBytes, formatNumber } from './display-utils.js';
+import { formatProgressLine } from '../utils/progress.js';
 
 // =============================================================================
 // Types
@@ -1333,10 +1334,12 @@ export const syncCommand = new Command('sync')
               } else if (progress.phase !== 'preparing') {
                 const bar = renderProgressBar(progress.current + 1, progress.total);
                 const phaseStr = progress.phase.charAt(0).toUpperCase() + progress.phase.slice(1);
-                const trackStr = progress.currentTrack
-                  ? ` ${progress.currentTrack.substring(0, 40)}`
-                  : '';
-                process.stdout.write(`\r\x1b[K${bar} ${phaseStr}${trackStr}`);
+                const line = formatProgressLine({
+                  bar,
+                  phase: phaseStr,
+                  trackName: progress.currentTrack,
+                });
+                process.stdout.write(line);
               }
             }
           }
@@ -1520,14 +1523,23 @@ export const syncCommand = new Command('sync')
                   } else if (progress.transcodeProgress) {
                     const percent = progress.transcodeProgress.percent;
                     const bar = renderProgressBar(Math.round(percent), 100);
-                    const speed = progress.transcodeProgress.speed
-                      ? ` (${progress.transcodeProgress.speed.toFixed(1)}x)`
-                      : '';
-                    process.stdout.write(`\r\x1b[K${bar} transcoding${speed}: ${progress.currentTrack}`);
+                    const line = formatProgressLine({
+                      bar,
+                      phase: 'Transcoding',
+                      trackName: progress.currentTrack,
+                      speed: progress.transcodeProgress.speed,
+                    });
+                    process.stdout.write(line);
                   } else {
                     const bar = renderProgressBar(progress.current + 1, progress.total);
                     const phaseStr = progress.phase.replace('video-', '');
-                    process.stdout.write(`\r\x1b[K${bar} ${phaseStr}: ${progress.currentTrack}`);
+                    const phaseFormatted = phaseStr.charAt(0).toUpperCase() + phaseStr.slice(1);
+                    const line = formatProgressLine({
+                      bar,
+                      phase: phaseFormatted,
+                      trackName: progress.currentTrack,
+                    });
+                    process.stdout.write(line);
                   }
                 }
               }

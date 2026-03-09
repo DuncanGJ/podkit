@@ -9,6 +9,8 @@
 
 import { spawn } from 'node:child_process';
 import type { VideoTranscodeSettings, VideoProfile } from './types.js';
+import type { TranscodeProgress } from '../transcode/types.js';
+import { parseFFmpegProgress } from '../transcode/progress.js';
 
 // =============================================================================
 // Constants
@@ -47,29 +49,11 @@ export class VideoTranscodeError extends Error {
 // =============================================================================
 
 /**
- * Progress information during video transcoding
- */
-export interface VideoTranscodeProgress {
-  /** Current time position in seconds */
-  time: number;
-  /** Total duration in seconds */
-  duration: number;
-  /** Progress percentage (0-100) */
-  percent: number;
-  /** Current frame number (if available) */
-  frame?: number;
-  /** Current encoding speed (e.g., 1.5x) */
-  speed?: number;
-  /** Current bitrate in kbps */
-  bitrate?: number;
-}
-
-/**
  * Options for video transcoding
  */
 export interface VideoTranscodeOptions {
   /** Progress callback */
-  onProgress?: (progress: VideoTranscodeProgress) => void;
+  onProgress?: (progress: TranscodeProgress) => void;
   /** Abort signal for cancellation */
   signal?: AbortSignal;
   /** Override FFmpeg binary path */
@@ -306,86 +290,9 @@ export function buildScaleFilter(targetWidth: number, targetHeight: number): str
 export function parseVideoProgress(
   stderrChunk: string,
   duration: number
-): Partial<VideoTranscodeProgress> | null {
-  const result: Partial<VideoTranscodeProgress> = {};
-  let hasData = false;
-
-  const lines = stderrChunk.split('\n');
-  for (const line of lines) {
-    const match = line.match(/^(\w+)=(.+)$/);
-    if (!match) continue;
-
-    const [, key, value] = match;
-
-    switch (key) {
-      case 'out_time_ms':
-        // Time in microseconds
-        const timeUs = parseInt(value!, 10);
-        if (!isNaN(timeUs)) {
-          result.time = timeUs / 1_000_000;
-          hasData = true;
-        }
-        break;
-
-      case 'out_time':
-        // Time in HH:MM:SS.mmm format (fallback)
-        if (!result.time) {
-          const timeSec = parseTimeString(value!);
-          if (timeSec !== null) {
-            result.time = timeSec;
-            hasData = true;
-          }
-        }
-        break;
-
-      case 'frame':
-        const frame = parseInt(value!, 10);
-        if (!isNaN(frame)) {
-          result.frame = frame;
-        }
-        break;
-
-      case 'speed':
-        // Speed like "1.5x" or "0.5x"
-        const speedMatch = value!.match(/^(\d+\.?\d*)x$/);
-        if (speedMatch) {
-          result.speed = parseFloat(speedMatch[1]!);
-        }
-        break;
-
-      case 'bitrate':
-        // Bitrate like "2000.0kbits/s"
-        const bitrateMatch = value!.match(/^(\d+\.?\d*)kbits\/s$/);
-        if (bitrateMatch) {
-          result.bitrate = Math.round(parseFloat(bitrateMatch[1]!));
-        }
-        break;
-    }
-  }
-
-  if (!hasData) return null;
-
-  // Calculate progress percentage
-  if (result.time !== undefined && duration > 0) {
-    result.duration = duration;
-    result.percent = Math.min(100, (result.time / duration) * 100);
-  }
-
-  return result;
-}
-
-/**
- * Parse FFmpeg time string format (HH:MM:SS.mmm)
- */
-function parseTimeString(timeStr: string): number | null {
-  const match = timeStr.match(/^(\d+):(\d+):(\d+\.?\d*)$/);
-  if (!match) return null;
-
-  const hours = parseInt(match[1]!, 10);
-  const minutes = parseInt(match[2]!, 10);
-  const seconds = parseFloat(match[3]!);
-
-  return hours * 3600 + minutes * 60 + seconds;
+): Partial<TranscodeProgress> | null {
+  // Use shared FFmpeg progress parser
+  return parseFFmpegProgress(stderrChunk, duration);
 }
 
 // =============================================================================

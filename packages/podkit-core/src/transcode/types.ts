@@ -278,6 +278,9 @@ export interface Transcoder {
 
 /**
  * Progress callback for transcode operations
+ *
+ * Used for both audio and video transcoding progress reporting.
+ * Video transcoding may include additional fields (frame, speed, bitrate).
  */
 export interface TranscodeProgress {
   /** Current position in seconds */
@@ -286,6 +289,12 @@ export interface TranscodeProgress {
   duration: number;
   /** Percentage complete (0-100) */
   percent: number;
+  /** Current frame number (optional, video only) */
+  frame?: number;
+  /** Current encoding speed (optional, e.g., 1.5 for 1.5x) */
+  speed?: number;
+  /** Current bitrate in kbps (optional, video only) */
+  bitrate?: number;
 }
 
 /**

@@ -30,7 +30,7 @@ import { rm } from 'node:fs/promises';
 
 import type { SyncProgress, SyncOperation, ExecuteOptions } from './types.js';
 import type { VideoSyncPlan } from './video-planner.js';
-import type { VideoTranscodeProgress } from '../video/transcode.js';
+import type { TranscodeProgress } from '../transcode/types.js';
 import type { IpodDatabase } from '../ipod/index.js';
 import { transcodeVideo } from '../video/transcode.js';
 import { probeVideo } from '../video/probe.js';
@@ -57,7 +57,7 @@ export interface VideoExecutorProgress extends SyncProgress {
   skipped?: boolean;
 
   /** Transcode progress for video-transcode operations */
-  transcodeProgress?: VideoTranscodeProgress;
+  transcodeProgress?: TranscodeProgress;
 }
 
 /**
@@ -71,7 +71,7 @@ export interface VideoExecuteOptions extends ExecuteOptions {
   tempDir?: string;
 
   /** Callback for transcode progress updates (within a single video) */
-  onTranscodeProgress?: (progress: VideoTranscodeProgress) => void;
+  onTranscodeProgress?: (progress: TranscodeProgress) => void;
 }
 
 /**
@@ -346,7 +346,7 @@ export class DefaultVideoSyncExecutor implements VideoSyncExecutor {
     bytesProcessed: number,
     bytesTotal: number,
     transcodeDir: string,
-    onTranscodeProgress?: (progress: VideoTranscodeProgress) => void,
+    onTranscodeProgress?: (progress: TranscodeProgress) => void,
     signal?: AbortSignal
   ): AsyncIterable<VideoExecutorProgress> {
     const { source, settings } = operation;
@@ -356,7 +356,7 @@ export class DefaultVideoSyncExecutor implements VideoSyncExecutor {
     const tempOutputPath = join(transcodeDir, outputFilename);
 
     // Track latest progress for yielding
-    let latestTranscodeProgress: VideoTranscodeProgress | undefined;
+    let latestTranscodeProgress: TranscodeProgress | undefined;
     let transcodeComplete = false;
     let transcodeError: Error | undefined;
 

@@ -19,6 +19,7 @@ import type {
   QualityPreset,
 } from './types.js';
 import { AAC_PRESETS } from './types.js';
+import { parseFFmpegProgressLine } from './progress.js';
 
 /**
  * Error thrown when FFmpeg is not available
@@ -208,27 +209,12 @@ export function buildAlacArgs(input: string, output: string): string[] {
  *
  * FFmpeg outputs progress info line by line in key=value format when
  * using -progress pipe:1
+ *
+ * @deprecated Use parseFFmpegProgressLine from './progress.js' instead
  */
 export function parseProgressLine(line: string): Partial<TranscodeProgress> | null {
-  const match = line.match(/^(\w+)=(.+)$/);
-  if (!match) return null;
-
-  const [, key, value] = match;
-
-  switch (key) {
-    case 'out_time_ms':
-      // Time in microseconds
-      const timeUs = parseInt(value!, 10);
-      if (!isNaN(timeUs)) {
-        return { time: timeUs / 1_000_000 };
-      }
-      break;
-    case 'progress':
-      // 'continue' or 'end'
-      return null;
-  }
-
-  return null;
+  // Re-export the shared implementation for backward compatibility
+  return parseFFmpegProgressLine(line);
 }
 
 /**
