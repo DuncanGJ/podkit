@@ -13,7 +13,7 @@
  */
 import { Command } from 'commander';
 import { getContext } from '../context.js';
-import { resolveDeviceFromConfig, formatDeviceNotFoundError } from '../device-resolver.js';
+import { resolveDeviceFromConfig, formatDeviceNotFoundError, getDeviceIdentity, formatDeviceLookupMessage } from '../device-resolver.js';
 
 export interface MountOutput {
   success: boolean;
@@ -119,7 +119,8 @@ export const mountCommand = new Command('mount')
 
       if (volumeUuid) {
         if (!globalOpts.quiet && !globalOpts.json) {
-          console.log(`Looking for iPod with UUID: ${volumeUuid}...`);
+          const deviceIdentity = getDeviceIdentity(resolvedDevice);
+          console.log(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0));
         }
 
         const device = await manager.findByVolumeUuid(volumeUuid);

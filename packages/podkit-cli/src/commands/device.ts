@@ -34,6 +34,7 @@ import {
   resolveDeviceFromConfig,
   getDeviceIdentity,
   formatDeviceNotFoundError,
+  formatDeviceLookupMessage,
 } from '../device-resolver.js';
 import type { DeviceConfig } from '../config/index.js';
 import {
@@ -901,7 +902,7 @@ const musicSubcommand = new Command('music')
       const deviceIdentity = getDeviceIdentity(resolvedDevice);
 
       if (!globalOpts.quiet && deviceIdentity?.volumeUuid && format !== 'json') {
-        console.error('Looking for iPod...');
+        console.error(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0));
       }
 
       const resolveResult = await resolveDevicePath({
@@ -1004,7 +1005,7 @@ const videoSubcommand = new Command('video')
       const deviceIdentity = getDeviceIdentity(resolvedDevice);
 
       if (!globalOpts.quiet && deviceIdentity?.volumeUuid && format !== 'json') {
-        console.error('Looking for iPod...');
+        console.error(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0));
       }
 
       const resolveResult = await resolveDevicePath({
@@ -1137,7 +1138,7 @@ const clearSubcommand = new Command('clear')
     const deviceIdentity = getDeviceIdentity(resolvedDevice);
 
     if (!globalOpts.quiet && !globalOpts.json && deviceIdentity?.volumeUuid) {
-      console.log('Looking for iPod...');
+      console.log(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0));
     }
 
     const resolveResult = await resolveDevicePath({
@@ -1400,7 +1401,7 @@ const resetSubcommand = new Command('reset')
     const deviceIdentity = getDeviceIdentity(resolvedDevice);
 
     if (!globalOpts.quiet && !globalOpts.json && deviceIdentity?.volumeUuid) {
-      console.log('Looking for iPod...');
+      console.log(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0));
     }
 
     const resolveResult = await resolveDevicePath({
@@ -1627,7 +1628,7 @@ const ejectSubcommand = new Command('eject')
     const deviceIdentity = getDeviceIdentity(resolvedDevice);
 
     if (!globalOpts.quiet && !globalOpts.json && deviceIdentity?.volumeUuid) {
-      console.log(`Looking for iPod...`);
+      console.log(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0));
     }
 
     const resolveResult = await resolveDevicePath({
@@ -1790,7 +1791,8 @@ const mountSubcommand = new Command('mount')
 
       if (volumeUuid) {
         if (!globalOpts.quiet && !globalOpts.json) {
-          console.log(`Looking for iPod with UUID: ${volumeUuid}...`);
+          const deviceIdentity = getDeviceIdentity(resolvedDevice);
+          console.log(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0));
         }
 
         const device = await manager.findByVolumeUuid(volumeUuid);

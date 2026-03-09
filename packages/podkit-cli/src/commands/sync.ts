@@ -35,7 +35,7 @@ import type {
   VideoCollectionConfig,
   DeviceConfig,
 } from '../config/index.js';
-import { resolveDevicePath, formatDeviceError, getDeviceIdentity } from '../device-resolver.js';
+import { resolveDevicePath, formatDeviceError, getDeviceIdentity, formatDeviceLookupMessage } from '../device-resolver.js';
 import type { IPodVideo, CollectionVideo } from '@podkit/core';
 import { MediaType } from '@podkit/core';
 import { formatBytes, formatNumber } from './display-utils.js';
@@ -48,6 +48,33 @@ import { formatBytes, formatNumber } from './display-utils.js';
  * AAC-only quality presets (for fallback)
  */
 type AacQualityPreset = Exclude<QualityPreset, 'alac'>;
+
+/**
+ * Format a collection label for display
+ *
+ * @param collectionName - Name of the collection
+ * @param sourcePath - Path to the collection
+ * @param verbose - Whether to show path details
+ * @returns Formatted collection label
+ *
+ * @example Non-verbose
+ * formatCollectionLabel('main', '/Volumes/Media/music', false)
+ * // => " 'main'"
+ *
+ * @example Verbose
+ * formatCollectionLabel('main', '/Volumes/Media/music', true)
+ * // => " 'main' (/Volumes/Media/music)"
+ */
+function formatCollectionLabel(
+  collectionName: string,
+  sourcePath: string,
+  verbose: boolean
+): string {
+  if (verbose) {
+    return ` '${collectionName}' (${sourcePath})`;
+  }
+  return ` '${collectionName}'`;
+}
 
 /**
  * Valid sync types
@@ -814,7 +841,7 @@ export const syncCommand = new Command('sync')
     const deviceIdentity = getDeviceIdentity(resolvedDevice);
 
     if (!globalOpts.quiet && !globalOpts.json && deviceIdentity?.volumeUuid) {
-      console.log('Looking for iPod...');
+      console.log(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0));
     }
 
     const resolved = await resolveDevicePath({
@@ -939,9 +966,11 @@ export const syncCommand = new Command('sync')
       if (hasMusicToSync) {
         for (const collection of musicCollections) {
           const sourcePath = (collection.config as MusicCollectionConfig).path;
-          const collectionLabel = musicCollections.length > 1
-            ? ` [${collection.name}]`
-            : '';
+          const collectionLabel = formatCollectionLabel(
+            collection.name,
+            sourcePath,
+            globalOpts.verbose > 0
+          );
 
           if (!globalOpts.json && !globalOpts.quiet && musicCollections.length > 1) {
             console.log('');
@@ -950,7 +979,7 @@ export const syncCommand = new Command('sync')
 
           // Scan source directory
           if (!globalOpts.json && !globalOpts.quiet) {
-            spinner.start(`Scanning music source${collectionLabel}...`);
+            spinner.start(`Scanning music collection${collectionLabel}...`);
           }
 
           const scanWarnings: Array<{ file: string; message: string }> = [];
@@ -959,10 +988,10 @@ export const syncCommand = new Command('sync')
             onProgress: (progress) => {
               if (!globalOpts.json && !globalOpts.quiet) {
                 if (progress.phase === 'discovering') {
-                  spinner.update(`Discovering audio files${collectionLabel}...`);
+                  spinner.update(`Discovering audio files from${collectionLabel}...`);
                 } else {
                   spinner.update(
-                    `Parsing metadata${collectionLabel}: ${progress.processed}/${progress.total} files`
+                    `Parsing metadata from${collectionLabel}: ${progress.processed}/${progress.total} files`
                   );
                 }
               }
@@ -1340,9 +1369,11 @@ export const syncCommand = new Command('sync')
         } else {
           for (const collection of videoCollections) {
             const sourcePath = (collection.config as VideoCollectionConfig).path;
-            const collectionLabel = videoCollections.length > 1
-              ? ` [${collection.name}]`
-              : '';
+            const collectionLabel = formatCollectionLabel(
+              collection.name,
+              sourcePath,
+              globalOpts.verbose > 0
+            );
 
             if (!globalOpts.json && !globalOpts.quiet) {
               console.log('');
@@ -1351,7 +1382,7 @@ export const syncCommand = new Command('sync')
 
             // Scan video source
             if (!globalOpts.json && !globalOpts.quiet) {
-              spinner.start(`Scanning video source${collectionLabel}...`);
+              spinner.start(`Scanning video collection${collectionLabel}...`);
             }
 
             const scanWarnings: Array<{ file: string; message: string }> = [];
@@ -1360,10 +1391,10 @@ export const syncCommand = new Command('sync')
               onProgress: (progress) => {
                 if (!globalOpts.json && !globalOpts.quiet) {
                   if (progress.phase === 'discovering') {
-                    spinner.update(`Discovering video files${collectionLabel}...`);
+                    spinner.update(`Discovering video files from${collectionLabel}...`);
                   } else {
                     spinner.update(
-                      `Analyzing videos${collectionLabel}: ${progress.processed}/${progress.total} files`
+                      `Analyzing videos from${collectionLabel}: ${progress.processed}/${progress.total} files`
                     );
                   }
                 }
@@ -1530,9 +1561,14 @@ export const syncCommand = new Command('sync')
         } else {
           for (const collection of videoCollections) {
             const sourcePath = (collection.config as VideoCollectionConfig).path;
+            const collectionLabel = formatCollectionLabel(
+              collection.name,
+              sourcePath,
+              globalOpts.verbose > 0
+            );
 
             if (!globalOpts.json && !globalOpts.quiet) {
-              spinner.start('Scanning video source...');
+              spinner.start(`Scanning video collection${collectionLabel}...`);
             }
 
             const videoAdapter = core.createVideoDirectoryAdapter({

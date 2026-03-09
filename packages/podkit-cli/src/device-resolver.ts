@@ -215,3 +215,37 @@ export function formatDeviceNotFoundError(
     : '(none)';
   return `Device "${deviceName}" not found in config. Available devices: ${availableDevices}`;
 }
+
+/**
+ * Format a message for device lookup
+ *
+ * @param deviceName - Name of the device from config (e.g., 'terapod')
+ * @param deviceIdentity - Device identity with volumeUuid
+ * @param verbose - Whether to show UUID details
+ * @returns Formatted lookup message
+ *
+ * @example Non-verbose
+ * formatDeviceLookupMessage('terapod', { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' }, false)
+ * // => "Looking for iPod 'terapod'..."
+ *
+ * @example Verbose
+ * formatDeviceLookupMessage('terapod', { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' }, true)
+ * // => "Looking for iPod 'terapod' (UUID: ABC-123)..."
+ */
+export function formatDeviceLookupMessage(
+  deviceName: string | undefined,
+  deviceIdentity: DeviceIdentity | undefined,
+  verbose: boolean
+): string {
+  if (!deviceName) {
+    return 'Looking for iPod...';
+  }
+
+  const base = `Looking for iPod '${deviceName}'`;
+
+  if (verbose && deviceIdentity?.volumeUuid) {
+    return `${base} (UUID: ${deviceIdentity.volumeUuid})...`;
+  }
+
+  return `${base}...`;
+}

@@ -22,6 +22,7 @@ import {
   resolveDeviceFromConfig,
   getDeviceIdentity,
   formatDeviceNotFoundError,
+  formatDeviceLookupMessage,
 } from '../device-resolver.js';
 
 export interface EjectOutput {
@@ -116,7 +117,7 @@ export const ejectCommand = new Command('eject')
     const deviceIdentity = getDeviceIdentity(resolvedDevice);
 
     if (!globalOpts.quiet && !globalOpts.json && deviceIdentity?.volumeUuid) {
-      console.log(`Looking for iPod...`);
+      console.log(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0));
     }
 
     const resolveResult = await resolveDevicePath({
