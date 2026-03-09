@@ -38,6 +38,11 @@ interface SyncOutput {
     bytesTransferred: number;
     duration: number;
   };
+  eject?: {
+    requested: boolean;
+    success: boolean;
+    error?: string;
+  };
   error?: string;
 }
 
@@ -393,6 +398,116 @@ describe('podkit sync', () => {
         expect(result.exitCode).toBe(0);
         // Should have minimal or no output
         expect(result.stdout.length).toBeLessThan(100);
+      });
+    }, 60000);
+  });
+
+  describe('eject behavior', () => {
+    it('shows eject tip after successful sync', async () => {
+      if (!fixturesAvailable) {
+        console.log('Skipping: fixtures not available');
+        return;
+      }
+
+      await withTarget(async (target) => {
+        const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
+
+        const result = await runCli([
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(result.stdout).toContain('podkit eject');
+        expect(result.stdout).toContain('--eject');
+      });
+    }, 60000);
+
+    it('does NOT show eject tip on dry-run', async () => {
+      if (!fixturesAvailable) {
+        console.log('Skipping: fixtures not available');
+        return;
+      }
+
+      await withTarget(async (target) => {
+        const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
+
+        const result = await runCli([
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--dry-run',
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        // Should NOT show the eject tip on dry-run
+        expect(result.stdout).not.toContain('podkit eject');
+      });
+    });
+
+    it('attempts to eject with --eject flag', async () => {
+      if (!fixturesAvailable) {
+        console.log('Skipping: fixtures not available');
+        return;
+      }
+
+      await withTarget(async (target) => {
+        const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
+
+        const result = await runCli([
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--eject',
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        // Should show ejecting message (even if it fails on dummy iPod)
+        expect(result.stdout).toContain('Ejecting');
+        // Should NOT show the tip since --eject was used
+        expect(result.stdout).not.toContain("Run 'podkit eject'");
+      });
+    }, 60000);
+
+    it('includes eject status in JSON output with --eject', async () => {
+      if (!fixturesAvailable) {
+        console.log('Skipping: fixtures not available');
+        return;
+      }
+
+      await withTarget(async (target) => {
+        const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
+
+        const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--eject',
+          '--json',
+        ]);
+
+        expect(result.exitCode).toBe(0);
+        expect(json?.success).toBe(true);
+        expect(json?.eject).toBeDefined();
+        expect(json?.eject?.requested).toBe(true);
+        // Eject may fail on dummy iPod, but the field should exist
       });
     }, 60000);
   });

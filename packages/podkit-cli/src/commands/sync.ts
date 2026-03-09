@@ -66,6 +66,7 @@ interface SyncOptions {
   collection?: string;
   deviceName?: string;
   videoQuality?: VideoQualityPreset;
+  eject?: boolean;
 }
 
 /**
@@ -158,6 +159,11 @@ interface SyncOutput {
     skipped: number;
     bytesTransferred: number;
     duration: number;
+  };
+  eject?: {
+    requested: boolean;
+    success: boolean;
+    error?: string;
   };
   planWarnings?: PlanWarningInfo[];
   scanWarnings?: ScanWarningInfo[];
@@ -637,6 +643,7 @@ export const syncCommand = new Command('sync')
   .option('--filter <pattern>', 'only sync tracks matching pattern')
   .option('--no-artwork', 'skip artwork transfer')
   .option('--delete', 'remove tracks from iPod not in source')
+  .option('--eject', 'eject iPod after successful sync')
   .action(async (typeArg: string | undefined, options: SyncOptions) => {
     const { config, globalOpts, configResult } = getContext();
     const startTime = Date.now();
@@ -1635,6 +1642,8 @@ export const syncCommand = new Command('sync')
 
       // Final summary
       const duration = (Date.now() - startTime) / 1000;
+      const syncSucceeded = !dryRun && totalFailed === 0 && !anyError;
+
       if (!dryRun && !globalOpts.json && !globalOpts.quiet) {
         console.log('');
         console.log('=== Summary ===');
@@ -1651,6 +1660,17 @@ export const syncCommand = new Command('sync')
 
       // JSON output for actual sync completion
       if (!dryRun && globalOpts.json) {
+        // Handle eject for JSON output
+        let ejectInfo: SyncOutput['eject'];
+        if (options.eject && syncSucceeded) {
+          const ejectResult = await manager.eject(devicePath, { force: false });
+          ejectInfo = {
+            requested: true,
+            success: ejectResult.success,
+            error: ejectResult.error,
+          };
+        }
+
         outputJson({
           success: totalFailed === 0 && !anyError,
           dryRun: false,
@@ -1661,12 +1681,36 @@ export const syncCommand = new Command('sync')
             bytesTransferred: 0,
             duration,
           },
+          eject: ejectInfo,
         });
       }
 
       if (dryRun && !globalOpts.json && !globalOpts.quiet) {
         console.log('');
         console.log('Run without --dry-run to execute this plan.');
+      }
+
+      // Show eject tip or auto-eject on successful sync (not dry-run, no errors)
+      if (syncSucceeded && !globalOpts.json && !globalOpts.quiet) {
+        if (options.eject) {
+          // Auto-eject the device
+          console.log('');
+          console.log('Ejecting iPod...');
+          const ejectResult = await manager.eject(devicePath, { force: false });
+          if (ejectResult.success) {
+            console.log('iPod ejected. Safe to disconnect.');
+          } else {
+            console.log('Could not eject iPod automatically.');
+            if (ejectResult.error) {
+              console.log(`  ${ejectResult.error}`);
+            }
+            console.log('  Run: podkit eject --force');
+          }
+        } else {
+          // Show tip about ejecting
+          console.log('');
+          console.log("Tip: Run 'podkit eject' to safely disconnect, or use --eject next time.");
+        }
       }
 
       if (totalFailed > 0 || anyError) {
