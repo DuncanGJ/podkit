@@ -59,6 +59,26 @@ src/
 │   ├── real.ts        # Uses IPOD_MOUNT env var
 │   └── factory.ts     # Creates target based on IPOD_TARGET env
 │
+├── sources/           # Music source abstraction (for remote sources)
+│   ├── types.ts       # TestSource interface
+│   ├── directory.ts   # Local directory source
+│   ├── subsonic.ts    # Navidrome Docker source
+│   └── index.ts       # Factory and exports
+│
+├── docker/            # Docker container management
+│   ├── constants.ts   # Labels (podkit.e2e.managed=true)
+│   ├── container-registry.ts  # Tracks active containers
+│   ├── container-manager.ts   # start/stop with auto-cleanup
+│   ├── signal-handler.ts      # SIGINT/SIGTERM handlers
+│   ├── orphan-cleaner.ts      # Find/remove orphaned containers
+│   └── index.ts
+│
+├── setup/             # Test setup
+│   └── preload.ts     # Registers signal handlers (via bunfig.toml)
+│
+├── scripts/           # CLI utilities
+│   └── cleanup-containers.ts  # Manual container cleanup
+│
 ├── helpers/           # Test utilities
 │   ├── cli-runner.ts  # Spawn CLI process, capture output
 │   ├── fixtures.ts    # Path to test/fixtures/audio
@@ -74,7 +94,8 @@ src/
 │
 └── workflows/         # Multi-step workflow tests
     ├── fresh-sync.e2e.test.ts
-    └── incremental.e2e.test.ts
+    ├── incremental.e2e.test.ts
+    └── subsonic-sync.e2e.test.ts  # Docker-based (opt-in)
 ```
 
 ## Environment Variables
@@ -83,6 +104,7 @@ src/
 |----------|-------------|---------|
 | `IPOD_TARGET` | Target type: `dummy` or `real` | `dummy` |
 | `IPOD_MOUNT` | Mount path for real iPod (required when `IPOD_TARGET=real`) | - |
+| `SUBSONIC_E2E` | Set to `1` to enable Docker-based Subsonic tests | - |
 
 ## Target Abstraction
 
@@ -241,3 +263,100 @@ await withVideoSourceDir(async (sourceDir) => {
 - Full video transcoding is slow - focus on dry-run tests
 - Dummy iPods may not have video support enabled
 - Tests gracefully skip when device doesn't support video
+
+## Docker-Based Tests
+
+Some E2E tests require Docker to run external services (like Navidrome for Subsonic testing). These tests are disabled by default to avoid slow Docker operations in normal test runs.
+
+### Running Docker Tests
+
+```bash
+# Run Subsonic E2E tests (requires Docker)
+SUBSONIC_E2E=1 bun test src/workflows/subsonic-sync.e2e.test.ts
+
+# Or use the convenience script
+bun run test:subsonic
+```
+
+### Container Cleanup
+
+Docker containers are automatically cleaned up via:
+- Normal test completion (afterAll hooks)
+- Signal handlers (Ctrl+C)
+- Process exit handlers
+
+If containers are left orphaned (e.g., after a crash), use the cleanup scripts:
+
+```bash
+# List orphaned test containers
+bun run cleanup:docker:list
+
+# Remove stopped test containers
+bun run cleanup:docker
+
+# Force remove all test containers (including running)
+bun run cleanup:docker --force
+```
+
+Containers are labeled with `podkit.e2e.managed=true` for identification.
+
+### Test Source Abstraction
+
+Docker-based tests use the `TestSource` interface to abstract different music sources:
+
+```typescript
+interface TestSource {
+  readonly name: string;           // Source identifier
+  readonly requiresDocker: boolean;
+
+  sourceUrl: string;              // URL for CLI --source
+  trackCount: number;             // Expected tracks after setup
+
+  setup(): Promise<void>;         // Start container, wait for ready
+  teardown(): Promise<void>;      // Stop container, cleanup
+  isAvailable(): Promise<boolean>;
+  getEnv(): Record<string, string>;
+}
+```
+
+### Adding New Docker Sources
+
+To add a new Docker-based test source (e.g., Plex, Jellyfin):
+
+1. Create `src/sources/yourservice.ts` implementing `TestSource`
+2. Use the container manager for automatic cleanup:
+   ```typescript
+   import { startContainer, stopContainer } from '../docker/index.js';
+
+   async setup() {
+     const result = await startContainer({
+       image: 'yourservice/image:latest',
+       source: 'yourservice',  // Used in container labels
+       ports: ['8080:8080'],
+       env: ['CONFIG=value'],
+     });
+     this.containerId = result.containerId;
+   }
+
+   async teardown() {
+     if (this.containerId) {
+       await stopContainer(this.containerId);
+     }
+   }
+   ```
+3. Export from `src/sources/index.ts`
+4. Create tests in `src/workflows/yourservice-sync.e2e.test.ts`
+
+### Docker Infrastructure
+
+```
+src/docker/
+├── constants.ts           # Labels (podkit.e2e.managed=true)
+├── container-registry.ts  # Singleton tracking active containers
+├── container-manager.ts   # start/stop with auto-labeling
+├── signal-handler.ts      # SIGINT/SIGTERM cleanup
+├── orphan-cleaner.ts      # Find/clean orphaned containers
+└── index.ts               # Public exports
+```
+
+The `bunfig.toml` configures Bun to preload signal handlers before any tests run.

@@ -87,6 +87,9 @@ bun run test:e2e
 # Run E2E tests with real iPod
 IPOD_MOUNT=/Volumes/iPod bun run test:e2e:real
 
+# Run Docker-based E2E tests (Subsonic, etc.)
+bun run test:e2e:docker
+
 # Run tests for a specific package
 bun test packages/podkit-core
 
@@ -353,3 +356,54 @@ If a CI environment cannot provide all dependencies, run only unit tests:
 ```bash
 bun run test:unit
 ```
+
+## Docker-Based E2E Tests
+
+Some E2E tests require Docker to run external services (like Navidrome for Subsonic testing). These are opt-in to avoid slow Docker operations in normal test runs.
+
+### Running Docker Tests
+
+```bash
+# From repo root
+bun run test:e2e:docker
+
+# Or from packages/e2e-tests
+cd packages/e2e-tests && bun run test:subsonic
+```
+
+### Container Cleanup
+
+Containers are automatically cleaned up via signal handlers (Ctrl+C) and exit hooks. If containers are orphaned:
+
+```bash
+cd packages/e2e-tests
+
+# List orphaned containers
+bun run cleanup:docker:list
+
+# Remove stopped containers
+bun run cleanup:docker
+
+# Force remove all (including running)
+bun run cleanup:docker --force
+```
+
+### Adding Docker-Based Sources
+
+Use the container manager in `packages/e2e-tests/src/docker/` for automatic cleanup:
+
+```typescript
+import { startContainer, stopContainer } from '../docker/index.js';
+
+const result = await startContainer({
+  image: 'service/image:latest',
+  source: 'service-name',  // Used in labels
+  ports: ['8080:8080'],
+  env: ['CONFIG=value'],
+});
+
+// Container is registered for cleanup on Ctrl+C, crash, etc.
+await stopContainer(result.containerId);
+```
+
+See [packages/e2e-tests/README.md](../packages/e2e-tests/README.md) for full documentation.

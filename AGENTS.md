@@ -170,6 +170,10 @@ bun run test:unit         # Unit tests only
 bun run test:integration  # Integration tests only
 bun run test:e2e          # E2E tests (dummy iPod)
 bun run test:e2e:real     # E2E tests (real iPod, requires IPOD_MOUNT)
+bun run test:e2e:docker   # E2E tests requiring Docker (Subsonic, etc.)
+
+# Container cleanup (in packages/e2e-tests/)
+cd packages/e2e-tests && bun run cleanup:docker
 ```
 
 ### Prerequisites for Integration Tests
@@ -223,6 +227,43 @@ it('syncs tracks to iPod', async () => {
 ```
 
 See [packages/e2e-tests/README.md](packages/e2e-tests/README.md) for full documentation.
+
+### Docker-Based E2E Tests
+
+Some E2E tests use Docker to run external services (Navidrome for Subsonic). These are opt-in to avoid slow operations.
+
+**Running Docker tests:**
+```bash
+cd packages/e2e-tests
+bun run test:subsonic  # Runs Subsonic E2E tests with Docker
+```
+
+**Container cleanup:**
+Docker containers are automatically cleaned up on test completion, Ctrl+C, and crashes. If orphaned containers remain:
+
+```bash
+cd packages/e2e-tests
+bun run cleanup:docker:list   # List orphaned containers
+bun run cleanup:docker        # Remove stopped containers
+bun run cleanup:docker --force  # Force remove all
+```
+
+**Adding new Docker sources:**
+When implementing new Docker-based test sources, use the container manager at `packages/e2e-tests/src/docker/`:
+
+```typescript
+import { startContainer, stopContainer } from '../docker/index.js';
+
+// Containers are automatically labeled and registered for cleanup
+const result = await startContainer({
+  image: 'service/image:latest',
+  source: 'service-name',
+  ports: ['8080:8080'],
+  env: ['CONFIG=value'],
+});
+```
+
+See [packages/e2e-tests/README.md](packages/e2e-tests/README.md) for the full Docker infrastructure documentation.
 
 ## libgpod-node: Native Bindings
 

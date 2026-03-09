@@ -203,14 +203,18 @@ describe('DirectoryAdapter integration', () => {
     expect(lastUpdate.processed).toBe(lastUpdate.total);
   });
 
-  it('getFilePath returns correct path', async () => {
+  it('getFileAccess returns path-based access with correct path', async () => {
     const adapter = new DirectoryAdapter({ path: testDir });
     const tracks = await adapter.getTracks();
 
     for (const track of tracks) {
-      expect(adapter.getFilePath(track)).toBe(track.filePath);
-      // Path should be absolute
-      expect(adapter.getFilePath(track)).toMatch(/^\//);
+      const access = adapter.getFileAccess(track);
+      expect(access.type).toBe('path');
+      if (access.type === 'path') {
+        expect(access.path).toBe(track.filePath);
+        // Path should be absolute
+        expect(access.path).toMatch(/^\//);
+      }
     }
   });
 

@@ -495,8 +495,8 @@ describe('DirectoryAdapter', () => {
     });
   });
 
-  describe('getFilePath', () => {
-    it('returns the track file path', async () => {
+  describe('getFileAccess', () => {
+    it('returns path-based file access', async () => {
       mockGlob.mockImplementation(async () => ['/music/test.mp3']);
       mockParseFile.mockImplementation(async () => ({
         common: { title: 'Test' },
@@ -506,7 +506,9 @@ describe('DirectoryAdapter', () => {
       const adapter = new DirectoryAdapter({ path: '/music' });
       const tracks = await adapter.getTracks();
 
-      expect(adapter.getFilePath(tracks[0]!)).toBe('/music/test.mp3');
+      const access = adapter.getFileAccess(tracks[0]!);
+      expect(access.type).toBe('path');
+      expect(access).toEqual({ type: 'path', path: '/music/test.mp3' });
     });
   });
 

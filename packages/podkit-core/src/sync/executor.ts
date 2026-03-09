@@ -22,8 +22,9 @@ import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 
 import { AsyncQueue } from './async-queue.js';
+import { streamToTempFile, cleanupTempFile } from '../utils/stream.js';
 
-import type { CollectionTrack } from '../adapters/interface.js';
+import type { CollectionTrack, CollectionAdapter, FileAccess } from '../adapters/interface.js';
 import type { FFmpegTranscoder } from '../transcode/ffmpeg.js';
 import type {
   ExecuteOptions,
@@ -137,6 +138,13 @@ export interface ExtendedExecuteOptions extends ExecuteOptions {
   tempDir?: string;
   /** Retry configuration for failed operations */
   retryConfig?: RetryConfig;
+  /**
+   * Collection adapter for resolving file access
+   *
+   * Required for remote sources (e.g., Subsonic) to stream files.
+   * Optional for local sources where filePath is directly usable.
+   */
+  adapter?: CollectionAdapter;
 }
 
 /**
@@ -190,6 +198,19 @@ export interface PreparedFile {
   filetype: string;
   /** Number of retry attempts during prepare phase (0 = first try succeeded) */
   prepareAttempts?: number;
+  /**
+   * Path to use for artwork extraction
+   * For local files, this is the original file path.
+   * For remote files, this is the path to the downloaded temp file.
+   */
+  artworkSourcePath: string;
+  /**
+   * Path to downloaded source file that needs cleanup after prepare
+   * Set when source was streamed from a remote adapter.
+   * For transcode ops, this is cleaned up after transcoding.
+   * For copy ops, the sourcePath itself is the download (artworkSourcePath = sourcePath).
+   */
+  downloadedSourcePath?: string;
 }
 
 /** Default pipeline buffer size (number of prepared files to buffer) */
@@ -198,6 +219,75 @@ const PIPELINE_BUFFER_SIZE = 3;
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+/**
+ * Resolved file access with local path
+ */
+interface ResolvedFileAccess {
+  /** Local path to the file (either original or downloaded temp) */
+  path: string;
+  /** Whether this is a downloaded temp file that needs cleanup */
+  isDownloaded: boolean;
+  /** File size in bytes (if known from stream metadata) */
+  size?: number;
+}
+
+/**
+ * Resolve file access for a track, downloading if necessary
+ *
+ * For local sources (path-based), returns the path directly.
+ * For remote sources (stream-based), downloads to a temp file.
+ *
+ * @param adapter - Collection adapter to get file access from
+ * @param track - Track to resolve file access for
+ * @returns Resolved file access with local path
+ */
+async function resolveFileAccess(
+  adapter: CollectionAdapter,
+  track: CollectionTrack
+): Promise<ResolvedFileAccess> {
+  const access = await adapter.getFileAccess(track);
+
+  if (access.type === 'path') {
+    return {
+      path: access.path,
+      isDownloaded: false,
+    };
+  }
+
+  // Stream-based access - download to temp file
+  const tempPath = await streamToTempFile(access.getStream, access.size);
+  return {
+    path: tempPath,
+    isDownloaded: true,
+    size: access.size,
+  };
+}
+
+/**
+ * Get file access path for a track, using adapter if provided
+ *
+ * When no adapter is provided, falls back to track.filePath (legacy behavior).
+ * This allows gradual migration and backward compatibility.
+ *
+ * @param track - Track to get file path for
+ * @param adapter - Optional adapter for resolving file access
+ * @returns Resolved file access
+ */
+async function getTrackFilePath(
+  track: CollectionTrack,
+  adapter?: CollectionAdapter
+): Promise<ResolvedFileAccess> {
+  if (adapter) {
+    return resolveFileAccess(adapter, track);
+  }
+
+  // Legacy fallback: use track.filePath directly
+  return {
+    path: track.filePath,
+    isDownloaded: false,
+  };
+}
 
 /**
  * Get a human-readable filetype label based on file extension.
@@ -437,6 +527,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
       tempDir = tmpdir(),
       retryConfig = {},
       artwork = true,
+      adapter,
     } = options;
 
     // Clear warnings from previous execution
@@ -472,6 +563,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
         mergedRetryConfig,
         continueOnError,
         artwork,
+        adapter,
         signal
       );
     } finally {
@@ -541,6 +633,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
     retryConfig: Required<RetryConfig>,
     continueOnError: boolean,
     artworkEnabled: boolean,
+    adapter?: CollectionAdapter,
     signal?: AbortSignal
   ): AsyncIterable<ExecutorProgress> {
     const total = plan.operations.length;
@@ -576,7 +669,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
         try {
           if (operation.type === 'transcode') {
             const result = await this.prepareWithRetry(
-              () => this.prepareTranscode(operation, transcodeDir, signal),
+              () => this.prepareTranscode(operation, transcodeDir, adapter, signal),
               operation,
               retryConfig
             );
@@ -594,7 +687,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
             }
           } else if (operation.type === 'copy') {
             const result = await this.prepareWithRetry(
-              () => this.prepareCopy(operation),
+              () => this.prepareCopy(operation, adapter),
               operation,
               retryConfig
             );
@@ -1106,20 +1199,29 @@ export class DefaultSyncExecutor implements SyncExecutor {
    *
    * This is the CPU-bound part of the operation that can run in parallel
    * with USB transfers.
+   *
+   * For remote sources (via adapter), the source is first downloaded to a temp file,
+   * then transcoded. The downloaded source is kept for artwork extraction and
+   * cleaned up after transfer completes.
    */
   private async prepareTranscode(
     operation: Extract<SyncOperation, { type: 'transcode' }>,
     transcodeDir: string,
+    adapter?: CollectionAdapter,
     signal?: AbortSignal
   ): Promise<PreparedFile> {
     const { source, preset: presetRef } = operation;
+
+    // Resolve file access (may download from remote source)
+    const fileAccess = await getTrackFilePath(source, adapter);
+    const inputPath = fileAccess.path;
 
     // Generate output path in temp directory
     const baseName = basename(source.filePath, extname(source.filePath));
     const outputPath = join(transcodeDir, `${baseName}-${randomUUID()}.m4a`);
 
     // Transcode the file
-    const result = await this.transcoder.transcode(source.filePath, outputPath, presetRef.name, {
+    const result = await this.transcoder.transcode(inputPath, outputPath, presetRef.name, {
       signal,
     });
 
@@ -1130,6 +1232,10 @@ export class DefaultSyncExecutor implements SyncExecutor {
       size: result.size,
       bitrate: result.bitrate,
       filetype: 'AAC audio file',
+      // Use the resolved input path for artwork extraction
+      artworkSourcePath: inputPath,
+      // Track downloaded file for cleanup after transfer (for artwork extraction)
+      downloadedSourcePath: fileAccess.isDownloaded ? inputPath : undefined,
     };
   }
 
@@ -1137,30 +1243,46 @@ export class DefaultSyncExecutor implements SyncExecutor {
    * Prepare a copy operation by getting file info.
    *
    * Copy operations don't need CPU work, so this just returns the source info.
+   * For remote sources (via adapter), the file is downloaded to a temp location.
    */
   private async prepareCopy(
-    operation: Extract<SyncOperation, { type: 'copy' }>
+    operation: Extract<SyncOperation, { type: 'copy' }>,
+    adapter?: CollectionAdapter
   ): Promise<PreparedFile> {
     const { source } = operation;
 
-    // Get actual file size, or estimate if file doesn't exist (e.g., in tests)
+    // Resolve file access (may download from remote source)
+    const fileAccess = await getTrackFilePath(source, adapter);
+    const sourcePath = fileAccess.path;
+
+    // Get actual file size
     let size: number;
-    try {
-      const stats = await stat(source.filePath);
-      size = stats.size;
-    } catch {
-      // Estimate size based on duration (fallback for tests or missing files)
-      size = source.duration
-        ? Math.round((source.duration / 1000) * 32000) // ~256 kbps estimate
-        : 5000000; // default 5MB
+    if (fileAccess.size !== undefined) {
+      // Use size from file access (for remote sources)
+      size = fileAccess.size;
+    } else {
+      try {
+        const stats = await stat(sourcePath);
+        size = stats.size;
+      } catch {
+        // Estimate size based on duration (fallback for tests or missing files)
+        size = source.duration
+          ? Math.round((source.duration / 1000) * 32000) // ~256 kbps estimate
+          : 5000000; // default 5MB
+      }
     }
 
     return {
       operation,
-      sourcePath: source.filePath,
-      isTemp: false,
+      sourcePath,
+      // Mark as temp if downloaded from remote source
+      isTemp: fileAccess.isDownloaded,
       size,
       filetype: getFileTypeLabel(source.filePath),
+      // For copy operations, the source is also the artwork source
+      artworkSourcePath: sourcePath,
+      // No separate downloaded file - sourcePath IS the download for copy ops
+      downloadedSourcePath: undefined,
     };
   }
 
@@ -1174,7 +1296,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
     prepared: PreparedFile,
     artworkEnabled: boolean
   ): Promise<{ bytesTransferred: number; track: IpodDatabaseTrack }> {
-    const { operation, sourcePath, size, bitrate, filetype } = prepared;
+    const { operation, sourcePath, size, bitrate, filetype, artworkSourcePath } = prepared;
     const source = operation.source;
 
     // Add track to iPod database
@@ -1190,8 +1312,9 @@ export class DefaultSyncExecutor implements SyncExecutor {
     track.copyFile(sourcePath);
 
     // Extract and transfer artwork if enabled
+    // Use artworkSourcePath which is the original source file (or downloaded temp for remote)
     if (artworkEnabled) {
-      await this.transferArtwork(track, source.filePath);
+      await this.transferArtwork(track, artworkSourcePath);
     }
 
     return { bytesTransferred: size, track };
@@ -1201,12 +1324,19 @@ export class DefaultSyncExecutor implements SyncExecutor {
    * Clean up a prepared file if it's a temp file.
    */
   private async cleanupPreparedFile(prepared: PreparedFile): Promise<void> {
+    // Clean up transcoded/downloaded temp file
     if (prepared.isTemp) {
       try {
         await rm(prepared.sourcePath, { force: true });
       } catch {
         // Ignore cleanup errors
       }
+    }
+
+    // Clean up downloaded source file (for transcode ops from remote sources)
+    // This is separate from sourcePath because transcode creates a new file
+    if (prepared.downloadedSourcePath) {
+      await cleanupTempFile(prepared.downloadedSourcePath);
     }
   }
 }

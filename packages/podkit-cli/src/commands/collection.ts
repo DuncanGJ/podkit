@@ -43,6 +43,7 @@ import {
   formatCsv,
 } from './display-utils.js';
 import type { CollectionTrack, CollectionVideo } from '@podkit/core';
+import { createMusicAdapter } from '../utils/source-adapter.js';
 
 // =============================================================================
 // Shared utilities
@@ -738,24 +739,30 @@ const musicSubcommand = new Command('music')
     }
 
     const { collection } = resolved;
+    const collectionConfig = collection as MusicCollectionConfig;
+    const isSubsonic = collectionConfig.type === 'subsonic';
 
-    // Check if path exists
-    if (!fs.existsSync(collection.path)) {
-      outputError(`Collection path does not exist: ${collection.path}`);
+    // Check if path exists (only for directory collections)
+    if (!isSubsonic && !fs.existsSync(collectionConfig.path)) {
+      outputError(`Collection path does not exist: ${collectionConfig.path}`);
       return;
     }
 
     try {
-      // Dynamically import podkit-core to scan the collection
-      const core = await import('@podkit/core');
-      const adapter = core.createDirectoryAdapter({
-        path: collection.path,
+      const adapter = createMusicAdapter({
+        config: collectionConfig,
+        name: resolved.name,
       });
 
       if (!globalOpts.quiet && format !== 'json') {
-        console.error(`Scanning ${collection.path}...`);
+        if (isSubsonic) {
+          console.error(`Fetching from ${collectionConfig.url}...`);
+        } else {
+          console.error(`Scanning ${collectionConfig.path}...`);
+        }
       }
 
+      await adapter.connect();
       const tracks = await adapter.getTracks();
 
       const displayTracks: DisplayTrack[] = tracks.map((t: CollectionTrack) => ({

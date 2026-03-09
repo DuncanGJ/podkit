@@ -6,6 +6,17 @@
  */
 
 import type { AudioFileType, TrackFilter } from '../types.js';
+import type { Readable } from 'node:stream';
+
+/**
+ * Unified file access - supports both local and remote sources
+ *
+ * Local adapters return path-based access for direct file operations.
+ * Remote adapters return stream-based access for downloading content.
+ */
+export type FileAccess =
+  | { type: 'path'; path: string }
+  | { type: 'stream'; getStream: () => Promise<ReadableStream | Readable>; size?: number };
 
 /**
  * A track from a collection source
@@ -88,10 +99,15 @@ export interface CollectionAdapter {
   getFilteredTracks(filter: TrackFilter): Promise<CollectionTrack[]>;
 
   /**
-   * Get the source file path for a track
-   * Returns the absolute path to the audio file
+   * Get file access for a track
+   *
+   * Local adapters return: { type: 'path', path: '/absolute/path.flac' }
+   * Remote adapters return: { type: 'stream', getStream: () => ..., size: 12345 }
+   *
+   * @param track - The track to get file access for
+   * @returns FileAccess object for reading the track's audio data
    */
-  getFilePath(track: CollectionTrack): string;
+  getFileAccess(track: CollectionTrack): FileAccess | Promise<FileAccess>;
 
   /**
    * Disconnect from source and cleanup resources
@@ -100,13 +116,30 @@ export interface CollectionAdapter {
 }
 
 /**
- * Configuration for creating an adapter
+ * Configuration for creating a directory adapter
  */
-export interface AdapterConfig {
-  /** Type of adapter to create */
+export interface DirectoryAdapterConfig {
   type: 'directory';
-  /** Source path (directory path, database path, etc.) */
+  /** Directory path to scan for audio files */
   path: string;
   /** File extensions to include (defaults to common audio formats) */
   extensions?: string[];
 }
+
+/**
+ * Configuration for creating a Subsonic adapter
+ */
+export interface SubsonicAdapterConfig {
+  type: 'subsonic';
+  /** Subsonic server URL */
+  url: string;
+  /** Username for authentication */
+  username: string;
+  /** Password for authentication */
+  password: string;
+}
+
+/**
+ * Configuration for creating an adapter
+ */
+export type AdapterConfig = DirectoryAdapterConfig | SubsonicAdapterConfig;

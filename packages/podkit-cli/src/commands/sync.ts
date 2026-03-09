@@ -36,10 +36,11 @@ import type {
   DeviceConfig,
 } from '../config/index.js';
 import { resolveDevicePath, formatDeviceError, getDeviceIdentity, formatDeviceLookupMessage } from '../device-resolver.js';
-import type { IPodVideo, CollectionVideo } from '@podkit/core';
+import type { IPodVideo, CollectionVideo, CollectionAdapter } from '@podkit/core';
 import { MediaType } from '@podkit/core';
 import { formatBytes, formatNumber } from './display-utils.js';
 import { formatProgressLine } from '../utils/progress.js';
+import { createMusicAdapter } from '../utils/source-adapter.js';
 
 // =============================================================================
 // Types
@@ -984,23 +985,47 @@ export const syncCommand = new Command('sync')
           }
 
           const scanWarnings: Array<{ file: string; message: string }> = [];
-          const adapter = core.createDirectoryAdapter({
-            path: sourcePath,
-            onProgress: (progress) => {
-              if (!globalOpts.json && !globalOpts.quiet) {
-                if (progress.phase === 'discovering') {
-                  spinner.update(`Discovering audio files from${collectionLabel}...`);
-                } else {
-                  spinner.update(
-                    `Parsing metadata from${collectionLabel}: ${progress.processed}/${progress.total} files`
-                  );
+          const collectionConfig = collection.config as MusicCollectionConfig;
+          let adapter: CollectionAdapter;
+
+          try {
+            adapter = createMusicAdapter({
+              config: collectionConfig,
+              name: collection.name,
+              onProgress: (progress) => {
+                if (!globalOpts.json && !globalOpts.quiet) {
+                  if (progress.phase === 'discovering') {
+                    spinner.update(`Discovering audio files from${collectionLabel}...`);
+                  } else {
+                    spinner.update(
+                      `Parsing metadata from${collectionLabel}: ${progress.processed}/${progress.total} files`
+                    );
+                  }
                 }
-              }
-            },
-            onWarning: (warning) => {
-              scanWarnings.push(warning);
-            },
-          });
+              },
+              onWarning: (warning) => {
+                scanWarnings.push(warning);
+              },
+            });
+          } catch (err) {
+            spinner.stop();
+            const message = err instanceof Error ? err.message : String(err);
+            if (globalOpts.json) {
+              outputJson({
+                success: false,
+                dryRun,
+                source: sourcePath,
+                device: devicePath,
+                error: `Failed to create adapter: ${message}`,
+              });
+            } else {
+              console.error(`Failed to create adapter for collection '${collection.name}':`);
+              console.error(`  ${message}`);
+            }
+            process.exitCode = 1;
+            anyError = true;
+            continue;
+          }
 
           let collectionTracks: Awaited<ReturnType<typeof adapter.getTracks>>;
           try {
@@ -1309,7 +1334,7 @@ export const syncCommand = new Command('sync')
 
           const executor = new core.DefaultSyncExecutor({ ipod, transcoder });
 
-          for await (const progress of executor.execute(plan, { dryRun: false, continueOnError: true, artwork: effectiveArtwork })) {
+          for await (const progress of executor.execute(plan, { dryRun: false, continueOnError: true, artwork: effectiveArtwork, adapter })) {
             if (progress.error) {
               const categorized = progress.categorizedError;
               collectedErrors.push({

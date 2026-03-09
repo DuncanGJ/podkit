@@ -26,7 +26,8 @@
     "@ctrl/video-filename-parser": "^5.4.1",
     "@podkit/libgpod-node": "workspace:*",
     "glob": "^13.0.6",
-    "music-metadata": "^11.12.1"
+    "music-metadata": "^11.12.1",
+    "subsonic-api": "^3.2.0"
   },
   "devDependencies": {
     "@podkit/gpod-testing": "workspace:*",

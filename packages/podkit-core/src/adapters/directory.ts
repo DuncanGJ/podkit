@@ -8,7 +8,7 @@
 import { glob } from 'glob';
 import * as mm from 'music-metadata';
 import { extname, basename, resolve } from 'node:path';
-import type { CollectionAdapter, CollectionTrack } from './interface.js';
+import type { CollectionAdapter, CollectionTrack, FileAccess } from './interface.js';
 import type { AudioFileType, TrackFilter } from '../types.js';
 
 /**
@@ -368,10 +368,15 @@ export class DirectoryAdapter implements CollectionAdapter {
   }
 
   /**
-   * Get the source file path for a track
+   * Get file access for a track
+   *
+   * DirectoryAdapter returns path-based access since files are local.
    */
-  getFilePath(track: CollectionTrack): string {
-    return track.filePath;
+  getFileAccess(track: CollectionTrack): FileAccess {
+    return {
+      type: 'path',
+      path: track.filePath,
+    };
   }
 
   /**

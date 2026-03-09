@@ -18,9 +18,12 @@ export { createError } from './types.js';
 
 // Collection adapters
 export type {
+  FileAccess,
   CollectionTrack,
   CollectionAdapter,
   AdapterConfig,
+  DirectoryAdapterConfig as AdapterDirectoryConfig,
+  SubsonicAdapterConfig as AdapterSubsonicConfig,
 } from './adapters/interface.js';
 
 export {
@@ -33,6 +36,14 @@ export type {
   ScanProgress,
   ScanWarning,
 } from './adapters/directory.js';
+
+// Subsonic adapter
+export {
+  SubsonicAdapter,
+  createSubsonicAdapter,
+} from './adapters/subsonic.js';
+
+export type { SubsonicAdapterConfig } from './adapters/subsonic.js';
 
 // Sync engine
 export type {
@@ -406,3 +417,6 @@ export {
   getPlatform,
   isPlatformSupported,
 } from './device/index.js';
+
+// Stream utilities (for remote sources)
+export { streamToTempFile, cleanupTempFile } from './utils/stream.js';

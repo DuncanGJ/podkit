@@ -66,6 +66,7 @@
         "@podkit/libgpod-node": "workspace:*",
         "glob": "^13.0.6",
         "music-metadata": "^11.12.1",
+        "subsonic-api": "^3.2.0",
       },
       "devDependencies": {
         "@podkit/gpod-testing": "workspace:*",
@@ -355,6 +356,8 @@
     "strip-json-comments": ["strip-json-comments@2.0.1", "", {}, "sha512-4gB8na07fecVVkOI6Rs4e7T6NOTki5EmL7TUduTs6bu3EdnSycntVJ4re8kgZA+wx9IueI2Y11bfbgwtzuE0KQ=="],
 
     "strtok3": ["strtok3@10.3.4", "", { "dependencies": { "@tokenizer/token": "^0.3.0" } }, "sha512-KIy5nylvC5le1OdaaoCJ07L+8iQzJHGH6pWDuzS+d07Cu7n1MZ2x26P8ZKIWfbK02+XIL8Mp4RkWeqdUCrDMfg=="],
+
+    "subsonic-api": ["subsonic-api@3.2.0", "", {}, "sha512-BADBQ2hONdLb3agCiSDzNzTIFLWJAuxJTUJvC2zDFvXUVfnK3yy7r8xFu3NkrQl8p5UVI7q8Qfm62N1lFxWbww=="],
 
     "tar": ["tar@7.5.9", "", { "dependencies": { "@isaacs/fs-minipass": "^4.0.0", "chownr": "^3.0.0", "minipass": "^7.1.2", "minizlib": "^3.1.0", "yallist": "^5.0.0" } }, "sha512-BTLcK0xsDh2+PUe9F6c2TlRp4zOOBMTkoQHQIWSIzI0R7KG46uEwq4OPk2W7bZcprBMsuaeFsqwYr7pjh6CuHg=="],
 
