@@ -2,6 +2,7 @@
  * Configuration module for podkit CLI
  *
  * Provides configuration loading from multiple sources with priority-based merging.
+ * Uses the multi-collection/device schema defined in ADR-008.
  *
  * @example
  * ```typescript
@@ -10,8 +11,8 @@
  * const globalOpts = program.opts();
  * const { config, configFileExists } = loadConfig(globalOpts);
  *
- * console.log(`Source: ${config.source ?? '(not set)'}`);
  * console.log(`Quality: ${config.quality}`);
+ * console.log(`Default device: ${config.defaults?.device}`);
  * ```
  */
 
@@ -24,7 +25,17 @@ export type {
   ConfigFileContent,
   TransformsConfig,
   VideoQualityPreset,
-  IpodIdentity,
+  // Multi-collection/device types (ADR-008)
+  MusicCollectionConfig,
+  VideoCollectionConfig,
+  DeviceConfig,
+  DefaultsConfig,
+  // Raw config file types
+  ConfigFileTransforms,
+  ConfigFileMusicCollection,
+  ConfigFileVideoCollection,
+  ConfigFileDevice,
+  ConfigFileDefaults,
 } from './types.js';
 export { DEFAULT_TRANSFORMS_CONFIG, VIDEO_QUALITY_PRESETS } from './types.js';
 
@@ -43,9 +54,16 @@ export {
 
 // Writer functions
 export {
-  updateIpodIdentity,
-  removeIpodIdentity,
-  removeDeviceField,
+  // Device management functions
+  addDevice,
+  removeDevice,
+  setDefaultDevice,
+  // Collection management functions
+  addMusicCollection,
+  addVideoCollection,
+  removeCollection,
+  setDefaultCollection,
+  type CollectionType,
   type UpdateConfigOptions,
   type UpdateConfigResult,
 } from './writer.js';

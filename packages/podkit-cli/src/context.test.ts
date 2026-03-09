@@ -12,11 +12,19 @@ import { DEFAULT_TRANSFORMS_CONFIG } from './config/index.js';
 
 describe('CLI context', () => {
   const mockConfig: PodkitConfig = {
-    source: '/test/music',
-    device: '/test/ipod',
     quality: 'high',
     artwork: true,
     transforms: DEFAULT_TRANSFORMS_CONFIG,
+    music: {
+      main: { path: '/test/music' },
+    },
+    devices: {
+      ipod: { volumeUuid: 'ABC-123', volumeName: 'iPod' },
+    },
+    defaults: {
+      music: 'main',
+      device: 'ipod',
+    },
   };
 
   const mockGlobalOpts: GlobalOptions = {

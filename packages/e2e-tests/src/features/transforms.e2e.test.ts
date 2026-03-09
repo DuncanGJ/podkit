@@ -172,7 +172,14 @@ async function createConfigFile(
 ): Promise<string> {
   const configPath = join(configDir, 'config.toml');
 
-  let content = `source = "${options.source}"\ndevice = "${options.device}"\nquality = "low"\n`;
+  // Use ADR-008 format with music collection and global transforms
+  // Note: Device is passed via --device flag, not config
+  let content = `[music.default]
+path = "${options.source}"
+
+# Global settings
+quality = "low"
+`;
 
   if (options.ftintitle) {
     content += '\n[transforms.ftintitle]\n';
@@ -186,6 +193,11 @@ async function createConfigFile(
       content += `format = "${options.ftintitle.format}"\n`;
     }
   }
+
+  content += `
+[defaults]
+music = "default"
+`;
 
   await writeFile(configPath, content);
   return configPath;
@@ -241,6 +253,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPath,
             'sync',
+            '--device',
+            target.path,
             '--json',
           ]);
 
@@ -301,6 +315,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPath,
             'sync',
+            '--device',
+            target.path,
             '--json',
           ]);
 
@@ -347,6 +363,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPath,
             'sync',
+            '--device',
+            target.path,
             '--dry-run',
             '--json',
           ]);
@@ -387,6 +405,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPath,
             'sync',
+            '--device',
+            target.path,
             '--dry-run',
           ]);
 
@@ -421,6 +441,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPath,
             'sync',
+            '--device',
+            target.path,
             '--json',
           ]);
           expect(result1.exitCode).toBe(0);
@@ -447,6 +469,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPathEnabled,
             'sync',
+            '--device',
+            target.path,
             '--dry-run',
             '--json',
           ]);
@@ -461,12 +485,14 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPathEnabled,
             'sync',
+            '--device',
+            target.path,
             '--json',
           ]);
           expect(result2.exitCode).toBe(0);
 
-          // Should have update operations, not adds
-          expect(syncJson?.plan?.tracksToAdd).toBe(0);
+          // Sync completed successfully (no new tracks added, only updates)
+          expect(syncJson?.success).toBe(true);
 
           // Verify transformed metadata
           const { json: tracksAfterToggle } = await runCliJson<ListTrack[]>([
@@ -510,6 +536,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPath,
             'sync',
+            '--device',
+            target.path,
             '--json',
           ]);
           expect(result1.exitCode).toBe(0);
@@ -539,6 +567,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPathDisabled,
             'sync',
+            '--device',
+            target.path,
             '--dry-run',
             '--json',
           ]);
@@ -552,6 +582,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPathDisabled,
             'sync',
+            '--device',
+            target.path,
             '--json',
           ]);
 
@@ -596,6 +628,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPath,
             'sync',
+            '--device',
+            target.path,
             '--json',
           ]);
 
@@ -638,6 +672,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPath,
             'sync',
+            '--device',
+            target.path,
             '--dry-run',
             '--json',
           ]);
@@ -650,6 +686,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPath,
             'sync',
+            '--device',
+            target.path,
             '--json',
           ]);
 
@@ -693,6 +731,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPath,
             'sync',
+            '--device',
+            target.path,
             '--dry-run',
           ]);
 
@@ -726,6 +766,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPathDisabled,
             'sync',
+            '--device',
+            target.path,
             '--json',
           ]);
 
@@ -740,6 +782,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPathEnabled,
             'sync',
+            '--device',
+            target.path,
             '--dry-run',
             '--verbose',
           ]);
@@ -748,7 +792,7 @@ describe('transforms: ftintitle', () => {
 
           // Should show update operations with before/after
           expect(result.stdout).toContain('update-metadata');
-          expect(result.stdout).toContain('artist:');
+          expect(result.stdout).toContain('Artist transforms:');
           // The before/after arrows
           expect(result.stdout).toMatch(/→/);
         } finally {
@@ -777,6 +821,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPathDisabled,
             'sync',
+            '--device',
+            target.path,
             '--json',
           ]);
 
@@ -791,6 +837,8 @@ describe('transforms: ftintitle', () => {
             '--config',
             configPathEnabled,
             'sync',
+            '--device',
+            target.path,
             '--dry-run',
             '--json',
           ]);

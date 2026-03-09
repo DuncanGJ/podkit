@@ -4,12 +4,23 @@
  * Centralizes the logic for finding the iPod mount point.
  * Priority order:
  *   1. CLI --device flag (explicit override)
- *   2. Auto-detect via Volume UUID (if registered)
- *   3. Legacy config.device fallback
+ *   2. Named device from -d flag (lookup in config.devices)
+ *   3. Default device from config.defaults.device
+ *   4. Auto-detect via Volume UUID (from resolved device config)
  */
 
-import type { PodkitConfig } from './config/index.js';
+import type { PodkitConfig, DeviceConfig } from './config/index.js';
 import type { DeviceManager, DeviceInfo } from '@podkit/core';
+
+/**
+ * Device identity for resolution
+ *
+ * This is passed to resolveDevicePath when we have a resolved device.
+ */
+export interface DeviceIdentity {
+  volumeUuid: string;
+  volumeName: string;
+}
 
 /**
  * Result of device resolution
@@ -31,8 +42,8 @@ export interface ResolveDeviceResult {
 export interface ResolveDeviceOptions {
   /** CLI --device flag value */
   cliDevice?: string;
-  /** Loaded config */
-  config: PodkitConfig;
+  /** Device identity for UUID-based resolution */
+  deviceIdentity?: DeviceIdentity;
   /** Device manager instance */
   manager: DeviceManager;
   /** Whether to require the device to be mounted */
@@ -44,15 +55,14 @@ export interface ResolveDeviceOptions {
 /**
  * Resolve the iPod device path
  *
- * Implements Option C priority:
+ * Priority:
  * 1. CLI --device flag (always wins)
- * 2. Auto-detect via Volume UUID from [ipod] config
- * 3. Legacy config.device fallback (for unregistered iPods)
+ * 2. Auto-detect via Volume UUID from device identity
  */
 export async function resolveDevicePath(
   options: ResolveDeviceOptions
 ): Promise<ResolveDeviceResult> {
-  const { cliDevice, config, manager, requireMounted = true, quiet = false } = options;
+  const { cliDevice, deviceIdentity, manager, requireMounted = true } = options;
 
   // 1. CLI --device flag takes precedence
   if (cliDevice) {
@@ -63,12 +73,8 @@ export async function resolveDevicePath(
   }
 
   // 2. Try auto-detect via Volume UUID
-  if (config.ipod?.volumeUuid) {
-    if (!quiet) {
-      // This will be logged by the caller if needed
-    }
-
-    const device = await manager.findByVolumeUuid(config.ipod.volumeUuid);
+  if (deviceIdentity?.volumeUuid) {
+    const device = await manager.findByVolumeUuid(deviceIdentity.volumeUuid);
 
     if (device) {
       if (requireMounted) {
@@ -98,15 +104,7 @@ export async function resolveDevicePath(
     // UUID configured but device not found
     return {
       source: 'none',
-      error: `iPod with UUID ${config.ipod.volumeUuid} not found. Is it connected?`,
-    };
-  }
-
-  // 3. Legacy fallback to config.device
-  if (config.device) {
-    return {
-      path: config.device,
-      source: 'config',
+      error: `iPod with UUID ${deviceIdentity.volumeUuid} not found. Is it connected?`,
     };
   }
 
@@ -136,4 +134,84 @@ export function formatDeviceError(result: ResolveDeviceResult): string {
     default:
       return 'Device not found';
   }
+}
+
+// =============================================================================
+// Named Device Resolution (ADR-008)
+// =============================================================================
+
+/**
+ * Resolved device information from config
+ */
+export interface ResolvedDevice {
+  /** Device name (key in config.devices) */
+  name: string;
+  /** Device configuration */
+  config: DeviceConfig;
+}
+
+/**
+ * Resolve a named device from config
+ *
+ * @param config - The merged config
+ * @param deviceName - Optional device name from -d flag
+ * @returns Resolved device config or undefined if not found
+ */
+export function resolveDeviceFromConfig(
+  config: PodkitConfig,
+  deviceName?: string
+): ResolvedDevice | undefined {
+  // If a specific device name is given, look it up
+  if (deviceName) {
+    if (config.devices?.[deviceName]) {
+      return {
+        name: deviceName,
+        config: config.devices[deviceName],
+      };
+    }
+    return undefined; // Device not found
+  }
+
+  // Use default device from config
+  const defaultDeviceName = config.defaults?.device;
+  if (defaultDeviceName && config.devices?.[defaultDeviceName]) {
+    return {
+      name: defaultDeviceName,
+      config: config.devices[defaultDeviceName],
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * Get device identity for device path resolution
+ *
+ * @param resolvedDevice - The resolved named device, if any
+ * @returns Device identity for resolveDevicePath
+ */
+export function getDeviceIdentity(
+  resolvedDevice: ResolvedDevice | undefined
+): DeviceIdentity | undefined {
+  if (!resolvedDevice) {
+    return undefined;
+  }
+
+  return {
+    volumeUuid: resolvedDevice.config.volumeUuid,
+    volumeName: resolvedDevice.config.volumeName,
+  };
+}
+
+/**
+ * Format error message when a named device is not found
+ */
+export function formatDeviceNotFoundError(
+  deviceName: string,
+  config: PodkitConfig
+): string {
+  const availableDevices = config.devices
+    ? Object.keys(config.devices).join(', ')
+    : '(none)';
+  return `Device "${deviceName}" not found in config. Available devices: ${availableDevices}`;
 }

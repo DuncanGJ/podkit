@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'bun:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCli, runCliJson } from '../helpers/cli-runner';
@@ -36,6 +36,24 @@ interface ListTrack {
   album: string;
 }
 
+/**
+ * Create a temp config file with the given music collection path
+ */
+async function createTempConfig(musicPath: string): Promise<string> {
+  const tempDir = await mkdtemp(join(tmpdir(), 'podkit-fresh-sync-config-'));
+  const configPath = join(tempDir, 'config.toml');
+
+  const content = `[music.main]
+path = "${musicPath}"
+
+[defaults]
+music = "main"
+`;
+
+  await writeFile(configPath, content);
+  return configPath;
+}
+
 describe('workflow: fresh sync', () => {
   let fixturesAvailable: boolean;
 
@@ -52,19 +70,12 @@ describe('workflow: fresh sync', () => {
     await withTarget(async (target) => {
       const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
 
-      // Create a temporary config file
-      const tempDir = await mkdtemp(join(tmpdir(), 'podkit-workflow-'));
-      const configPath = join(tempDir, 'config.toml');
+      // Create a temporary config file with music collection
+      const configPath = await createTempConfig(sourcePath);
 
       try {
-        // Step 1: Initialize config
-        console.log('Step 1: Initialize config');
-        const initResult = await runCli(['init', '--path', configPath]);
-        expect(initResult.exitCode).toBe(0);
-        expect(initResult.stdout).toContain('Created config file');
-
-        // Step 2: Verify initial status (empty iPod)
-        console.log('Step 2: Verify initial status');
+        // Step 1: Verify initial status (empty iPod)
+        console.log('Step 1: Verify initial status');
         const { json: statusBefore } = await runCliJson<StatusOutput>([
           'status',
           '--device',
@@ -74,12 +85,12 @@ describe('workflow: fresh sync', () => {
         expect(statusBefore?.connected).toBe(true);
         expect(statusBefore?.tracks).toBe(0);
 
-        // Step 3: Dry-run sync to preview changes
-        console.log('Step 3: Dry-run sync');
+        // Step 2: Dry-run sync to preview changes
+        console.log('Step 2: Dry-run sync');
         const dryRunResult = await runCli([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          sourcePath,
           '--device',
           target.path,
           '--dry-run',
@@ -88,12 +99,12 @@ describe('workflow: fresh sync', () => {
         expect(dryRunResult.stdout).toContain('Dry Run');
         expect(dryRunResult.stdout).toContain('3'); // 3 tracks
 
-        // Step 4: Execute actual sync
-        console.log('Step 4: Execute sync');
+        // Step 3: Execute actual sync
+        console.log('Step 3: Execute sync');
         const { result: syncResult, json: syncJson } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          sourcePath,
           '--device',
           target.path,
           '--json',
@@ -102,8 +113,8 @@ describe('workflow: fresh sync', () => {
         expect(syncJson?.success).toBe(true);
         expect(syncJson?.result?.completed).toBe(3);
 
-        // Step 5: Verify status after sync
-        console.log('Step 5: Verify status after sync');
+        // Step 4: Verify status after sync
+        console.log('Step 4: Verify status after sync');
         const { json: statusAfter } = await runCliJson<StatusOutput>([
           'status',
           '--device',
@@ -113,8 +124,8 @@ describe('workflow: fresh sync', () => {
         expect(statusAfter?.connected).toBe(true);
         expect(statusAfter?.tracks).toBe(3);
 
-        // Step 6: List synced tracks
-        console.log('Step 6: List synced tracks');
+        // Step 5: List synced tracks
+        console.log('Step 5: List synced tracks');
         const { json: tracks } = await runCliJson<ListTrack[]>([
           'list',
           '--device',
@@ -131,15 +142,16 @@ describe('workflow: fresh sync', () => {
         expect(artists.size).toBe(1);
         expect(artists.has('Podkit Test Generator')).toBe(true);
 
-        // Step 7: Verify iPod database integrity
-        console.log('Step 7: Verify database integrity');
+        // Step 6: Verify iPod database integrity
+        console.log('Step 6: Verify database integrity');
         const verifyResult = await target.verify();
         expect(verifyResult.valid).toBe(true);
         expect(verifyResult.trackCount).toBe(3);
 
         console.log('Workflow complete!');
       } finally {
-        await rm(tempDir, { recursive: true, force: true });
+        const configDir = join(configPath, '..');
+        await rm(configDir, { recursive: true, force: true });
       }
     });
   }, 120000); // 2 min timeout for full workflow with transcoding

@@ -1,43 +1,164 @@
 /**
  * Configuration types for podkit CLI
+ *
+ * This module defines the multi-collection/device configuration schema
+ * introduced in ADR-008.
  */
 
 // Import quality preset types from core
-export type { QualityPreset, AacQualityPreset, TransformsConfig, VideoQualityPreset, IpodIdentity } from '@podkit/core';
+export type { QualityPreset, AacQualityPreset, TransformsConfig, VideoQualityPreset } from '@podkit/core';
 export { QUALITY_PRESETS, AAC_QUALITY_PRESETS, DEFAULT_TRANSFORMS_CONFIG, VIDEO_QUALITY_PRESETS } from '@podkit/core';
 
 // Import type for local use
-import type { QualityPreset, AacQualityPreset, TransformsConfig, VideoQualityPreset, IpodIdentity } from '@podkit/core';
+import type { QualityPreset, AacQualityPreset, TransformsConfig, VideoQualityPreset } from '@podkit/core';
+
+// =============================================================================
+// Multi-Collection/Device Types (ADR-008)
+// =============================================================================
+
+/**
+ * Music collection configuration
+ *
+ * Represents a named music source that can be synced to devices.
+ * Supports both local directories and remote Subsonic servers.
+ *
+ * @example Directory collection
+ * ```toml
+ * [music.main]
+ * path = "/Volumes/Media/music/library"
+ * ```
+ *
+ * @example Subsonic collection
+ * ```toml
+ * [music.work]
+ * type = "subsonic"
+ * url = "https://music.work.com"
+ * username = "james"
+ * # Password via env: PODKIT_MUSIC_WORK_PASSWORD
+ * ```
+ */
+export interface MusicCollectionConfig {
+  /** Path to the music directory (required for directory type, optional for subsonic) */
+  path: string;
+  /** Collection source type. Default: 'directory' */
+  type?: 'directory' | 'subsonic';
+  /** Subsonic server URL (required when type='subsonic') */
+  url?: string;
+  /** Subsonic username (required when type='subsonic') */
+  username?: string;
+  // Note: Password comes from env var PODKIT_MUSIC_{NAME}_PASSWORD
+}
+
+/**
+ * Video collection configuration
+ *
+ * Represents a named video source (movies, TV shows) that can be synced to devices.
+ *
+ * @example
+ * ```toml
+ * [video.movies]
+ * path = "/Volumes/Media/movies"
+ * ```
+ */
+export interface VideoCollectionConfig {
+  /** Path to the video directory */
+  path: string;
+}
+
+/**
+ * Device configuration
+ *
+ * Represents a named iPod device with its sync settings.
+ * Quality, transforms, and other settings are scoped to devices, not collections,
+ * because different iPods may have different storage/capability constraints.
+ *
+ * @example
+ * ```toml
+ * [devices.terapod]
+ * volumeUuid = "ABC-123"
+ * volumeName = "TERAPOD"
+ * quality = "high"
+ * videoQuality = "high"
+ * artwork = true
+ *
+ * [devices.terapod.transforms.ftintitle]
+ * enabled = true
+ * format = "feat. {}"
+ * ```
+ */
+export interface DeviceConfig {
+  /** Volume UUID for device auto-detection */
+  volumeUuid: string;
+  /** Volume name for display and fallback detection */
+  volumeName: string;
+  /** Music transcoding quality preset */
+  quality?: QualityPreset;
+  /** Video transcoding quality preset */
+  videoQuality?: VideoQualityPreset;
+  /** Whether to sync artwork to this device */
+  artwork?: boolean;
+  /** Device-specific transform settings */
+  transforms?: TransformsConfig;
+}
+
+/**
+ * Default collection and device configuration
+ *
+ * Specifies which named collection/device to use when CLI flags are omitted.
+ *
+ * @example
+ * ```toml
+ * [defaults]
+ * music = "main"
+ * video = "movies"
+ * device = "terapod"
+ * ```
+ */
+export interface DefaultsConfig {
+  /** Name of the default music collection */
+  music?: string;
+  /** Name of the default video collection */
+  video?: string;
+  /** Name of the default device */
+  device?: string;
+}
 
 /**
  * Configuration that can be set via config file, env vars, or CLI
+ *
+ * This interface implements the multi-collection/device schema from ADR-008.
+ * Legacy flat config format is no longer supported - use the new format with
+ * [music.*], [video.*], and [devices.*] sections.
  */
 export interface PodkitConfig {
-  /** Source directory for music collection */
-  source?: string;
-  /** iPod device mount point */
-  device?: string;
-  /** Transcoding quality preset */
+  // ===========================================================================
+  // Global defaults (can be overridden per-device)
+  // ===========================================================================
+
+  /** Transcoding quality preset (global default, can be overridden per-device) */
   quality: QualityPreset;
   /**
    * Fallback preset for lossy sources when quality='alac'
    * Default: 'max' if quality='alac', otherwise inherits from quality
    */
   fallback?: AacQualityPreset;
-  /** Include artwork in sync */
+  /** Include artwork in sync (global default, can be overridden per-device) */
   artwork: boolean;
-  /** Transform configuration */
+  /** Transform configuration (global default, can be overridden per-device) */
   transforms: TransformsConfig;
 
-  // Video settings
-  /** Source directory for video collection */
-  videoSource?: string;
-  /** Video transcoding quality preset */
-  videoQuality?: VideoQualityPreset;
+  // ===========================================================================
+  // Multi-collection/device fields (ADR-008)
+  // ===========================================================================
 
-  // iPod identity for auto-detection
-  /** Stored iPod identity for mount auto-detection */
-  ipod?: IpodIdentity;
+  /** Named music collections */
+  music?: Record<string, MusicCollectionConfig>;
+  /** Named video collections */
+  video?: Record<string, VideoCollectionConfig>;
+  /** Named devices with their settings */
+  devices?: Record<string, DeviceConfig>;
+  /** Default collection and device names */
+  defaults?: DefaultsConfig;
 }
 
 /**
@@ -63,51 +184,109 @@ export interface GlobalOptions {
  */
 export type PartialConfig = Partial<PodkitConfig>;
 
+// =============================================================================
+// Config File Content Types (raw TOML parsing)
+// =============================================================================
+
+/**
+ * Raw transform configuration as parsed from TOML
+ */
+export interface ConfigFileTransforms {
+  ftintitle?: {
+    enabled?: boolean;
+    drop?: boolean;
+    format?: string;
+    ignore?: string[];
+  };
+}
+
+/**
+ * Raw music collection config as parsed from TOML
+ */
+export interface ConfigFileMusicCollection {
+  path?: string;
+  type?: string;
+  url?: string;
+  username?: string;
+}
+
+/**
+ * Raw video collection config as parsed from TOML
+ */
+export interface ConfigFileVideoCollection {
+  path?: string;
+}
+
+/**
+ * Raw device config as parsed from TOML
+ */
+export interface ConfigFileDevice {
+  volumeUuid?: string;
+  volumeName?: string;
+  quality?: string;
+  videoQuality?: string;
+  artwork?: boolean;
+  transforms?: ConfigFileTransforms;
+}
+
+/**
+ * Raw defaults config as parsed from TOML
+ */
+export interface ConfigFileDefaults {
+  music?: string;
+  video?: string;
+  device?: string;
+}
+
 /**
  * Config file content as parsed from TOML
  *
  * This represents the raw TOML structure before validation.
- * Example config:
+ *
+ * @example Multi-collection/device format (ADR-008)
  * ```toml
- * source = "/path/to/music"
- * device = "/Volumes/iPod"
  * quality = "high"
+ * artwork = true
  *
  * [transforms.ftintitle]
  * enabled = true
- * drop = false
- * format = "feat. {}"
  *
- * [video]
- * source = "/path/to/videos"
+ * [music.main]
+ * path = "/Volumes/Media/music/library"
+ *
+ * [video.movies]
+ * path = "/Volumes/Media/movies"
+ *
+ * [devices.terapod]
+ * volumeUuid = "ABC-123"
+ * volumeName = "TERAPOD"
  * quality = "high"
+ * artwork = true
+ *
+ * [devices.terapod.transforms.ftintitle]
+ * enabled = true
+ *
+ * [defaults]
+ * music = "main"
+ * device = "terapod"
  * ```
  */
 export interface ConfigFileContent {
-  source?: string;
-  device?: string;
+  // ===========================================================================
+  // Global defaults
+  // ===========================================================================
+
   quality?: string;
   fallback?: string;
   artwork?: boolean;
-  transforms?: {
-    ftintitle?: {
-      enabled?: boolean;
-      drop?: boolean;
-      format?: string;
-      ignore?: string[];
-    };
-  };
-  // Video settings
-  videoSource?: string;
-  videoQuality?: string;
-  // Alternative nested structure
-  video?: {
-    source?: string;
-    quality?: string;
-  };
-  // iPod identity for auto-detection
-  ipod?: {
-    volumeUuid?: string;
-    volumeName?: string;
-  };
+  transforms?: ConfigFileTransforms;
+
+  /** Named music collections: [music.{name}] */
+  music?: Record<string, ConfigFileMusicCollection>;
+  /** Named video collections: [video.{name}] */
+  video?: Record<string, ConfigFileVideoCollection>;
+  /** Named devices: [devices.{name}] */
+  devices?: Record<string, ConfigFileDevice>;
+  /** Default selections: [defaults] */
+  defaults?: ConfigFileDefaults;
 }

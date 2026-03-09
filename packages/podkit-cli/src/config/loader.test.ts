@@ -26,8 +26,6 @@ describe('config loader', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
 
     // Clear environment variables
-    delete process.env[ENV_KEYS.source];
-    delete process.env[ENV_KEYS.device];
     delete process.env[ENV_KEYS.quality];
     delete process.env[ENV_KEYS.artwork];
   });
@@ -36,8 +34,6 @@ describe('config loader', () => {
     it('has expected default values', () => {
       expect(DEFAULT_CONFIG.quality).toBe('high');
       expect(DEFAULT_CONFIG.artwork).toBe(true);
-      expect(DEFAULT_CONFIG.source).toBeUndefined();
-      expect(DEFAULT_CONFIG.device).toBeUndefined();
     });
   });
 
@@ -47,33 +43,17 @@ describe('config loader', () => {
       expect(result).toBeUndefined();
     });
 
-    it('parses valid TOML config file', () => {
+    it('parses valid config with quality and artwork', () => {
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(configPath, `
-source = "/path/to/music"
-device = "/media/ipod"
 quality = "medium"
 artwork = false
 `);
 
       const result = loadConfigFile(configPath);
       expect(result).toEqual({
-        source: '/path/to/music',
-        device: '/media/ipod',
         quality: 'medium',
         artwork: false,
-      });
-    });
-
-    it('handles partial config files', () => {
-      const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `
-source = "/music"
-`);
-
-      const result = loadConfigFile(configPath);
-      expect(result).toEqual({
-        source: '/music',
       });
     });
 
@@ -143,41 +123,13 @@ fallback = "${fallback}"
       expect(result).toEqual({});
     });
 
-    it('handles commented out values', () => {
-      const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `
-# source = "/path/to/music"
-quality = "low"
-# artwork = false
-`);
-
-      const result = loadConfigFile(configPath);
-      expect(result).toEqual({
-        quality: 'low',
-      });
-    });
-
     it('throws on malformed TOML syntax', () => {
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(configPath, `
-source = "missing end quote
+quality = "missing end quote
 `);
 
       expect(() => loadConfigFile(configPath)).toThrow();
-    });
-
-    it('ignores unknown keys', () => {
-      const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `
-source = "/music"
-unknown_key = "should be ignored"
-another_unknown = 123
-`);
-
-      const result = loadConfigFile(configPath);
-      expect(result).toEqual({
-        source: '/music',
-      });
     });
 
     it('ignores artwork with wrong type (string instead of boolean)', () => {
@@ -191,26 +143,10 @@ artwork = "yes"
       expect(result).toEqual({});
     });
 
-    it('handles whitespace in paths', () => {
-      const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `
-source = "/path/with spaces/music"
-device = "/media/iPod Nano"
-`);
-
-      const result = loadConfigFile(configPath);
-      expect(result).toEqual({
-        source: '/path/with spaces/music',
-        device: '/media/iPod Nano',
-      });
-    });
-
     describe('transforms config', () => {
       it('parses [transforms.ftintitle] section', () => {
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(configPath, `
-source = "/music"
-
 [transforms.ftintitle]
 enabled = true
 drop = false
@@ -309,7 +245,7 @@ format = 123
       it('returns defaults when transforms section missing', () => {
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(configPath, `
-source = "/music"
+quality = "high"
 `);
 
         const result = loadConfigFile(configPath);
@@ -328,24 +264,400 @@ source = "/music"
         expect(result?.transforms?.ftintitle).toEqual(DEFAULT_TRANSFORMS_CONFIG.ftintitle);
       });
     });
+
+    // =========================================================================
+    // Multi-Collection/Device Tests (ADR-008)
+    // =========================================================================
+
+    describe('music collections', () => {
+      it('parses single music collection', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[music.main]
+path = "/Volumes/Media/music/library"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.music).toBeDefined();
+        expect(result?.music?.main).toEqual({
+          path: '/Volumes/Media/music/library',
+          type: 'directory',
+        });
+      });
+
+      it('parses multiple music collections', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[music.main]
+path = "/Volumes/Media/music/library"
+
+[music.dj]
+path = "/Volumes/Media/dj-sets"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.music).toBeDefined();
+        expect(Object.keys(result?.music ?? {})).toHaveLength(2);
+        expect(result?.music?.main!.path).toBe('/Volumes/Media/music/library');
+        expect(result?.music?.dj!.path).toBe('/Volumes/Media/dj-sets');
+      });
+
+      it('parses subsonic collection', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[music.work]
+type = "subsonic"
+url = "https://music.work.com"
+username = "james"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.music?.work).toEqual({
+          path: '',
+          type: 'subsonic',
+          url: 'https://music.work.com',
+          username: 'james',
+        });
+      });
+
+      it('throws on invalid collection type', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[music.main]
+path = "/music"
+type = "invalid"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Invalid type "invalid"/);
+      });
+
+      it('throws on missing path for directory collection', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[music.main]
+# missing path
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Missing or invalid "path"/);
+      });
+
+      it('throws on missing url for subsonic collection', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[music.work]
+type = "subsonic"
+username = "james"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Missing or invalid "url"/);
+      });
+
+      it('throws on missing username for subsonic collection', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[music.work]
+type = "subsonic"
+url = "https://music.work.com"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Missing or invalid "username"/);
+      });
+    });
+
+    describe('video collections', () => {
+      it('parses single video collection', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[video.movies]
+path = "/Volumes/Media/movies"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.video).toBeDefined();
+        expect(result?.video?.movies).toEqual({
+          path: '/Volumes/Media/movies',
+        });
+      });
+
+      it('parses multiple video collections', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[video.movies]
+path = "/Volumes/Media/movies"
+
+[video.shows]
+path = "/Volumes/Media/tv-shows"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.video).toBeDefined();
+        expect(Object.keys(result?.video ?? {})).toHaveLength(2);
+        expect(result?.video?.movies!.path).toBe('/Volumes/Media/movies');
+        expect(result?.video?.shows!.path).toBe('/Volumes/Media/tv-shows');
+      });
+
+      it('throws on missing path for video collection', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[video.movies]
+# missing path
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Missing or invalid "path"/);
+      });
+    });
+
+    describe('devices', () => {
+      it('parses single device', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[devices.terapod]
+volumeUuid = "ABC-123"
+volumeName = "TERAPOD"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.devices).toBeDefined();
+        expect(result?.devices?.terapod).toEqual({
+          volumeUuid: 'ABC-123',
+          volumeName: 'TERAPOD',
+        });
+      });
+
+      it('parses device with all options', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[devices.terapod]
+volumeUuid = "ABC-123"
+volumeName = "TERAPOD"
+quality = "high"
+videoQuality = "high"
+artwork = true
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.devices?.terapod).toEqual({
+          volumeUuid: 'ABC-123',
+          volumeName: 'TERAPOD',
+          quality: 'high',
+          videoQuality: 'high',
+          artwork: true,
+        });
+      });
+
+      it('parses device with transforms', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[devices.terapod]
+volumeUuid = "ABC-123"
+volumeName = "TERAPOD"
+
+[devices.terapod.transforms.ftintitle]
+enabled = true
+format = "feat. {}"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.devices?.terapod!.transforms).toBeDefined();
+        expect(result?.devices?.terapod!.transforms?.ftintitle!.enabled).toBe(true);
+        expect(result?.devices?.terapod!.transforms?.ftintitle!.format).toBe('feat. {}');
+      });
+
+      it('parses multiple devices', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[devices.terapod]
+volumeUuid = "ABC-123"
+volumeName = "TERAPOD"
+quality = "high"
+
+[devices.nano]
+volumeUuid = "DEF-456"
+volumeName = "NANO"
+quality = "low"
+artwork = false
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(Object.keys(result?.devices ?? {})).toHaveLength(2);
+        expect(result?.devices?.terapod!.quality).toBe('high');
+        expect(result?.devices?.nano!.quality).toBe('low');
+        expect(result?.devices?.nano!.artwork).toBe(false);
+      });
+
+      it('throws on missing volumeUuid', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[devices.terapod]
+volumeName = "TERAPOD"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Missing or invalid "volumeUuid"/);
+      });
+
+      it('throws on missing volumeName', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[devices.terapod]
+volumeUuid = "ABC-123"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Missing or invalid "volumeName"/);
+      });
+
+      it('throws on invalid quality', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[devices.terapod]
+volumeUuid = "ABC-123"
+volumeName = "TERAPOD"
+quality = "invalid"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Invalid quality value "invalid"/);
+      });
+
+      it('throws on invalid videoQuality', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[devices.terapod]
+volumeUuid = "ABC-123"
+volumeName = "TERAPOD"
+videoQuality = "invalid"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Invalid videoQuality value "invalid"/);
+      });
+
+      it('throws on invalid artwork type', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[devices.terapod]
+volumeUuid = "ABC-123"
+volumeName = "TERAPOD"
+artwork = "yes"
+`);
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "artwork"/);
+      });
+    });
+
+    describe('defaults', () => {
+      it('parses defaults section', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[music.main]
+path = "/music"
+
+[devices.terapod]
+volumeUuid = "ABC-123"
+volumeName = "TERAPOD"
+
+[defaults]
+music = "main"
+device = "terapod"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.defaults).toEqual({
+          music: 'main',
+          device: 'terapod',
+        });
+      });
+
+      it('parses defaults with video', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+[video.movies]
+path = "/movies"
+
+[defaults]
+video = "movies"
+`);
+
+        const result = loadConfigFile(configPath);
+        expect(result?.defaults?.video).toBe('movies');
+      });
+    });
+
+    describe('complete config (ADR-008)', () => {
+      it('parses complete ADR-008 example config', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(configPath, `
+# Music collections
+[music.main]
+path = "/Volumes/Media/music/library"
+
+[music.dj]
+path = "/Volumes/Media/dj-sets"
+
+[music.work]
+type = "subsonic"
+url = "https://music.work.com"
+username = "james"
+
+# Video collections
+[video.movies]
+path = "/Volumes/Media/movies"
+
+[video.shows]
+path = "/Volumes/Media/tv-shows"
+
+# Devices
+[devices.terapod]
+volumeUuid = "ABC-123"
+volumeName = "TERAPOD"
+quality = "high"
+videoQuality = "high"
+artwork = true
+
+[devices.terapod.transforms.ftintitle]
+enabled = true
+format = "feat. {}"
+
+[devices.nano]
+volumeUuid = "DEF-456"
+volumeName = "NANO"
+quality = "low"
+artwork = false
+
+# Defaults
+[defaults]
+music = "main"
+video = "movies"
+device = "terapod"
+`);
+
+        const result = loadConfigFile(configPath);
+
+        // Music collections
+        expect(Object.keys(result?.music ?? {})).toHaveLength(3);
+        expect(result?.music?.main!.type).toBe('directory');
+        expect(result?.music?.work!.type).toBe('subsonic');
+        expect(result?.music?.work!.url).toBe('https://music.work.com');
+
+        // Video collections
+        expect(Object.keys(result?.video ?? {})).toHaveLength(2);
+        expect(result?.video?.movies!.path).toBe('/Volumes/Media/movies');
+
+        // Devices
+        expect(Object.keys(result?.devices ?? {})).toHaveLength(2);
+        expect(result?.devices?.terapod!.quality).toBe('high');
+        expect(result?.devices?.terapod!.transforms?.ftintitle!.enabled).toBe(true);
+        expect(result?.devices?.nano!.artwork).toBe(false);
+
+        // Defaults
+        expect(result?.defaults?.music).toBe('main');
+        expect(result?.defaults?.video).toBe('movies');
+        expect(result?.defaults?.device).toBe('terapod');
+      });
+    });
   });
 
   describe('loadEnvConfig', () => {
     it('returns empty config when no env vars set', () => {
       const result = loadEnvConfig();
       expect(result).toEqual({});
-    });
-
-    it('reads PODKIT_SOURCE', () => {
-      process.env[ENV_KEYS.source] = '/env/music';
-      const result = loadEnvConfig();
-      expect(result.source).toBe('/env/music');
-    });
-
-    it('reads PODKIT_DEVICE', () => {
-      process.env[ENV_KEYS.device] = '/env/ipod';
-      const result = loadEnvConfig();
-      expect(result.device).toBe('/env/ipod');
     });
 
     it('reads PODKIT_QUALITY with valid value', () => {
@@ -393,21 +705,6 @@ source = "/music"
       const result = loadEnvConfig();
       expect(result.artwork).toBe(true);
     });
-
-    it('reads all env vars together', () => {
-      process.env[ENV_KEYS.source] = '/env/music';
-      process.env[ENV_KEYS.device] = '/env/ipod';
-      process.env[ENV_KEYS.quality] = 'medium';
-      process.env[ENV_KEYS.artwork] = 'false';
-
-      const result = loadEnvConfig();
-      expect(result).toEqual({
-        source: '/env/music',
-        device: '/env/ipod',
-        quality: 'medium',
-        artwork: false,
-      });
-    });
   });
 
   describe('loadCliConfig', () => {
@@ -420,30 +717,6 @@ source = "/music"
       };
       const result = loadCliConfig(globalOpts);
       expect(result).toEqual({});
-    });
-
-    it('extracts device from global options', () => {
-      const globalOpts: GlobalOptions = {
-        verbose: 0,
-        quiet: false,
-        json: false,
-        color: true,
-        device: '/cli/ipod',
-      };
-      const result = loadCliConfig(globalOpts);
-      expect(result.device).toBe('/cli/ipod');
-    });
-
-    it('extracts source from command options', () => {
-      const globalOpts: GlobalOptions = {
-        verbose: 0,
-        quiet: false,
-        json: false,
-        color: true,
-      };
-      const commandOpts = { source: '/cli/music' };
-      const result = loadCliConfig(globalOpts, commandOpts);
-      expect(result.source).toBe('/cli/music');
     });
 
     it('extracts quality from command options', () => {
@@ -533,37 +806,25 @@ source = "/music"
     });
 
     it('merges single partial config', () => {
-      const partial: PartialConfig = { source: '/merged' };
+      const partial: PartialConfig = { quality: 'low' };
       const result = mergeConfigs(partial);
-      expect(result.source).toBe('/merged');
-      expect(result.quality).toBe('high'); // default preserved
+      expect(result.quality).toBe('low');
+      expect(result.artwork).toBe(true); // default preserved
     });
 
     it('later configs override earlier ones', () => {
-      const first: PartialConfig = { source: '/first', quality: 'low' };
-      const second: PartialConfig = { source: '/second' };
+      const first: PartialConfig = { quality: 'low', artwork: false };
+      const second: PartialConfig = { quality: 'high' };
       const result = mergeConfigs(first, second);
-      expect(result.source).toBe('/second');
-      expect(result.quality).toBe('low'); // from first, not overwritten
+      expect(result.quality).toBe('high');
+      expect(result.artwork).toBe(false); // from first, not overwritten
     });
 
     it('preserves undefined values (does not override with undefined)', () => {
-      const first: PartialConfig = { source: '/first' };
-      const second: PartialConfig = {}; // no source
+      const first: PartialConfig = { quality: 'low' };
+      const second: PartialConfig = {}; // no quality
       const result = mergeConfigs(first, second);
-      expect(result.source).toBe('/first');
-    });
-
-    it('merges multiple configs in priority order', () => {
-      const file: PartialConfig = { source: '/file', device: '/file-device', quality: 'low' };
-      const env: PartialConfig = { source: '/env' };
-      const cli: PartialConfig = { device: '/cli-device' };
-
-      const result = mergeConfigs(file, env, cli);
-      expect(result.source).toBe('/env'); // env overrides file
-      expect(result.device).toBe('/cli-device'); // cli overrides all
-      expect(result.quality).toBe('low'); // from file
-      expect(result.artwork).toBe(true); // from default
+      expect(result.quality).toBe('low');
     });
 
     describe('transforms merging', () => {
@@ -615,9 +876,175 @@ source = "/music"
       });
 
       it('preserves default transforms when partial has none', () => {
-        const partial: PartialConfig = { source: '/music' };
+        const partial: PartialConfig = { quality: 'low' };
         const result = mergeConfigs(partial);
         expect(result.transforms).toEqual(DEFAULT_TRANSFORMS_CONFIG);
+      });
+    });
+
+    // =========================================================================
+    // Multi-Collection/Device Merging Tests (ADR-008)
+    // =========================================================================
+
+    describe('music collections merging', () => {
+      it('merges music collections by name', () => {
+        const first: PartialConfig = {
+          music: {
+            main: { path: '/music/main', type: 'directory' },
+          },
+        };
+        const second: PartialConfig = {
+          music: {
+            dj: { path: '/music/dj', type: 'directory' },
+          },
+        };
+        const result = mergeConfigs(first, second);
+        expect(Object.keys(result.music ?? {})).toHaveLength(2);
+        expect(result.music?.main!.path).toBe('/music/main');
+        expect(result.music?.dj!.path).toBe('/music/dj');
+      });
+
+      it('later config overrides same-named collection', () => {
+        const first: PartialConfig = {
+          music: {
+            main: { path: '/old/music', type: 'directory' },
+          },
+        };
+        const second: PartialConfig = {
+          music: {
+            main: { path: '/new/music', type: 'directory' },
+          },
+        };
+        const result = mergeConfigs(first, second);
+        expect(result.music?.main!.path).toBe('/new/music');
+      });
+    });
+
+    describe('video collections merging', () => {
+      it('merges video collections by name', () => {
+        const first: PartialConfig = {
+          video: {
+            movies: { path: '/movies' },
+          },
+        };
+        const second: PartialConfig = {
+          video: {
+            shows: { path: '/tv-shows' },
+          },
+        };
+        const result = mergeConfigs(first, second);
+        expect(Object.keys(result.video ?? {})).toHaveLength(2);
+        expect(result.video?.movies!.path).toBe('/movies');
+        expect(result.video?.shows!.path).toBe('/tv-shows');
+      });
+    });
+
+    describe('devices merging', () => {
+      it('merges devices by name', () => {
+        const first: PartialConfig = {
+          devices: {
+            terapod: { volumeUuid: 'ABC', volumeName: 'TERAPOD' },
+          },
+        };
+        const second: PartialConfig = {
+          devices: {
+            nano: { volumeUuid: 'DEF', volumeName: 'NANO' },
+          },
+        };
+        const result = mergeConfigs(first, second);
+        expect(Object.keys(result.devices ?? {})).toHaveLength(2);
+        expect(result.devices?.terapod!.volumeName).toBe('TERAPOD');
+        expect(result.devices?.nano!.volumeName).toBe('NANO');
+      });
+
+      it('deep merges same-named device settings', () => {
+        const first: PartialConfig = {
+          devices: {
+            terapod: {
+              volumeUuid: 'ABC',
+              volumeName: 'TERAPOD',
+              quality: 'low',
+              artwork: true,
+            },
+          },
+        };
+        const second: PartialConfig = {
+          devices: {
+            terapod: {
+              volumeUuid: 'ABC',
+              volumeName: 'TERAPOD',
+              quality: 'high',
+              // artwork not specified, should preserve from first
+            },
+          },
+        };
+        const result = mergeConfigs(first, second);
+        expect(result.devices?.terapod!.quality).toBe('high');
+        expect(result.devices?.terapod!.artwork).toBe(true);
+      });
+
+      it('deep merges device transforms', () => {
+        const first: PartialConfig = {
+          devices: {
+            terapod: {
+              volumeUuid: 'ABC',
+              volumeName: 'TERAPOD',
+              transforms: {
+                ftintitle: {
+                  enabled: false,
+                  drop: false,
+                  format: 'ft. {}',
+                  ignore: [],
+                },
+              },
+            },
+          },
+        };
+        const second: PartialConfig = {
+          devices: {
+            terapod: {
+              volumeUuid: 'ABC',
+              volumeName: 'TERAPOD',
+              transforms: {
+                ftintitle: {
+                  enabled: true,
+                  drop: false,
+                  format: 'feat. {}',
+                  ignore: [],
+                },
+              },
+            },
+          },
+        };
+        const result = mergeConfigs(first, second);
+        expect(result.devices?.terapod!.transforms?.ftintitle!.enabled).toBe(true);
+        expect(result.devices?.terapod!.transforms?.ftintitle!.format).toBe('feat. {}');
+      });
+    });
+
+    describe('defaults merging', () => {
+      it('merges defaults', () => {
+        const first: PartialConfig = {
+          defaults: { music: 'main' },
+        };
+        const second: PartialConfig = {
+          defaults: { device: 'terapod' },
+        };
+        const result = mergeConfigs(first, second);
+        expect(result.defaults?.music).toBe('main');
+        expect(result.defaults?.device).toBe('terapod');
+      });
+
+      it('later config overrides defaults', () => {
+        const first: PartialConfig = {
+          defaults: { music: 'main', device: 'nano' },
+        };
+        const second: PartialConfig = {
+          defaults: { device: 'terapod' },
+        };
+        const result = mergeConfigs(first, second);
+        expect(result.defaults?.music).toBe('main');
+        expect(result.defaults?.device).toBe('terapod');
       });
     });
   });
@@ -641,8 +1068,10 @@ source = "/music"
     it('loads config from custom path', () => {
       const configPath = path.join(tempDir, 'custom.toml');
       fs.writeFileSync(configPath, `
-source = "/custom/music"
 quality = "medium"
+
+[music.main]
+path = "/custom/music"
 `);
 
       const globalOpts: GlobalOptions = {
@@ -654,57 +1083,10 @@ quality = "medium"
       };
 
       const result = loadConfig(globalOpts);
-      expect(result.config.source).toBe('/custom/music');
       expect(result.config.quality).toBe('medium');
+      expect(result.config.music?.main!.path).toBe('/custom/music');
       expect(result.configFileExists).toBe(true);
       expect(result.configPath).toBe(configPath);
-    });
-
-    it('merges config file with env vars', () => {
-      const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `
-source = "/file/music"
-device = "/file/device"
-`);
-
-      process.env[ENV_KEYS.source] = '/env/music';
-
-      const globalOpts: GlobalOptions = {
-        verbose: 0,
-        quiet: false,
-        json: false,
-        color: true,
-        config: configPath,
-      };
-
-      const result = loadConfig(globalOpts);
-      expect(result.config.source).toBe('/env/music'); // env wins
-      expect(result.config.device).toBe('/file/device'); // from file
-    });
-
-    it('CLI options override everything', () => {
-      const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `
-source = "/file/music"
-device = "/file/device"
-`);
-
-      process.env[ENV_KEYS.device] = '/env/device';
-
-      const globalOpts: GlobalOptions = {
-        verbose: 0,
-        quiet: false,
-        json: false,
-        color: true,
-        config: configPath,
-        device: '/cli/device',
-      };
-
-      const commandOpts = { source: '/cli/music' };
-
-      const result = loadConfig(globalOpts, commandOpts);
-      expect(result.config.source).toBe('/cli/music'); // CLI wins
-      expect(result.config.device).toBe('/cli/device'); // CLI wins over env
     });
 
     it('handles missing config file gracefully', () => {
@@ -727,8 +1109,6 @@ device = "/file/device"
     it('loads transforms config and merges with defaults', () => {
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(configPath, `
-source = "/music"
-
 [transforms.ftintitle]
 enabled = true
 `);
@@ -751,7 +1131,6 @@ enabled = true
     it('uses default transforms when not specified in config', () => {
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(configPath, `
-source = "/music"
 quality = "low"
 `);
 

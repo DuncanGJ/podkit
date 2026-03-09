@@ -1,9 +1,10 @@
 ---
 id: TASK-072.01
 title: Define TypeScript types for new config schema
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-08 23:46'
+updated_date: '2026-03-08 23:56'
 labels:
   - config
   - types

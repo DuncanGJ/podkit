@@ -4,7 +4,10 @@
  * Tests sync operations including dry-run, actual sync, and error handling.
  */
 
-import { describe, it, expect, beforeAll } from 'bun:test';
+import { describe, it, expect, beforeAll, afterEach } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { runCli, runCliJson } from '../helpers/cli-runner';
 import { withTarget } from '../targets';
 import { areFixturesAvailable, Albums, getAlbumDir } from '../helpers/fixtures';
@@ -38,6 +41,27 @@ interface SyncOutput {
   error?: string;
 }
 
+/**
+ * Create a temp config file with the given music collection path
+ */
+async function createTempConfig(musicPath: string): Promise<string> {
+  const tempDir = await mkdtemp(join(tmpdir(), 'podkit-sync-test-'));
+  const configPath = join(tempDir, 'config.toml');
+
+  const content = `[music.main]
+path = "${musicPath}"
+
+[defaults]
+music = "main"
+`;
+
+  await writeFile(configPath, content);
+  return configPath;
+}
+
+// Track temp config paths for cleanup
+let tempConfigPaths: string[] = [];
+
 describe('podkit sync', () => {
   let fixturesAvailable: boolean;
 
@@ -45,10 +69,23 @@ describe('podkit sync', () => {
     fixturesAvailable = await areFixturesAvailable();
   });
 
+  afterEach(async () => {
+    // Clean up temp config files
+    for (const configPath of tempConfigPaths) {
+      try {
+        const dir = join(configPath, '..');
+        await rm(dir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+    tempConfigPaths = [];
+  });
+
   describe('validation', () => {
-    it('fails when no source specified', async () => {
+    it('fails when no collections configured', async () => {
       await withTarget(async (target) => {
-        // Use non-existent config to ensure we don't pick up user's source config
+        // Use non-existent config to ensure we don't pick up user's config
         const result = await runCli([
           '--config',
           '/nonexistent/config.toml',
@@ -58,7 +95,7 @@ describe('podkit sync', () => {
         ]);
 
         expect(result.exitCode).toBe(1);
-        expect(result.stderr).toContain('No source');
+        expect(result.stderr).toContain('No collections configured');
       });
     });
 
@@ -68,26 +105,29 @@ describe('podkit sync', () => {
         return;
       }
 
-      // Use non-existent config to ensure we don't pick up user's device config
       const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+      const configPath = await createTempConfig(sourcePath);
+      tempConfigPaths.push(configPath);
+
       const result = await runCli([
         '--config',
-        '/nonexistent/config.toml',
+        configPath,
         'sync',
-        '--source',
-        sourcePath,
       ]);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('No iPod device specified');
+      expect(result.stderr).toContain('No iPod configured');
     });
 
-    it('fails when source does not exist', async () => {
+    it('fails when collection path does not exist', async () => {
       await withTarget(async (target) => {
+        const configPath = await createTempConfig('/nonexistent/path');
+        tempConfigPaths.push(configPath);
+
         const result = await runCli([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          '/nonexistent/path',
           '--device',
           target.path,
         ]);
@@ -99,6 +139,8 @@ describe('podkit sync', () => {
 
     it('outputs validation errors in JSON', async () => {
       const { result, json } = await runCliJson<SyncOutput>([
+        '--config',
+        '/nonexistent/config.toml',
         'sync',
         '--json',
       ]);
@@ -118,10 +160,13 @@ describe('podkit sync', () => {
 
       await withTarget(async (target) => {
         const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
+
         const result = await runCli([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          sourcePath,
           '--device',
           target.path,
           '--dry-run',
@@ -145,10 +190,13 @@ describe('podkit sync', () => {
 
       await withTarget(async (target) => {
         const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
+
         const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          sourcePath,
           '--device',
           target.path,
           '--dry-run',
@@ -167,16 +215,15 @@ describe('podkit sync', () => {
     it('shows already synced message when no changes needed', async () => {
       await withTarget(async (target) => {
         // Create an empty temp directory as source
-        const { mkdtemp, rm } = await import('node:fs/promises');
-        const { tmpdir } = await import('node:os');
-        const { join } = await import('node:path');
         const emptySource = await mkdtemp(join(tmpdir(), 'empty-source-'));
+        const configPath = await createTempConfig(emptySource);
+        tempConfigPaths.push(configPath);
 
         try {
           const result = await runCli([
+            '--config',
+            configPath,
             'sync',
-            '--source',
-            emptySource,
             '--device',
             target.path,
             '--dry-run',
@@ -201,16 +248,19 @@ describe('podkit sync', () => {
 
       await withTarget(async (target) => {
         const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
+
         const result = await runCli([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          sourcePath,
           '--device',
           target.path,
         ]);
 
         expect(result.exitCode).toBe(0);
-        expect(result.stdout).toContain('Sync complete');
+        expect(result.stdout).toContain('sync complete');
 
         // Verify tracks were added
         const trackCount = await target.getTrackCount();
@@ -230,10 +280,13 @@ describe('podkit sync', () => {
 
       await withTarget(async (target) => {
         const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
+
         const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          sourcePath,
           '--device',
           target.path,
           '--json',
@@ -256,10 +309,13 @@ describe('podkit sync', () => {
 
       await withTarget(async (target) => {
         const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
+
         const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          sourcePath,
           '--device',
           target.path,
           '--quality',
@@ -282,29 +338,33 @@ describe('podkit sync', () => {
 
       await withTarget(async (target) => {
         const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
 
         // First sync
         const result1 = await runCli([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          sourcePath,
           '--device',
           target.path,
         ]);
         expect(result1.exitCode).toBe(0);
 
-        // Second sync should skip all tracks
+        // Second sync should skip all tracks (already synced)
         const { result: result2, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          sourcePath,
           '--device',
           target.path,
           '--json',
         ]);
 
         expect(result2.exitCode).toBe(0);
-        expect(json?.plan?.tracksToAdd).toBe(0);
+        expect(json?.success).toBe(true);
+        // No new tracks completed since all are already synced
+        expect(json?.result?.completed).toBe(0);
       });
     }, 120000); // 2 min for two syncs
   });
@@ -318,10 +378,13 @@ describe('podkit sync', () => {
 
       await withTarget(async (target) => {
         const sourcePath = getAlbumDir(Albums.GOLDBERG_SELECTIONS);
+        const configPath = await createTempConfig(sourcePath);
+        tempConfigPaths.push(configPath);
+
         const result = await runCli([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          sourcePath,
           '--device',
           target.path,
           '--quiet',

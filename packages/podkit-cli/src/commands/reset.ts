@@ -7,6 +7,7 @@
  * @example
  * ```bash
  * podkit reset                      # Prompts for confirmation
+ * podkit reset -d terapod           # Use named device from config
  * podkit reset --confirm            # Skip confirmation (for scripts)
  * podkit reset --dry-run            # Show what would be removed
  * ```
@@ -16,7 +17,13 @@ import * as readline from 'node:readline';
 import { Command } from 'commander';
 import { getContext } from '../context.js';
 import { formatNumber } from './status.js';
-import { resolveDevicePath, formatDeviceError } from '../device-resolver.js';
+import {
+  resolveDevicePath,
+  formatDeviceError,
+  resolveDeviceFromConfig,
+  getDeviceIdentity,
+  formatDeviceNotFoundError,
+} from '../device-resolver.js';
 
 /**
  * Prompt the user for confirmation.
@@ -50,11 +57,18 @@ export interface ResetOutput {
   fileDeleteErrors?: string[];
 }
 
+interface ResetOptions {
+  confirm?: boolean;
+  dryRun?: boolean;
+  deviceName?: string;
+}
+
 export const resetCommand = new Command('reset')
   .description('remove all tracks from the iPod')
+  .option('-d, --device-name <name>', 'device name from config')
   .option('--confirm', 'skip confirmation prompt (for scripts)')
   .option('--dry-run', 'show what would be removed without removing')
-  .action(async (options: { confirm?: boolean; dryRun?: boolean }) => {
+  .action(async (options: ResetOptions) => {
     const { config, globalOpts } = getContext();
 
     // Helper to output JSON or handle errors
@@ -90,15 +104,37 @@ export const resetCommand = new Command('reset')
       return;
     }
 
-    // Resolve device path (CLI > UUID auto-detect > config)
+    // Resolve named device (if -d flag used)
+    const resolvedDevice = options.deviceName
+      ? resolveDeviceFromConfig(config, options.deviceName)
+      : resolveDeviceFromConfig(config); // Try default device
+
+    // Check if named device was requested but not found
+    if (options.deviceName && !resolvedDevice) {
+      const errorMsg = formatDeviceNotFoundError(options.deviceName, config);
+      if (globalOpts.json) {
+        outputJson({
+          success: false,
+          error: errorMsg,
+        });
+      } else {
+        console.error(errorMsg);
+      }
+      process.exitCode = 1;
+      return;
+    }
+
+    // Resolve device path (CLI > named device UUID)
     const manager = getDeviceManager();
-    if (!globalOpts.quiet && !globalOpts.json && config.ipod?.volumeUuid) {
+    const deviceIdentity = getDeviceIdentity(resolvedDevice);
+
+    if (!globalOpts.quiet && !globalOpts.json && deviceIdentity?.volumeUuid) {
       console.log('Looking for iPod...');
     }
 
     const resolved = await resolveDevicePath({
       cliDevice: globalOpts.device,
-      config,
+      deviceIdentity,
       manager,
       requireMounted: true,
       quiet: globalOpts.quiet,

@@ -166,9 +166,9 @@ IPOD_MOUNT=/Volumes/iPod bun run preflight  # Include real iPod checks
 |---------|-------|
 | `init` | Config creation, `--force` overwrite, error handling |
 | `status` | Device info, JSON output, error handling |
-| `list` | Table/JSON/CSV formats, field selection, from iPod vs source |
+| `list` | Table/JSON/CSV formats, field selection |
 | `sync` | Dry-run, actual sync, quality presets, errors |
-| `video-sync` | Dry-run video analysis, movie/TV show categorization, quality presets, device video support |
+| `video-sync` | Video sync via `sync video`, quality presets, content type categorization |
 
 ### Workflow Tests
 
@@ -223,7 +223,8 @@ it('analyzes video collection', async () => {
 
   await withVideoSourceDir(async (sourceDir) => {
     // sourceDir contains copies of video fixtures
-    const result = await runCli(['video-sync', '--source', sourceDir, ...]);
+    const configPath = await createTempConfig(sourceDir); // video collection
+    const result = await runCli(['--config', configPath, 'sync', 'video', ...]);
     expect(result.exitCode).toBe(0);
   });
   // Cleanup happens automatically

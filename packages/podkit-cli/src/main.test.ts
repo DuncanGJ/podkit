@@ -27,18 +27,19 @@ describe('podkit-cli commands', () => {
 
   it('sync command has expected options', () => {
     const opts = syncCommand.options.map(o => o.long);
-    expect(opts).toContain('--source');
     expect(opts).toContain('--dry-run');
     expect(opts).toContain('--quality');
     expect(opts).toContain('--filter');
     expect(opts).toContain('--no-artwork');
     expect(opts).toContain('--delete');
+    expect(opts).toContain('--collection');
+    expect(opts).toContain('--device-name');
   });
 
   it('list command has expected options', () => {
     const opts = listCommand.options.map(o => o.long);
-    expect(opts).toContain('--source');
     expect(opts).toContain('--format');
     expect(opts).toContain('--fields');
+    expect(opts).toContain('--device-name');
   });
 });

@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'bun:test';
-import { mkdtemp, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, rm, symlink, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCliJson } from '../helpers/cli-runner';
@@ -38,6 +38,24 @@ interface ListTrack {
   album: string;
 }
 
+/**
+ * Create a temp config file with the given music collection path
+ */
+async function createTempConfig(musicPath: string): Promise<string> {
+  const tempDir = await mkdtemp(join(tmpdir(), 'podkit-incremental-config-'));
+  const configPath = join(tempDir, 'config.toml');
+
+  const content = `[music.main]
+path = "${musicPath}"
+
+[defaults]
+music = "main"
+`;
+
+  await writeFile(configPath, content);
+  return configPath;
+}
+
 describe('workflow: incremental sync', () => {
   let fixturesAvailable: boolean;
 
@@ -54,6 +72,7 @@ describe('workflow: incremental sync', () => {
     await withTarget(async (target) => {
       // Create a temp directory to simulate growing collection
       const collectionDir = await mkdtemp(join(tmpdir(), 'podkit-incremental-'));
+      let configPath: string | undefined;
 
       try {
         // Get track files from both albums
@@ -63,18 +82,21 @@ describe('workflow: incremental sync', () => {
         // Step 1: Add first album to collection (symlinks to fixtures)
         console.log('Step 1: Setting up first album');
         const album1Dir = join(collectionDir, 'album1');
-        await import('node:fs/promises').then((fs) => fs.mkdir(album1Dir));
+        await mkdir(album1Dir);
         for (const track of album1Tracks) {
           const linkPath = join(album1Dir, track.filename);
           await symlink(track.path, linkPath);
         }
 
+        // Create config file pointing to the collection
+        configPath = await createTempConfig(collectionDir);
+
         // Step 2: First sync - should add 3 tracks
         console.log('Step 2: First sync (3 tracks)');
         const { result: sync1Result, json: sync1Json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          collectionDir,
           '--device',
           target.path,
           '--json',
@@ -90,7 +112,7 @@ describe('workflow: incremental sync', () => {
         // Step 3: Add second album to collection
         console.log('Step 3: Adding second album');
         const album2Dir = join(collectionDir, 'album2');
-        await import('node:fs/promises').then((fs) => fs.mkdir(album2Dir));
+        await mkdir(album2Dir);
         for (const track of album2Tracks) {
           const linkPath = join(album2Dir, track.filename);
           await symlink(track.path, linkPath);
@@ -99,17 +121,16 @@ describe('workflow: incremental sync', () => {
         // Step 4: Second sync - should only add 3 new tracks
         console.log('Step 4: Incremental sync (3 new tracks)');
         const { result: sync2Result, json: sync2Json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          collectionDir,
           '--device',
           target.path,
           '--json',
         ]);
         expect(sync2Result.exitCode).toBe(0);
         expect(sync2Json?.success).toBe(true);
-        expect(sync2Json?.plan?.tracksToAdd).toBe(3); // Only new tracks
-        expect(sync2Json?.result?.completed).toBe(3);
+        expect(sync2Json?.result?.completed).toBe(3); // Only new tracks added
 
         // Verify 6 tracks total on iPod
         trackCount = await target.getTrackCount();
@@ -118,15 +139,16 @@ describe('workflow: incremental sync', () => {
         // Step 5: Third sync - should add nothing
         console.log('Step 5: Verify no-op sync');
         const { result: sync3Result, json: sync3Json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          collectionDir,
           '--device',
           target.path,
           '--json',
         ]);
         expect(sync3Result.exitCode).toBe(0);
-        expect(sync3Json?.plan?.tracksToAdd).toBe(0);
+        expect(sync3Json?.success).toBe(true);
+        expect(sync3Json?.result?.completed).toBe(0); // Nothing new to sync
 
         // Step 6: List all tracks and verify both albums present
         console.log('Step 6: Verify track listing');
@@ -151,6 +173,10 @@ describe('workflow: incremental sync', () => {
         console.log('Incremental sync workflow complete!');
       } finally {
         await rm(collectionDir, { recursive: true, force: true });
+        if (configPath) {
+          const configDir = join(configPath, '..');
+          await rm(configDir, { recursive: true, force: true });
+        }
       }
     });
   }, 180000); // 3 min timeout for multiple syncs with transcoding

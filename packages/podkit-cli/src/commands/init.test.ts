@@ -25,27 +25,27 @@ describe('init command', () => {
 
   describe('CONFIG_TEMPLATE', () => {
     it('is valid TOML-like content', () => {
-      // Should contain key = value pairs
-      expect(CONFIG_TEMPLATE).toContain('quality =');
-      expect(CONFIG_TEMPLATE).toContain('artwork =');
+      // Should contain ADR-008 format sections
+      expect(CONFIG_TEMPLATE).toContain('[music.main]');
+      expect(CONFIG_TEMPLATE).toContain('[devices.ipod]');
     });
 
-    it('uses default values from DEFAULT_CONFIG', () => {
-      // The template should use the same defaults as the config system
+    it('uses default values from DEFAULT_CONFIG in device section', () => {
+      // The template should use the same defaults as the config system (inside devices section)
       expect(CONFIG_TEMPLATE).toContain(`quality = "${DEFAULT_CONFIG.quality}"`);
       expect(CONFIG_TEMPLATE).toContain(`artwork = ${DEFAULT_CONFIG.artwork}`);
     });
 
-    it('has commented out source and device (optional fields)', () => {
+    it('has commented out music and device sections (optional)', () => {
       // These are optional, so they should be commented examples
-      expect(CONFIG_TEMPLATE).toContain('# source =');
-      expect(CONFIG_TEMPLATE).toContain('# device =');
+      expect(CONFIG_TEMPLATE).toContain('# [music.main]');
+      expect(CONFIG_TEMPLATE).toContain('# [devices.ipod]');
     });
 
     it('has descriptive comments', () => {
       expect(CONFIG_TEMPLATE).toContain('# podkit configuration');
-      expect(CONFIG_TEMPLATE).toContain('# Transcoding quality');
-      expect(CONFIG_TEMPLATE).toContain('# Include artwork');
+      expect(CONFIG_TEMPLATE).toContain('# Music collections');
+      expect(CONFIG_TEMPLATE).toContain('# Devices');
     });
   });
 

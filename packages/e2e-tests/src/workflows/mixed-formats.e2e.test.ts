@@ -7,7 +7,10 @@
  * - Incompatible lossy formats (OGG, Opus) - should trigger warnings
  */
 
-import { describe, it, expect, beforeAll } from 'bun:test';
+import { describe, it, expect, beforeAll, afterEach } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { runCli, runCliJson } from '../helpers/cli-runner';
 import { withTarget } from '../targets';
 import { areFixturesAvailable, Albums, getAlbumDir } from '../helpers/fixtures';
@@ -49,6 +52,27 @@ interface SyncOutput {
   error?: string;
 }
 
+/**
+ * Create a temp config file with the given music collection path
+ */
+async function createTempConfig(musicPath: string): Promise<string> {
+  const tempDir = await mkdtemp(join(tmpdir(), 'podkit-mixed-formats-config-'));
+  const configPath = join(tempDir, 'config.toml');
+
+  const content = `[music.main]
+path = "${musicPath}"
+
+[defaults]
+music = "main"
+`;
+
+  await writeFile(configPath, content);
+  return configPath;
+}
+
+// Track temp config paths for cleanup
+let tempConfigPaths: string[] = [];
+
 describe('mixed format collection sync', () => {
   let fixturesAvailable: boolean;
   let multiFormatPath: string;
@@ -56,6 +80,19 @@ describe('mixed format collection sync', () => {
   beforeAll(async () => {
     fixturesAvailable = await areFixturesAvailable();
     multiFormatPath = getAlbumDir(Albums.MULTI_FORMAT);
+  });
+
+  afterEach(async () => {
+    // Clean up temp config files
+    for (const configPath of tempConfigPaths) {
+      try {
+        const dir = join(configPath, '..');
+        await rm(dir, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+    tempConfigPaths = [];
   });
 
   describe('dry-run with mixed formats', () => {
@@ -66,10 +103,13 @@ describe('mixed format collection sync', () => {
       }
 
       await withTarget(async (target) => {
+        const configPath = await createTempConfig(multiFormatPath);
+        tempConfigPaths.push(configPath);
+
         const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          multiFormatPath,
           '--device',
           target.path,
           '--dry-run',
@@ -99,10 +139,13 @@ describe('mixed format collection sync', () => {
       }
 
       await withTarget(async (target) => {
+        const configPath = await createTempConfig(multiFormatPath);
+        tempConfigPaths.push(configPath);
+
         const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          multiFormatPath,
           '--device',
           target.path,
           '--dry-run',
@@ -126,10 +169,13 @@ describe('mixed format collection sync', () => {
       }
 
       await withTarget(async (target) => {
+        const configPath = await createTempConfig(multiFormatPath);
+        tempConfigPaths.push(configPath);
+
         const result = await runCli([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          multiFormatPath,
           '--device',
           target.path,
           '--dry-run',
@@ -150,10 +196,13 @@ describe('mixed format collection sync', () => {
       }
 
       await withTarget(async (target) => {
+        const configPath = await createTempConfig(multiFormatPath);
+        tempConfigPaths.push(configPath);
+
         const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          multiFormatPath,
           '--device',
           target.path,
           '--quality',
@@ -179,10 +228,13 @@ describe('mixed format collection sync', () => {
       }
 
       await withTarget(async (target) => {
+        const configPath = await createTempConfig(multiFormatPath);
+        tempConfigPaths.push(configPath);
+
         const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          multiFormatPath,
           '--device',
           target.path,
           '--quality',
@@ -205,10 +257,13 @@ describe('mixed format collection sync', () => {
       }
 
       await withTarget(async (target) => {
+        const configPath = await createTempConfig(multiFormatPath);
+        tempConfigPaths.push(configPath);
+
         const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          multiFormatPath,
           '--device',
           target.path,
           '--json',
@@ -238,10 +293,13 @@ describe('mixed format collection sync', () => {
       }
 
       await withTarget(async (target) => {
+        const configPath = await createTempConfig(multiFormatPath);
+        tempConfigPaths.push(configPath);
+
         const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          multiFormatPath,
           '--device',
           target.path,
           '--quality',
@@ -264,10 +322,13 @@ describe('mixed format collection sync', () => {
       }
 
       await withTarget(async (target) => {
+        const configPath = await createTempConfig(multiFormatPath);
+        tempConfigPaths.push(configPath);
+
         const { result, json } = await runCliJson<SyncOutput>([
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          multiFormatPath,
           '--device',
           target.path,
           '--quality',
@@ -290,11 +351,14 @@ describe('mixed format collection sync', () => {
       }
 
       await withTarget(async (target) => {
+        const configPath = await createTempConfig(multiFormatPath);
+        tempConfigPaths.push(configPath);
+
         const result = await runCli([
           '--verbose',
+          '--config',
+          configPath,
           'sync',
-          '--source',
-          multiFormatPath,
           '--device',
           target.path,
           '--dry-run',

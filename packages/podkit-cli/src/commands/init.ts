@@ -6,26 +6,35 @@ import { DEFAULT_CONFIG_PATH, DEFAULT_CONFIG } from '../config/index.js';
 /**
  * Default configuration file template (TOML format)
  *
- * This template is kept in sync with PodkitConfig from config/types.ts:
- * - source?: string (commented, optional)
- * - device?: string (commented, optional)
- * - quality: QualityPreset = 'high'
- * - artwork: boolean = true
+ * This template uses the ADR-008 multi-collection/device schema.
+ * See docs/adr/ADR-008-multi-collection-device-config.md for details.
  */
 export const CONFIG_TEMPLATE = `# podkit configuration
 # See: https://github.com/your-repo/podkit
+# Schema: docs/adr/ADR-008-multi-collection-device-config.md
 
-# Default source directory for sync
-# source = "/path/to/your/music"
+# Music collections
+# Uncomment and edit to add your music library:
+# [music.main]
+# path = "/path/to/your/music"
 
-# iPod mount point (auto-detect if omitted)
-# device = "/media/ipod"
+# Video collections (optional)
+# [video.movies]
+# path = "/path/to/movies"
 
-# Transcoding quality: high, medium, low
-quality = "${DEFAULT_CONFIG.quality}"
+# Devices
+# Run 'podkit add-device' to auto-detect and add your iPod
+# Or manually configure:
+# [devices.ipod]
+# volumeUuid = "YOUR-UUID-HERE"
+# volumeName = "IPOD"
+# quality = "${DEFAULT_CONFIG.quality}"
+# artwork = ${DEFAULT_CONFIG.artwork}
 
-# Include artwork in sync
-artwork = ${DEFAULT_CONFIG.artwork}
+# Defaults
+# [defaults]
+# music = "main"
+# device = "ipod"
 `;
 
 /**

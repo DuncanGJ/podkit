@@ -35,8 +35,8 @@ describe('podkit init', () => {
     // Verify content
     const content = await readFile(configPath, 'utf-8');
     expect(content).toContain('# podkit configuration');
-    expect(content).toContain('quality = "high"');
-    expect(content).toContain('artwork = true');
+    expect(content).toContain('[music.main]');
+    expect(content).toContain('[devices.ipod]');
   });
 
   it('creates parent directories if needed', async () => {

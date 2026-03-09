@@ -204,3 +204,63 @@ export async function isCliAvailable(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Create a temporary config file with a music collection.
+ *
+ * @param musicPath - Path to the music directory
+ * @param devicePath - Optional path to the device (omit to require --device flag)
+ * @returns Path to the temp config file
+ *
+ * @example
+ * ```typescript
+ * const configPath = await createTempConfig('/path/to/music', target.path);
+ * const result = await runCli(['--config', configPath, 'sync']);
+ * ```
+ */
+export async function createTempConfig(
+  musicPath: string,
+  devicePath?: string
+): Promise<string> {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const path = await import('node:path');
+
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'podkit-e2e-config-'));
+  const configPath = path.join(tempDir, 'config.toml');
+
+  let content = `[music.main]
+path = "${musicPath}"
+
+[defaults]
+music = "main"
+`;
+
+  if (devicePath) {
+    // Add a device config that uses the device path directly
+    // Note: This is a workaround for testing - real configs use UUID
+    content += `
+[devices.test]
+volumeUuid = "test-uuid"
+volumeName = "test"
+`;
+  }
+
+  await fs.writeFile(configPath, content);
+  return configPath;
+}
+
+/**
+ * Clean up a temp config file created by createTempConfig.
+ */
+export async function cleanupTempConfig(configPath: string): Promise<void> {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+
+  try {
+    const dir = path.dirname(configPath);
+    await fs.rm(dir, { recursive: true, force: true });
+  } catch {
+    // Ignore cleanup errors
+  }
+}

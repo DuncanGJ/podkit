@@ -1,9 +1,10 @@
 ---
 id: TASK-072.06
 title: Implement collection management command
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-08 23:47'
+updated_date: '2026-03-09 00:14'
 labels:
   - cli
 dependencies: []

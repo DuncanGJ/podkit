@@ -1,8 +1,13 @@
 import { Command } from 'commander';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { getContext } from '../context.js';
-import { resolveDevicePath, formatDeviceError } from '../device-resolver.js';
+import {
+  resolveDevicePath,
+  formatDeviceError,
+  resolveDeviceFromConfig,
+  getDeviceIdentity,
+  formatDeviceNotFoundError,
+} from '../device-resolver.js';
 
 /**
  * Unified track type for display purposes
@@ -355,121 +360,58 @@ async function loadIpodTracks(device: string | undefined): Promise<DisplayTrack[
   }
 }
 
-/**
- * Collection track type for source directory
- */
-interface SourceTrack {
-  title: string;
-  artist: string;
-  album: string;
-  duration?: number;
-  albumArtist?: string;
-  genre?: string;
-  year?: number;
-  trackNumber?: number;
-  discNumber?: number;
-  filePath: string;
-  fileType: string; // AudioFileType
-}
-
-/**
- * Map AudioFileType to display format
- */
-function mapFileTypeToFormat(fileType: string): string {
-  return fileType.toUpperCase();
-}
-
-/**
- * Load tracks from a source directory
- */
-async function loadSourceTracks(sourcePath: string): Promise<DisplayTrack[]> {
-  // Dynamic import to avoid loading podkit-core when not needed
-  const { createDirectoryAdapter, getFilesDisplayMetadata } = await import('@podkit/core');
-
-  const resolved = resolve(sourcePath);
-  if (!existsSync(resolved)) {
-    throw new Error(`Source directory not found: ${sourcePath}`);
-  }
-
-  const adapter = createDirectoryAdapter({ path: resolved });
-  await adapter.connect();
-  try {
-    const tracks = (await adapter.getTracks()) as SourceTrack[];
-
-    // Extract display metadata (artwork, bitrate) for all tracks in parallel
-    const filePaths = tracks.map((t) => t.filePath);
-    const metadataMap = await getFilesDisplayMetadata(filePaths);
-
-    // Build display tracks with metadata
-    const displayTracks = tracks.map((t) => {
-      const metadata = metadataMap.get(t.filePath);
-      return {
-        title: t.title,
-        artist: t.artist,
-        album: t.album,
-        duration: t.duration,
-        albumArtist: t.albumArtist,
-        genre: t.genre,
-        year: t.year,
-        trackNumber: t.trackNumber,
-        discNumber: t.discNumber,
-        filePath: t.filePath,
-        artwork: metadata?.hasArtwork,
-        format: mapFileTypeToFormat(t.fileType),
-        bitrate: metadata?.bitrate,
-      };
-    });
-
-    return displayTracks;
-  } finally {
-    await adapter.disconnect();
-  }
+interface ListOptions {
+  format?: string;
+  fields?: string;
+  deviceName?: string;
 }
 
 export const listCommand = new Command('list')
-  .description('list tracks on iPod or in collection')
-  .option('-s, --source <path>', 'list from collection directory instead of iPod')
+  .description('list tracks on iPod')
+  .option('-d, --device-name <name>', 'device name from config')
   .option('--format <fmt>', 'output format: table, json, csv', 'table')
   .option('--fields <list>', 'fields to show (comma-separated): title,artist,album,duration')
-  .action(async (options) => {
+  .action(async (options: ListOptions) => {
     const { config, globalOpts } = getContext();
 
-    // Only use source if --source is explicitly provided
-    // Default behavior (no flags) lists iPod tracks
-    const source = options.source;
     const format = globalOpts.json ? 'json' : options.format;
     const fields = parseFields(options.fields);
+    const deviceName = options.deviceName;
 
     try {
-      let tracks: DisplayTrack[];
+      // Resolve named device (if -d flag used)
+      const resolvedDevice = deviceName
+        ? resolveDeviceFromConfig(config, deviceName)
+        : resolveDeviceFromConfig(config); // Try default device
 
-      if (source) {
-        // Load from source directory
-        tracks = await loadSourceTracks(source);
-      } else {
-        // Resolve device path via UUID auto-detect
-        const core = await import('@podkit/core');
-        const manager = core.getDeviceManager();
-
-        if (!globalOpts.quiet && config.ipod?.volumeUuid) {
-          console.error('Looking for iPod...');
-        }
-
-        const resolved = await resolveDevicePath({
-          cliDevice: globalOpts.device,
-          config,
-          manager,
-          requireMounted: true,
-          quiet: globalOpts.quiet,
-        });
-
-        if (!resolved.path) {
-          throw new Error(resolved.error ?? formatDeviceError(resolved));
-        }
-
-        // Load from iPod
-        tracks = await loadIpodTracks(resolved.path);
+      // Check if named device was requested but not found
+      if (deviceName && !resolvedDevice) {
+        throw new Error(formatDeviceNotFoundError(deviceName, config));
       }
+
+      // Resolve device path via UUID auto-detect
+      const core = await import('@podkit/core');
+      const manager = core.getDeviceManager();
+      const deviceIdentity = getDeviceIdentity(resolvedDevice);
+
+      if (!globalOpts.quiet && deviceIdentity?.volumeUuid) {
+        console.error('Looking for iPod...');
+      }
+
+      const resolved = await resolveDevicePath({
+        cliDevice: globalOpts.device,
+        deviceIdentity,
+        manager,
+        requireMounted: true,
+        quiet: globalOpts.quiet,
+      });
+
+      if (!resolved.path) {
+        throw new Error(resolved.error ?? formatDeviceError(resolved));
+      }
+
+      // Load from iPod
+      const tracks = await loadIpodTracks(resolved.path);
 
       // Format and output
       let output: string;

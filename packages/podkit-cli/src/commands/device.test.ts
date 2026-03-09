@@ -1,0 +1,289 @@
+import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { deviceCommand } from './device.js';
+import { addDevice, setDefaultDevice } from '../config/writer.js';
+
+describe('device command', () => {
+  describe('command structure', () => {
+    it('has correct name', () => {
+      expect(deviceCommand.name()).toBe('device');
+    });
+
+    it('has description', () => {
+      expect(deviceCommand.description()).toBeTruthy();
+      expect(deviceCommand.description()).toContain('manage');
+    });
+
+    it('has list subcommand', () => {
+      const listCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'list');
+      expect(listCmd).toBeDefined();
+      expect(listCmd?.description()).toContain('list');
+    });
+
+    it('has add subcommand', () => {
+      const addCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'add');
+      expect(addCmd).toBeDefined();
+      expect(addCmd?.description()).toContain('add');
+    });
+
+    it('has remove subcommand', () => {
+      const removeCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'remove');
+      expect(removeCmd).toBeDefined();
+      expect(removeCmd?.description()).toContain('remove');
+    });
+
+    it('has show subcommand', () => {
+      const showCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'show');
+      expect(showCmd).toBeDefined();
+      expect(showCmd?.description()).toContain('display');
+    });
+
+    it('add subcommand requires name argument', () => {
+      const addCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'add');
+      const nameArg = addCmd?.registeredArguments.find((arg) => arg.name() === 'name');
+      expect(nameArg).toBeDefined();
+      expect(nameArg?.required).toBe(true);
+    });
+
+    it('remove subcommand requires name argument', () => {
+      const removeCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'remove');
+      const nameArg = removeCmd?.registeredArguments.find((arg) => arg.name() === 'name');
+      expect(nameArg).toBeDefined();
+      expect(nameArg?.required).toBe(true);
+    });
+
+    it('remove subcommand has --confirm option', () => {
+      const removeCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'remove');
+      const confirmOption = removeCmd?.options.find((opt) => opt.long === '--confirm');
+      expect(confirmOption).toBeDefined();
+    });
+
+    it('show subcommand requires name argument', () => {
+      const showCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'show');
+      const nameArg = showCmd?.registeredArguments.find((arg) => arg.name() === 'name');
+      expect(nameArg).toBeDefined();
+      expect(nameArg?.required).toBe(true);
+    });
+  });
+});
+
+describe('config writer functions', () => {
+  let tempDir: string;
+  let configPath: string;
+
+  beforeEach(() => {
+    // Create a temporary directory for test config files
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podkit-device-test-'));
+    configPath = path.join(tempDir, 'config.toml');
+  });
+
+  afterEach(() => {
+    // Clean up temporary directory
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true });
+    }
+  });
+
+  describe('addDevice', () => {
+    it('creates config file if it does not exist', () => {
+      const result = addDevice(
+        'terapod',
+        {
+          volumeUuid: 'ABC-123',
+          volumeName: 'TERAPOD',
+        },
+        { configPath }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.created).toBe(true);
+      expect(fs.existsSync(configPath)).toBe(true);
+    });
+
+    it('adds device section to config', () => {
+      const result = addDevice(
+        'terapod',
+        {
+          volumeUuid: 'ABC-123',
+          volumeName: 'TERAPOD',
+        },
+        { configPath }
+      );
+
+      expect(result.success).toBe(true);
+      const content = fs.readFileSync(configPath, 'utf-8');
+      expect(content).toContain('[devices.terapod]');
+      expect(content).toContain('volumeUuid = "ABC-123"');
+      expect(content).toContain('volumeName = "TERAPOD"');
+    });
+
+    it('adds optional quality settings', () => {
+      const result = addDevice(
+        'terapod',
+        {
+          volumeUuid: 'ABC-123',
+          volumeName: 'TERAPOD',
+          quality: 'high',
+          videoQuality: 'high',
+          artwork: true,
+        },
+        { configPath }
+      );
+
+      expect(result.success).toBe(true);
+      const content = fs.readFileSync(configPath, 'utf-8');
+      expect(content).toContain('quality = "high"');
+      expect(content).toContain('videoQuality = "high"');
+      expect(content).toContain('artwork = true');
+    });
+
+    it('fails if device already exists', () => {
+      // Add device first
+      addDevice(
+        'terapod',
+        { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+        { configPath }
+      );
+
+      // Try to add again
+      const result = addDevice(
+        'terapod',
+        { volumeUuid: 'DEF-456', volumeName: 'TERAPOD2' },
+        { configPath }
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('already exists');
+    });
+
+    it('appends to existing config file', () => {
+      // Create initial config with some content
+      fs.writeFileSync(configPath, 'quality = "medium"\n');
+
+      const result = addDevice(
+        'terapod',
+        { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+        { configPath }
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.created).toBe(false);
+      const content = fs.readFileSync(configPath, 'utf-8');
+      expect(content).toContain('quality = "medium"');
+      expect(content).toContain('[devices.terapod]');
+    });
+  });
+
+  describe('removeDevice', () => {
+    it('removes device section from config', () => {
+      // Add device first
+      addDevice(
+        'terapod',
+        { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+        { configPath }
+      );
+
+      // Import and use removeDevice
+      const { removeDevice } = require('../config/writer.js');
+      const result = removeDevice('terapod', { configPath });
+
+      expect(result.success).toBe(true);
+      const content = fs.readFileSync(configPath, 'utf-8');
+      expect(content).not.toContain('[devices.terapod]');
+      expect(content).not.toContain('ABC-123');
+    });
+
+    it('fails if device does not exist', () => {
+      // Create empty config
+      fs.writeFileSync(configPath, '');
+
+      const { removeDevice } = require('../config/writer.js');
+      const result = removeDevice('nonexistent', { configPath });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not found');
+    });
+
+    it('fails if config file does not exist', () => {
+      const { removeDevice } = require('../config/writer.js');
+      const result = removeDevice('terapod', { configPath });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('not found');
+    });
+  });
+
+  describe('setDefaultDevice', () => {
+    it('creates defaults section if it does not exist', () => {
+      // Add a device first
+      addDevice(
+        'terapod',
+        { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+        { configPath }
+      );
+
+      const result = setDefaultDevice('terapod', { configPath });
+
+      expect(result.success).toBe(true);
+      const content = fs.readFileSync(configPath, 'utf-8');
+      expect(content).toContain('[defaults]');
+      expect(content).toContain('device = "terapod"');
+    });
+
+    it('updates existing default device', () => {
+      // Create config with defaults section
+      fs.writeFileSync(
+        configPath,
+        `[defaults]
+device = "old-device"
+`
+      );
+
+      const result = setDefaultDevice('new-device', { configPath });
+
+      expect(result.success).toBe(true);
+      const content = fs.readFileSync(configPath, 'utf-8');
+      expect(content).toContain('device = "new-device"');
+      expect(content).not.toContain('old-device');
+    });
+
+    it('clears default device when empty string passed', () => {
+      // Create config with defaults section
+      fs.writeFileSync(
+        configPath,
+        `[defaults]
+device = "terapod"
+music = "main"
+`
+      );
+
+      const result = setDefaultDevice('', { configPath });
+
+      expect(result.success).toBe(true);
+      const content = fs.readFileSync(configPath, 'utf-8');
+      expect(content).toContain('[defaults]');
+      expect(content).toContain('music = "main"');
+      expect(content).not.toContain('device = "terapod"');
+    });
+
+    it('adds device to existing defaults section without device', () => {
+      // Create config with defaults section but no device
+      fs.writeFileSync(
+        configPath,
+        `[defaults]
+music = "main"
+`
+      );
+
+      const result = setDefaultDevice('terapod', { configPath });
+
+      expect(result.success).toBe(true);
+      const content = fs.readFileSync(configPath, 'utf-8');
+      expect(content).toContain('[defaults]');
+      expect(content).toContain('device = "terapod"');
+      expect(content).toContain('music = "main"');
+    });
+  });
+});

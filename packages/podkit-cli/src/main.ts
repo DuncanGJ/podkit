@@ -8,12 +8,13 @@
 import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { syncCommand } from './commands/sync.js';
-import { videoSyncCommand } from './commands/video-sync.js';
 import { statusCommand } from './commands/status.js';
 import { listCommand } from './commands/list.js';
 import { resetCommand } from './commands/reset.js';
 import { clearCommand } from './commands/clear.js';
 import { addDeviceCommand } from './commands/add-device.js';
+import { deviceCommand } from './commands/device.js';
+import { collectionCommand } from './commands/collection.js';
 import { ejectCommand } from './commands/eject.js';
 import { mountCommand } from './commands/mount.js';
 import { loadConfig, DEFAULT_CONFIG_PATH } from './config/index.js';
@@ -54,7 +55,6 @@ program.hook('preAction', (thisCommand, actionCommand) => {
 
   // Get command-specific options that affect config
   const commandOpts = actionCommand.opts() as {
-    source?: string;
     quality?: string;
     artwork?: boolean;
   };
@@ -73,12 +73,13 @@ program.hook('preAction', (thisCommand, actionCommand) => {
 // Register commands
 program.addCommand(initCommand);
 program.addCommand(syncCommand);
-program.addCommand(videoSyncCommand);
 program.addCommand(statusCommand);
 program.addCommand(listCommand);
 program.addCommand(resetCommand);
 program.addCommand(clearCommand);
 program.addCommand(addDeviceCommand);
+program.addCommand(deviceCommand);
+program.addCommand(collectionCommand);
 program.addCommand(ejectCommand);
 program.addCommand(mountCommand);
 

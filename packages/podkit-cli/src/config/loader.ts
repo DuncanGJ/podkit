@@ -16,11 +16,18 @@ import type {
   PartialConfig,
   QualityPreset,
   AacQualityPreset,
+  VideoQualityPreset,
   ConfigFileContent,
+  ConfigFileMusicCollection,
+  ConfigFileVideoCollection,
+  ConfigFileDevice,
+  ConfigFileDefaults,
   GlobalOptions,
   TransformsConfig,
-  VideoQualityPreset,
-  IpodIdentity,
+  MusicCollectionConfig,
+  VideoCollectionConfig,
+  DeviceConfig,
+  DefaultsConfig,
 } from './types.js';
 import { QUALITY_PRESETS, AAC_QUALITY_PRESETS, DEFAULT_TRANSFORMS_CONFIG, VIDEO_QUALITY_PRESETS } from './types.js';
 import { DEFAULT_CONFIG, DEFAULT_CONFIG_PATH, ENV_KEYS } from './defaults.js';
@@ -63,14 +70,6 @@ export function loadConfigFile(configPath: string): PartialConfig | undefined {
 
   const config: PartialConfig = {};
 
-  if (typeof parsed.source === 'string') {
-    config.source = parsed.source;
-  }
-
-  if (typeof parsed.device === 'string') {
-    config.device = parsed.device;
-  }
-
   if (typeof parsed.quality === 'string') {
     if (isValidQuality(parsed.quality)) {
       config.quality = parsed.quality;
@@ -102,57 +101,38 @@ export function loadConfigFile(configPath: string): PartialConfig | undefined {
     config.transforms = parseTransformsConfig(parsed.transforms);
   }
 
-  // Parse video settings
-  // Support both flat (videoSource, videoQuality) and nested ([video]) formats
-  const videoSource = parsed.videoSource ?? parsed.video?.source;
-  const videoQuality = parsed.videoQuality ?? parsed.video?.quality;
+  // ==========================================================================
+  // Parse multi-collection/device fields (ADR-008)
+  // ==========================================================================
 
-  if (typeof videoSource === 'string') {
-    config.videoSource = videoSource;
+  // Parse music collections [music.*]
+  const musicCollections = parseMusicCollections(parsed.music);
+  if (musicCollections) {
+    config.music = musicCollections;
   }
 
-  if (typeof videoQuality === 'string') {
-    if (isValidVideoQuality(videoQuality)) {
-      config.videoQuality = videoQuality;
-    } else {
-      throw new Error(
-        `Invalid videoQuality value "${videoQuality}" in config. ` +
-          `Valid values: ${VIDEO_QUALITY_PRESETS.join(', ')}`
-      );
-    }
+  // Parse video collections [video.*]
+  const videoCollections = parseVideoCollections(parsed.video);
+  if (videoCollections) {
+    config.video = videoCollections;
   }
 
-  // Parse iPod identity section
-  if (parsed.ipod !== undefined) {
-    config.ipod = parseIpodIdentity(parsed.ipod);
+  // Parse devices [devices.*]
+  const devices = parseDevices(parsed.devices);
+  if (devices) {
+    config.devices = devices;
   }
+
+  // Parse defaults [defaults]
+  const defaults = parseDefaults(parsed.defaults);
+  if (defaults) {
+    config.defaults = defaults;
+  }
+
+  // Validate default references
+  validateDefaultReferences(config);
 
   return config;
-}
-
-/**
- * Parse and validate iPod identity config from TOML
- */
-function parseIpodIdentity(raw: ConfigFileContent['ipod']): IpodIdentity | undefined {
-  if (!raw) return undefined;
-
-  const volumeUuid = raw.volumeUuid;
-  const volumeName = raw.volumeName;
-
-  // Both fields are required for a valid identity
-  if (typeof volumeUuid !== 'string' || typeof volumeName !== 'string') {
-    return undefined;
-  }
-
-  // Validate UUID format (basic check)
-  if (!volumeUuid || volumeUuid.trim() === '') {
-    return undefined;
-  }
-
-  return {
-    volumeUuid: volumeUuid.trim(),
-    volumeName: volumeName.trim(),
-  };
 }
 
 /**
@@ -227,23 +207,302 @@ function parseTransformsConfig(raw: ConfigFileContent['transforms']): Transforms
   return config;
 }
 
+// =============================================================================
+// Multi-Collection/Device Parsing (ADR-008)
+// =============================================================================
+
+/**
+ * Parse music collections from TOML
+ *
+ * Extracts [music.*] sections into a Record<string, MusicCollectionConfig>.
+ * Validates type field if present (must be 'directory' or 'subsonic').
+ */
+function parseMusicCollections(
+  rawMusic: Record<string, ConfigFileMusicCollection> | undefined
+): Record<string, MusicCollectionConfig> | undefined {
+  if (!rawMusic || typeof rawMusic !== 'object') {
+    return undefined;
+  }
+
+  const collections: Record<string, MusicCollectionConfig> = {};
+  let hasAnyCollection = false;
+
+  for (const [name, rawCollection] of Object.entries(rawMusic)) {
+    if (typeof rawCollection !== 'object' || rawCollection === null) {
+      continue;
+    }
+
+    // Validate path is present for directory type
+    const collectionType = rawCollection.type ?? 'directory';
+
+    if (collectionType !== 'directory' && collectionType !== 'subsonic') {
+      throw new Error(
+        `Invalid type "${collectionType}" in [music.${name}]. ` +
+          `Valid values: directory, subsonic`
+      );
+    }
+
+    if (collectionType === 'directory') {
+      if (typeof rawCollection.path !== 'string') {
+        throw new Error(
+          `Missing or invalid "path" in [music.${name}]. ` +
+            `Directory collections require a path.`
+        );
+      }
+      collections[name] = {
+        path: rawCollection.path,
+        type: 'directory',
+      };
+    } else {
+      // Subsonic collection
+      if (typeof rawCollection.url !== 'string') {
+        throw new Error(
+          `Missing or invalid "url" in [music.${name}]. ` +
+            `Subsonic collections require a url.`
+        );
+      }
+      if (typeof rawCollection.username !== 'string') {
+        throw new Error(
+          `Missing or invalid "username" in [music.${name}]. ` +
+            `Subsonic collections require a username.`
+        );
+      }
+      collections[name] = {
+        path: rawCollection.path ?? '', // Optional for subsonic
+        type: 'subsonic',
+        url: rawCollection.url,
+        username: rawCollection.username,
+      };
+    }
+    hasAnyCollection = true;
+  }
+
+  return hasAnyCollection ? collections : undefined;
+}
+
+/**
+ * Parse video collections from TOML
+ *
+ * Extracts [video.*] sections into a Record<string, VideoCollectionConfig>.
+ */
+function parseVideoCollections(
+  rawVideo: ConfigFileContent['video']
+): Record<string, VideoCollectionConfig> | undefined {
+  if (!rawVideo || typeof rawVideo !== 'object') {
+    return undefined;
+  }
+
+  const collections: Record<string, VideoCollectionConfig> = {};
+  let hasAnyCollection = false;
+
+  for (const [name, rawCollection] of Object.entries(rawVideo)) {
+    // Skip non-object entries
+    if (typeof rawCollection !== 'object' || rawCollection === null) {
+      continue;
+    }
+
+    const collection = rawCollection as ConfigFileVideoCollection;
+
+    if (typeof collection.path !== 'string') {
+      throw new Error(
+        `Missing or invalid "path" in [video.${name}]. ` +
+          `Video collections require a path.`
+      );
+    }
+
+    collections[name] = {
+      path: collection.path,
+    };
+    hasAnyCollection = true;
+  }
+
+  return hasAnyCollection ? collections : undefined;
+}
+
+/**
+ * Parse devices from TOML
+ *
+ * Extracts [devices.*] sections into a Record<string, DeviceConfig>.
+ * Handles nested [devices.*.transforms] sections.
+ */
+function parseDevices(
+  rawDevices: Record<string, ConfigFileDevice> | undefined
+): Record<string, DeviceConfig> | undefined {
+  if (!rawDevices || typeof rawDevices !== 'object') {
+    return undefined;
+  }
+
+  const devices: Record<string, DeviceConfig> = {};
+  let hasAnyDevice = false;
+
+  for (const [name, rawDevice] of Object.entries(rawDevices)) {
+    // Skip non-object entries
+    if (typeof rawDevice !== 'object' || rawDevice === null) {
+      continue;
+    }
+
+    // Validate required fields
+    if (typeof rawDevice.volumeUuid !== 'string') {
+      throw new Error(
+        `Missing or invalid "volumeUuid" in [devices.${name}]. ` +
+          `Devices require a volumeUuid for auto-detection.`
+      );
+    }
+    if (typeof rawDevice.volumeName !== 'string') {
+      throw new Error(
+        `Missing or invalid "volumeName" in [devices.${name}]. ` +
+          `Devices require a volumeName for display.`
+      );
+    }
+
+    const device: DeviceConfig = {
+      volumeUuid: rawDevice.volumeUuid.trim(),
+      volumeName: rawDevice.volumeName.trim(),
+    };
+
+    // Parse optional quality
+    if (rawDevice.quality !== undefined) {
+      if (typeof rawDevice.quality !== 'string') {
+        throw new Error(
+          `Invalid type for "quality" in [devices.${name}]. ` +
+            `Expected string, got ${typeof rawDevice.quality}.`
+        );
+      }
+      if (!isValidQuality(rawDevice.quality)) {
+        throw new Error(
+          `Invalid quality value "${rawDevice.quality}" in [devices.${name}]. ` +
+            `Valid values: ${QUALITY_PRESETS.join(', ')}`
+        );
+      }
+      device.quality = rawDevice.quality;
+    }
+
+    // Parse optional videoQuality
+    if (rawDevice.videoQuality !== undefined) {
+      if (typeof rawDevice.videoQuality !== 'string') {
+        throw new Error(
+          `Invalid type for "videoQuality" in [devices.${name}]. ` +
+            `Expected string, got ${typeof rawDevice.videoQuality}.`
+        );
+      }
+      if (!isValidVideoQuality(rawDevice.videoQuality)) {
+        throw new Error(
+          `Invalid videoQuality value "${rawDevice.videoQuality}" in [devices.${name}]. ` +
+            `Valid values: ${VIDEO_QUALITY_PRESETS.join(', ')}`
+        );
+      }
+      device.videoQuality = rawDevice.videoQuality;
+    }
+
+    // Parse optional artwork
+    if (rawDevice.artwork !== undefined) {
+      if (typeof rawDevice.artwork !== 'boolean') {
+        throw new Error(
+          `Invalid type for "artwork" in [devices.${name}]. ` +
+            `Expected boolean, got ${typeof rawDevice.artwork}.`
+        );
+      }
+      device.artwork = rawDevice.artwork;
+    }
+
+    // Parse optional transforms
+    if (rawDevice.transforms !== undefined) {
+      device.transforms = parseTransformsConfig(rawDevice.transforms);
+    }
+
+    devices[name] = device;
+    hasAnyDevice = true;
+  }
+
+  return hasAnyDevice ? devices : undefined;
+}
+
+/**
+ * Parse defaults section from TOML
+ *
+ * Extracts [defaults] section into DefaultsConfig.
+ */
+function parseDefaults(
+  rawDefaults: ConfigFileDefaults | undefined
+): DefaultsConfig | undefined {
+  if (!rawDefaults || typeof rawDefaults !== 'object') {
+    return undefined;
+  }
+
+  const defaults: DefaultsConfig = {};
+  let hasAnyDefault = false;
+
+  if (typeof rawDefaults.music === 'string') {
+    defaults.music = rawDefaults.music;
+    hasAnyDefault = true;
+  }
+
+  if (typeof rawDefaults.video === 'string') {
+    defaults.video = rawDefaults.video;
+    hasAnyDefault = true;
+  }
+
+  if (typeof rawDefaults.device === 'string') {
+    defaults.device = rawDefaults.device;
+    hasAnyDefault = true;
+  }
+
+  return hasAnyDefault ? defaults : undefined;
+}
+
+// =============================================================================
+/**
+ * Validate that default references point to valid collections/devices
+ *
+ * Logs warnings if defaults reference non-existent items.
+ */
+function validateDefaultReferences(
+  config: PartialConfig
+): void {
+  const { defaults, music, video, devices } = config;
+
+  if (!defaults) {
+    return;
+  }
+
+  // Validate defaults.music references a valid music collection
+  if (defaults.music !== undefined) {
+    if (!music || !(defaults.music in music)) {
+      console.warn(
+        `Warning: defaults.music="${defaults.music}" references a non-existent music collection. ` +
+          `Available collections: ${music ? Object.keys(music).join(', ') : '(none)'}`
+      );
+    }
+  }
+
+  // Validate defaults.video references a valid video collection
+  if (defaults.video !== undefined) {
+    if (!video || !(defaults.video in video)) {
+      console.warn(
+        `Warning: defaults.video="${defaults.video}" references a non-existent video collection. ` +
+          `Available collections: ${video ? Object.keys(video).join(', ') : '(none)'}`
+      );
+    }
+  }
+
+  // Validate defaults.device references a valid device
+  if (defaults.device !== undefined) {
+    if (!devices || !(defaults.device in devices)) {
+      console.warn(
+        `Warning: defaults.device="${defaults.device}" references a non-existent device. ` +
+          `Available devices: ${devices ? Object.keys(devices).join(', ') : '(none)'}`
+      );
+    }
+  }
+}
+
 /**
  * Read configuration from environment variables
  *
- * Reads PODKIT_SOURCE, PODKIT_DEVICE, PODKIT_QUALITY, PODKIT_ARTWORK
+ * Reads PODKIT_QUALITY, PODKIT_FALLBACK, PODKIT_ARTWORK
  */
 export function loadEnvConfig(): PartialConfig {
   const config: PartialConfig = {};
-
-  const source = process.env[ENV_KEYS.source];
-  if (source !== undefined) {
-    config.source = source;
-  }
-
-  const device = process.env[ENV_KEYS.device];
-  if (device !== undefined) {
-    config.device = device;
-  }
 
   const quality = process.env[ENV_KEYS.quality];
   if (quality !== undefined) {
@@ -275,11 +534,13 @@ export function loadEnvConfig(): PartialConfig {
  * Extract config values from CLI options
  *
  * Maps command-specific options to config structure
+ *
+ * Note: --source is still accepted as a CLI option for sync command
+ * but is handled directly by the command, not stored in config.
  */
 export function loadCliConfig(
   globalOpts: GlobalOptions,
   commandOpts?: {
-    source?: string;
     quality?: string;
     fallback?: string;
     artwork?: boolean;
@@ -287,17 +548,8 @@ export function loadCliConfig(
 ): PartialConfig {
   const config: PartialConfig = {};
 
-  // Global --device option
-  if (globalOpts.device !== undefined) {
-    config.device = globalOpts.device;
-  }
-
   // Command-specific options
   if (commandOpts) {
-    if (commandOpts.source !== undefined) {
-      config.source = commandOpts.source;
-    }
-
     if (commandOpts.quality !== undefined) {
       if (isValidQuality(commandOpts.quality)) {
         config.quality = commandOpts.quality;
@@ -320,6 +572,10 @@ export function loadCliConfig(
 
 /**
  * Merge multiple partial configs with priority (later configs win)
+ *
+ * For map-based fields (music, video, devices), collections are merged by name
+ * rather than replaced entirely. This allows layered configs to add to or
+ * override specific collections without losing others.
  */
 export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
   const merged: PodkitConfig = {
@@ -328,12 +584,7 @@ export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
   };
 
   for (const config of configs) {
-    if (config.source !== undefined) {
-      merged.source = config.source;
-    }
-    if (config.device !== undefined) {
-      merged.device = config.device;
-    }
+    // Global defaults
     if (config.quality !== undefined) {
       merged.quality = config.quality;
     }
@@ -353,16 +604,62 @@ export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
         },
       };
     }
-    // Video settings
-    if (config.videoSource !== undefined) {
-      merged.videoSource = config.videoSource;
+
+    // =========================================================================
+    // Multi-collection/device fields (ADR-008)
+    // Merge by name rather than replace entirely
+    // =========================================================================
+
+    // Merge music collections by name
+    if (config.music !== undefined) {
+      merged.music = {
+        ...merged.music,
+        ...config.music,
+      };
     }
-    if (config.videoQuality !== undefined) {
-      merged.videoQuality = config.videoQuality;
+
+    // Merge video collections by name
+    if (config.video !== undefined) {
+      merged.video = {
+        ...merged.video,
+        ...config.video,
+      };
     }
-    // iPod identity
-    if (config.ipod !== undefined) {
-      merged.ipod = config.ipod;
+
+    // Merge devices by name, with deep merge for device-specific settings
+    if (config.devices !== undefined) {
+      if (!merged.devices) {
+        merged.devices = {};
+      }
+      for (const [name, deviceConfig] of Object.entries(config.devices)) {
+        const existingDevice = merged.devices[name];
+        if (existingDevice) {
+          // Deep merge device settings
+          merged.devices[name] = {
+            ...existingDevice,
+            ...deviceConfig,
+            // Deep merge transforms if both exist
+            transforms: deviceConfig.transforms
+              ? {
+                  ftintitle: {
+                    ...existingDevice.transforms?.ftintitle,
+                    ...deviceConfig.transforms.ftintitle,
+                  },
+                }
+              : existingDevice.transforms,
+          };
+        } else {
+          merged.devices[name] = deviceConfig;
+        }
+      }
+    }
+
+    // Merge defaults (simple override, not deep merge)
+    if (config.defaults !== undefined) {
+      merged.defaults = {
+        ...merged.defaults,
+        ...config.defaults,
+      };
     }
   }
 

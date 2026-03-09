@@ -84,7 +84,7 @@ describe('podkit status', () => {
       const result = await runCli(['--config', '/nonexistent/config.toml', 'status']);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('No iPod device specified');
+      expect(result.stderr).toContain('No iPod configured');
     });
 
     it('outputs error in JSON when no device specified', async () => {
@@ -98,7 +98,7 @@ describe('podkit status', () => {
 
       expect(result.exitCode).toBe(1);
       expect(json?.connected).toBe(false);
-      expect(json?.error).toContain('No device');
+      expect(json?.error).toContain('No iPod configured');
     });
 
     it('fails when device path does not exist', async () => {

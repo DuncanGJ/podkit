@@ -1,9 +1,10 @@
 ---
 id: TASK-072.03
 title: Implement backwards compatibility for legacy config
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-08 23:47'
+updated_date: '2026-03-09 00:04'
 labels:
   - config
   - compat
