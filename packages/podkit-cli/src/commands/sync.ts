@@ -791,10 +791,12 @@ export const syncCommand = new Command('sync')
       return;
     }
 
-    // Validate collection paths exist
+    // Validate collection paths exist (only for directory-type collections)
     for (const collection of [...musicCollections, ...videoCollections]) {
-      const collConfig = collection.config as { path: string };
-      if (!existsSync(collConfig.path)) {
+      const collConfig = collection.config as MusicCollectionConfig | VideoCollectionConfig;
+      // Skip path validation for Subsonic collections (they use url, not path)
+      const isSubsonic = 'type' in collConfig && collConfig.type === 'subsonic';
+      if (!isSubsonic && collConfig.path && !existsSync(collConfig.path)) {
         if (globalOpts.json) {
           outputJson({
             success: false,

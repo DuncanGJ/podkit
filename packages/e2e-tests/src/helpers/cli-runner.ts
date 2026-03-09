@@ -251,6 +251,45 @@ volumeName = "test"
 }
 
 /**
+ * Create a temporary config file for a Subsonic music collection.
+ *
+ * @param serverUrl - Subsonic server URL (e.g., 'http://localhost:4533')
+ * @param username - Subsonic username
+ * @returns Path to the temp config file
+ *
+ * @example
+ * ```typescript
+ * const configPath = await createSubsonicConfig('http://localhost:4533', 'admin');
+ * const result = await runCli(['--config', configPath, 'sync'], {
+ *   env: { SUBSONIC_PASSWORD: 'testpass' }
+ * });
+ * ```
+ */
+export async function createSubsonicConfig(
+  serverUrl: string,
+  username: string
+): Promise<string> {
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const path = await import('node:path');
+
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'podkit-subsonic-config-'));
+  const configPath = path.join(tempDir, 'config.toml');
+
+  const content = `[music.main]
+type = "subsonic"
+url = "${serverUrl}"
+username = "${username}"
+
+[defaults]
+music = "main"
+`;
+
+  await fs.writeFile(configPath, content);
+  return configPath;
+}
+
+/**
  * Clean up a temp config file created by createTempConfig.
  */
 export async function cleanupTempConfig(configPath: string): Promise<void> {

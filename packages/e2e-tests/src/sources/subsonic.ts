@@ -61,6 +61,20 @@ export class SubsonicTestSource implements TestSource {
     return `subsonic://${this.config.username}@localhost:${this.config.port}`;
   }
 
+  /**
+   * HTTP URL for the Subsonic server (for config files)
+   */
+  get serverUrl(): string {
+    return `http://localhost:${this.config.port}`;
+  }
+
+  /**
+   * Username for authentication
+   */
+  get username(): string {
+    return this.config.username;
+  }
+
   get trackCount(): number {
     return this.tracksLoaded;
   }
@@ -76,11 +90,16 @@ export class SubsonicTestSource implements TestSource {
     await mkdir(this.config.dataDir, { recursive: true });
 
     // Copy test fixtures to music directory
+    // Fixtures include:
+    //   - goldberg-selections: 3 FLAC files
+    //   - synthetic-tests: 3 FLAC files
+    //   - multi-format: 8 files (WAV, AIFF, FLAC, ALAC, MP3, AAC, OGG, Opus)
     const fixturesPath = getFixturesDir();
     if (existsSync(fixturesPath)) {
       await cp(fixturesPath, this.config.musicDir, { recursive: true });
-      // Count tracks (rough estimate based on fixtures)
-      this.tracksLoaded = 4;
+      // Total: 14 audio files across 3 albums
+      // Note: Navidrome should index all supported formats
+      this.tracksLoaded = 14;
     }
 
     // Start Navidrome container using the container manager
@@ -103,8 +122,11 @@ export class SubsonicTestSource implements TestSource {
 
     this.containerId = result.containerId;
 
-    // Wait for server to be ready
+    // Wait for server to be ready (HTTP + auth)
     await this.waitForServer();
+
+    // Wait for library scan to complete (albums indexed)
+    await this.waitForLibraryScan();
   }
 
   async teardown(): Promise<void> {
@@ -129,6 +151,40 @@ export class SubsonicTestSource implements TestSource {
     return {
       SUBSONIC_PASSWORD: this.config.password,
     };
+  }
+
+  /**
+   * Wait for Navidrome to finish scanning the library.
+   *
+   * Navidrome scans asynchronously at startup, so even after the server is
+   * ready for auth, the library may not be fully indexed yet. This method
+   * polls the getAlbumList2 endpoint until albums are found.
+   */
+  private async waitForLibraryScan(timeoutMs = 60000): Promise<void> {
+    const startTime = Date.now();
+    const albumsUrl = `http://localhost:${this.config.port}/rest/getAlbumList2?u=admin&p=${this.config.password}&c=podkit-test&v=1.16.1&f=json&type=alphabeticalByName&size=1`;
+
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        const response = await fetch(albumsUrl);
+        if (response.ok) {
+          const data = (await response.json()) as Record<string, unknown>;
+          const subsonicResponse = data['subsonic-response'] as Record<string, unknown> | undefined;
+          const albumList = subsonicResponse?.albumList2 as Record<string, unknown> | undefined;
+          const albums = albumList?.album as unknown[] | undefined;
+
+          if (albums && albums.length > 0) {
+            // Library has been scanned - albums found
+            return;
+          }
+        }
+      } catch {
+        // Request failed, keep trying
+      }
+      await sleep(500);
+    }
+
+    throw new Error(`Navidrome library scan did not complete within ${timeoutMs}ms`);
   }
 
   private async waitForServer(timeoutMs = 30000): Promise<void> {
