@@ -1,9 +1,10 @@
 ---
 id: TASK-055
 title: Design init/setup command UX for config and device initialization
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-26 00:22'
+updated_date: '2026-03-09 22:21'
 labels:
   - cli
   - ux
@@ -116,3 +117,9 @@ Should "first time connecting an iPod" be:
 - [ ] #4 Breaking changes to existing commands identified
 - [ ] #5 ADR created if significant architectural decision
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Superseded by TASK-081 - Enhanced device onboarding and reset. Design decisions captured in the new epic after discussion about user journeys, command structure, and UX flow.
+<!-- SECTION:NOTES:END -->

@@ -1,10 +1,10 @@
 ---
 id: TASK-052
 title: Add iPod initialization command for fresh devices
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-26 00:16'
-updated_date: '2026-02-26 00:22'
+updated_date: '2026-03-09 22:21'
 labels:
   - cli
   - ipod
@@ -61,4 +61,6 @@ Create a CLI command to initialize a fresh/blank iPod with the required database
 ## Blocked
 
 This task is blocked by TASK-055 (Design init/setup command UX) - we need to decide the command structure before implementing.
+
+Superseded by TASK-081 - Enhanced device onboarding and reset. Design decisions and implementation requirements captured in the new epic.
 <!-- SECTION:NOTES:END -->
