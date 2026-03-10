@@ -45,6 +45,7 @@ podkit/
 
 | Document | Description |
 |----------|-------------|
+| [Getting Started](docs/GETTING-STARTED.md) | Installation, setup, and first sync walkthrough |
 | [Supported Devices](docs/SUPPORTED-DEVICES.md) | iPod model compatibility and verification status |
 | [PRD](docs/PRD.md) | Product requirements and user stories |
 | [Architecture](docs/ARCHITECTURE.md) | Technical design and component overview |
@@ -83,24 +84,30 @@ See [docs/adr/README.md](docs/adr/README.md) for the full ADR index and workflow
 
 ## Quick Start
 
-> **Note:** Implementation not yet available. This shows intended usage.
-
 ```bash
 # Install
 npm install -g podkit
 
-# Check iPod connection
-podkit status
+# Create config file
+podkit init
+
+# Edit config to set your music directory
+nano ~/.config/podkit/config.toml
+
+# Connect iPod and register it
+podkit device add myipod
 
 # Preview what would be synced
-podkit sync --dry-run --source strawberry
+podkit sync --dry-run
 
-# Sync with default settings (high quality AAC)
-podkit sync --source strawberry
+# Sync your music
+podkit sync
 
-# Sync specific albums
-podkit sync --source strawberry --filter "artist:CHVRCHES"
+# Safely eject
+podkit eject
 ```
+
+**[Full Getting Started Guide](docs/GETTING-STARTED.md)** — Detailed walkthrough from install to first sync.
 
 ## Development
 

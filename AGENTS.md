@@ -65,6 +65,7 @@ Read these documents based on what you're working on:
 | Document | When to Read |
 |----------|--------------|
 | [docs/README.md](docs/README.md) | First time in repo, need orientation |
+| [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) | User-facing install and first sync guide |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Setting up development environment |
 | [docs/SUPPORTED-DEVICES.md](docs/SUPPORTED-DEVICES.md) | Checking iPod model compatibility |
 | [docs/PRD.md](docs/PRD.md) | Understanding requirements, user stories, scope |

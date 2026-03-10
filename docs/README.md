@@ -7,9 +7,10 @@ This directory contains design documentation, research notes, and architecture d
 If you're new to the project, read in this order:
 
 1. **[../README.md](../README.md)** — Project overview and quick start
-2. **[PRD.md](PRD.md)** — What we're building and why
-3. **[ARCHITECTURE.md](ARCHITECTURE.md)** — How it's structured
-4. **[adr/README.md](adr/README.md)** — Key decisions and their rationale
+2. **[GETTING-STARTED.md](GETTING-STARTED.md)** — Installation and first sync (for users)
+3. **[PRD.md](PRD.md)** — What we're building and why
+4. **[ARCHITECTURE.md](ARCHITECTURE.md)** — How it's structured
+5. **[adr/README.md](adr/README.md)** — Key decisions and their rationale
 
 ## Document Overview
 
@@ -17,6 +18,7 @@ If you're new to the project, read in this order:
 
 | Document | Purpose |
 |----------|---------|
+| [GETTING-STARTED.md](GETTING-STARTED.md) | User guide: installation, setup, first sync walkthrough |
 | [SUPPORTED-DEVICES.md](SUPPORTED-DEVICES.md) | iPod model compatibility, verification status, feature support |
 | [PRD.md](PRD.md) | Product requirements, user stories, functional requirements, milestones |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Component design, interfaces, data flow, error handling |
