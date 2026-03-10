@@ -6,8 +6,10 @@
  */
 
 import { createRequire } from 'module';
-import { join, dirname } from 'path';
+import { dirname, join } from 'path';
+import { existsSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { arch as osArch, platform as osPlatform } from 'os';
 
 import type {
   Track,
@@ -195,83 +197,105 @@ export interface NativeBinding {
 let cachedBinding: NativeBinding | null = null;
 let loadError: Error | null = null;
 
-/**
- * Binding filename
- */
 const BINDING_FILENAME = 'gpod_binding.node';
 
 /**
- * Get candidate paths for the native addon.
+ * Get candidate directories for finding the native addon.
  *
- * Returns paths to try in order of preference:
- * 1. Relative to this source file (development, running from source)
- * 2. In node_modules/@podkit/libgpod-node (bundled CLI, published package)
- * 3. Various node_modules locations for monorepo/hoisted scenarios
+ * This code may be bundled into another package (e.g., podkit-core/dist/),
+ * so we try multiple resolution strategies.
  */
-function getAddonCandidatePaths(): string[] {
+function getPackageRootCandidates(): string[] {
   const candidates: string[] = [];
 
-  // In ESM, we need to compute __dirname
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-
-  // 1. Relative to source file (development mode)
-  // When running from source, __dirname is packages/libgpod-node/src/
-  // The binding is at packages/libgpod-node/build/Release/
-  candidates.push(join(__dirname, '..', 'build', 'Release', BINDING_FILENAME));
-
-  // 2. Relative to dist file (if running from built dist/)
-  // When running from dist, __dirname is packages/libgpod-node/dist/
-  candidates.push(join(__dirname, '..', 'build', 'Release', BINDING_FILENAME));
-
-  // 3. Look in node_modules (for bundled CLI or external consumers)
-  // Walk up from current directory to find node_modules
-  let searchDir = __dirname;
-  const visited = new Set<string>();
-
-  while (searchDir && !visited.has(searchDir)) {
-    visited.add(searchDir);
-
-    // Check node_modules/@podkit/libgpod-node/build/Release/
-    const nodeModulesPath = join(
-      searchDir,
-      'node_modules',
-      '@podkit',
-      'libgpod-node',
-      'build',
-      'Release',
-      BINDING_FILENAME
-    );
-    candidates.push(nodeModulesPath);
-
-    // Move up one directory
-    const parentDir = dirname(searchDir);
-    if (parentDir === searchDir) break; // reached root
-    searchDir = parentDir;
+  // 1. Try require.resolve — works when installed as a dependency
+  try {
+    const require = createRequire(import.meta.url);
+    const pkgJson = require.resolve('@podkit/libgpod-node/package.json');
+    candidates.push(dirname(pkgJson));
+  } catch {
+    // Not resolvable as a package (e.g., running from source)
   }
 
-  // 4. Check process.cwd() based paths (for CLI invocation)
-  const cwd = process.cwd();
-  candidates.push(
-    join(cwd, 'node_modules', '@podkit', 'libgpod-node', 'build', 'Release', BINDING_FILENAME)
-  );
+  // 2. Relative to this source file (development: src/ or dist/)
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  candidates.push(dirname(__dirname));
+
+  // 3. Walk up from this file looking for node_modules
+  let searchDir = __dirname;
+  const visited = new Set<string>();
+  while (searchDir && !visited.has(searchDir)) {
+    visited.add(searchDir);
+    const candidate = join(searchDir, 'node_modules', '@podkit', 'libgpod-node');
+    if (existsSync(candidate)) {
+      candidates.push(candidate);
+    }
+    const parent = dirname(searchDir);
+    if (parent === searchDir) break;
+    searchDir = parent;
+  }
 
   return candidates;
 }
 
 /**
- * Find the native addon by trying candidate paths.
+ * Find a prebuild binary in a package root's prebuilds/ directory.
  *
- * @returns The path to the addon, or null if not found
+ * Implements the prebuildify convention:
+ *   prebuilds/{platform}-{arch}/*.napi.node
+ *
+ * This is inlined rather than using node-gyp-build so it works when
+ * the code is bundled into another package (e.g., the CLI dist).
  */
-function findAddonPath(): string | null {
-  const { existsSync } = require('fs') as typeof import('fs');
-  const candidates = getAddonCandidatePaths();
+function findPrebuild(packageRoot: string): string | null {
+  const platform = osPlatform();
+  const arch = osArch();
+  const prebuildsDir = join(packageRoot, 'prebuilds');
 
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      return candidate;
-    }
+  let entries: string[];
+  try {
+    entries = readdirSync(prebuildsDir);
+  } catch {
+    return null;
+  }
+
+  // Find matching platform-arch directory (e.g., "darwin-arm64")
+  const matchingDir = entries.find((entry) => {
+    const parts = entry.split('-');
+    if (parts.length !== 2) return false;
+    return parts[0] === platform && parts[1]!.split('+').includes(arch);
+  });
+
+  if (!matchingDir) return null;
+
+  // Find a .node file, preferring napi builds
+  let nodeFiles: string[];
+  try {
+    nodeFiles = readdirSync(join(prebuildsDir, matchingDir)).filter((f) => f.endsWith('.node'));
+  } catch {
+    return null;
+  }
+
+  const napiFile = nodeFiles.find((f) => f.includes('.napi.') || f.includes('napi'));
+  const file = napiFile || nodeFiles[0];
+  return file ? join(prebuildsDir, matchingDir, file) : null;
+}
+
+/**
+ * Find the native addon by checking prebuilds/ then build/Release/.
+ */
+function findAddon(): string | null {
+  const candidates = getPackageRootCandidates();
+
+  for (const root of candidates) {
+    // 1. Check prebuilds/ (shipped binaries)
+    const prebuild = findPrebuild(root);
+    if (prebuild) return prebuild;
+
+    // 2. Check build/Release/ (local node-gyp build)
+    const buildPath = join(root, 'build', 'Release', BINDING_FILENAME);
+    if (existsSync(buildPath)) return buildPath;
   }
 
   return null;
@@ -279,6 +303,10 @@ function findAddonPath(): string | null {
 
 /**
  * Load the native binding.
+ *
+ * Resolution order:
+ * 1. prebuilds/{platform}-{arch}/ (prebuildify convention)
+ * 2. build/Release/ (local node-gyp build)
  *
  * @throws Error if the native binding cannot be loaded
  */
@@ -292,17 +320,14 @@ function loadBinding(): NativeBinding {
   }
 
   try {
-    // Use createRequire for ESM compatibility
     const require = createRequire(import.meta.url);
-    const addonPath = findAddonPath();
+    const addonPath = findAddon();
 
     if (!addonPath) {
+      const candidates = getPackageRootCandidates();
       throw new Error(
-        'Native binding not found. Searched locations:\n' +
-          getAddonCandidatePaths()
-            .slice(0, 5)
-            .map((p) => `  - ${p}`)
-            .join('\n')
+        'Native binding not found. Searched package roots:\n' +
+          candidates.map((p) => `  - ${p}`).join('\n')
       );
     }
 
@@ -311,7 +336,8 @@ function loadBinding(): NativeBinding {
   } catch (error) {
     loadError = new Error(
       `Failed to load native binding: ${error instanceof Error ? error.message : String(error)}\n` +
-        'Make sure you have run `bun run build:native` to compile the native module.'
+        'Make sure you have run `bun run build:native` to compile the native module,\n' +
+        'or install a version with prebuilt binaries for your platform.'
     );
     throw loadError;
   }

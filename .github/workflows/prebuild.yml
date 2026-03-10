@@ -1,0 +1,148 @@
+name: Prebuild Native Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - 'packages/libgpod-node/native/**'
+      - 'packages/libgpod-node/binding.gyp'
+      - 'tools/prebuild/**'
+      - '.github/workflows/prebuild.yml'
+  workflow_dispatch:
+
+jobs:
+  prebuild:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14       # Apple Silicon (arm64)
+            arch: arm64
+            platform: darwin
+          - os: macos-13       # Intel (x64)
+            arch: x64
+            platform: darwin
+          - os: ubuntu-22.04   # Linux x64
+            arch: x64
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.platform }}-${{ matrix.arch }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Set STATIC_DEPS_DIR for all subsequent steps
+      - name: Set environment
+        run: |
+          echo "STATIC_DEPS_DIR=${GITHUB_WORKSPACE}/static-deps" >> "$GITHUB_ENV"
+          echo "WORK_DIR=${RUNNER_TEMP}/prebuild-work" >> "$GITHUB_ENV"
+
+      # macOS: install Homebrew dependencies for building from source
+      - name: Install macOS build deps
+        if: matrix.platform == 'darwin'
+        run: |
+          brew install libplist gdk-pixbuf intltool autoconf automake libtool \
+            gtk-doc pkg-config gettext libpng jpeg-turbo libtiff meson ninja
+
+      # Linux: install system -dev packages
+      - name: Install Linux build deps
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential pkg-config \
+            libglib2.0-dev libgdk-pixbuf-2.0-dev \
+            libplist-dev libffi-dev \
+            libpng-dev libjpeg-dev libtiff-dev \
+            autoconf automake libtool intltool gtk-doc-tools \
+            curl meson ninja-build
+
+      # Build all native dependencies as static libraries
+      - name: Build static dependencies
+        run: bash tools/prebuild/build-static-deps.sh
+
+      # Install Node.js dependencies
+      - name: Install dependencies
+        run: bun install
+
+      # Build the native addon with static linking and create prebuild
+      - name: Create prebuild
+        working-directory: packages/libgpod-node
+        run: npx prebuildify --napi --strip
+
+      # Verify no dynamic deps on libgpod/glib
+      - name: Verify static linking (macOS)
+        if: matrix.platform == 'darwin'
+        working-directory: packages/libgpod-node
+        run: |
+          echo "Dynamic dependencies:"
+          PREBUILD=$(find prebuilds -name "*.node" | head -1)
+          otool -L "$PREBUILD"
+          # Fail if libgpod or glib are dynamically linked
+          if otool -L "$PREBUILD" | grep -E 'libgpod|libglib|libgobject|libgdk_pixbuf'; then
+            echo "ERROR: Found unexpected dynamic dependencies"
+            exit 1
+          fi
+
+      - name: Verify static linking (Linux)
+        if: matrix.platform == 'linux'
+        working-directory: packages/libgpod-node
+        run: |
+          echo "Dynamic dependencies:"
+          PREBUILD=$(find prebuilds -name "*.node" | head -1)
+          ldd "$PREBUILD"
+          # Fail if libgpod or glib are dynamically linked
+          if ldd "$PREBUILD" | grep -E 'libgpod|libglib|libgobject|libgdk_pixbuf'; then
+            echo "ERROR: Found unexpected dynamic dependencies"
+            exit 1
+          fi
+
+      # Run tests against the prebuild
+      - name: Run tests
+        working-directory: packages/libgpod-node
+        run: bun run test:unit
+
+      # Upload prebuilds as artifact
+      - name: Upload prebuild
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuild-${{ matrix.platform }}-${{ matrix.arch }}
+          path: packages/libgpod-node/prebuilds/
+          retention-days: 30
+
+  # Collect all prebuilds into a single artifact
+  collect:
+    needs: prebuild
+    runs-on: ubuntu-latest
+    name: Collect prebuilds
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: prebuild-*
+          path: packages/libgpod-node/prebuilds/
+          merge-multiple: true
+
+      - name: List prebuilds
+        run: find packages/libgpod-node/prebuilds -type f -name "*.node" | sort
+
+      - name: Upload combined prebuilds
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuilds-all
+          path: packages/libgpod-node/prebuilds/
+          retention-days: 90

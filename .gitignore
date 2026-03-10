@@ -27,6 +27,10 @@ bun.lockb
 .DS_Store
 Thumbs.db
 
+# Prebuild artifacts
+static-deps/
+.prebuild-work/
+
 # Test coverage
 coverage/
 

@@ -9,16 +9,20 @@ This guide covers setting up a development environment for podkit on macOS, Linu
 
 ## Overview
 
-podkit requires the following dependencies:
+podkit requires the following dependencies for development:
 
 | Dependency | Purpose | Required |
 |------------|---------|----------|
 | **Bun** | JavaScript runtime and package manager | Yes |
-| **libgpod** | C library for iPod database access | Yes |
+| **libgpod** | C library for iPod database access | Yes (dev only — prebuilt binaries ship with releases) |
 | **FFmpeg** | Audio transcoding (FLAC to AAC) | Yes |
-| **GLib 2.0** | C utility library (libgpod dependency) | Yes |
-| **libplist** | Apple property list library (libgpod dependency) | Yes |
-| **gdk-pixbuf** | Image handling for album artwork | Yes |
+| **GLib 2.0** | C utility library (libgpod dependency) | Yes (dev only) |
+| **libplist** | Apple property list library (libgpod dependency) | Yes (dev only) |
+| **gdk-pixbuf** | Image handling for album artwork | Yes (dev only) |
+
+:::note
+End users do **not** need libgpod, GLib, or other native libraries installed. Released versions of podkit ship prebuilt native binaries with all native dependencies statically linked. These development dependencies are only needed when modifying native code or building from a git checkout.
+:::
 
 ### Version Requirements
 
