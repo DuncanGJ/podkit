@@ -163,11 +163,13 @@ podkit sync video                    # sync default video collection only
 podkit sync -c <name>                # sync matching collections (searches both namespaces)
 podkit sync -c <name> music          # sync specific music collection
 podkit sync -c <name> video          # sync specific video collection
-podkit sync -d <device>              # sync to specific device
+podkit sync --device <name|path>     # sync to specific device (by name or path)
 podkit sync --dry-run                # preview changes
 ```
 
 The `-c` flag searches both `[music.*]` and `[video.*]` namespaces and syncs all matches. If `music.foo` and `video.foo` both exist, `podkit sync -c foo` syncs both.
+
+The `--device` flag accepts either a named device from config (e.g., `--device terapod`) or a path (e.g., `--device /Volumes/IPOD`). Values containing `/` or starting with `.` are treated as paths.
 
 #### Device Management
 
@@ -193,16 +195,19 @@ podkit collection show <name>        # show collection details
 
 #### Device-Scoped Commands
 
-All commands that interact with a device accept the `-d <device>` flag:
+All commands that interact with a device accept the `--device <name|path>` flag:
 
 ```bash
-podkit status [-d <device>]
-podkit list [-d <device>]
-podkit clear music|video [-d <device>]
-podkit reset [-d <device>]
-podkit mount [-d <device>]
-podkit eject [-d <device>]
+podkit device info [name]            # or: podkit device info --device <name|path>
+podkit device music [name]           # list music on device
+podkit device video [name]           # list video on device
+podkit device clear [name]           # clear all content
+podkit device reset [name]           # reset database
+podkit mount [name]                  # mount device (use --disk for explicit identifier)
+podkit eject [name]                  # eject device
 ```
+
+Note: The `--device` flag accepts either a named device from config or a mount path. The `mount` command uses `--disk` for explicit disk identifiers (e.g., `/dev/disk4s2`) to avoid confusion with the global `--device` flag.
 
 ### Backwards Compatibility
 
@@ -262,11 +267,11 @@ device = "default"
 
 ### Phase 2: CLI Commands
 
-1. Unify `sync` and `video-sync` into single command with `music`/`video` subcommands
-2. Add `-c` and `-d` flags to sync command
-3. Implement `device` subcommand (add, remove, show, list)
-4. Implement `collection` subcommand (add, remove, show, list by type)
-5. Add `-d` flag to status, list, clear, reset, mount, eject
+1. ✅ Unify `sync` and `video-sync` into single command with `music`/`video` type argument
+2. ✅ Add `-c` flag for collection selection, `--device` for device selection
+3. ✅ Implement `device` subcommand (add, remove, info, list, music, video, clear, reset, mount, eject, init)
+4. ✅ Implement `collection` subcommand (add, remove, info, list, music, video)
+5. ✅ Global `--device` flag accepts both paths and named devices
 
 ### Phase 3: Core Integration
 

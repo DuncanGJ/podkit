@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtemp, rm, mkdir, writeFile, access, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCli, runCliJson, createTempConfig, cleanupTempConfig } from '../helpers/cli-runner';
+import { runCli, runCliJson } from '../helpers/cli-runner';
 import { withTarget } from '../targets';
 
 describe('podkit device add', () => {
@@ -205,7 +205,7 @@ volumeName = "Test iPod"
 `);
 
       // Get initial track count (should be 0, but testing the flow)
-      const initialCount = await target.getTrackCount();
+      const _initialCount = await target.getTrackCount();
 
       // Reset the database
       const result = await runCli([

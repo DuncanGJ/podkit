@@ -19,10 +19,10 @@ import { getContext } from '../context.js';
 import {
   resolveDevicePath,
   formatDeviceError,
-  resolveDeviceFromConfig,
   getDeviceIdentity,
-  formatDeviceNotFoundError,
   formatDeviceLookupMessage,
+  parseCliDeviceArg,
+  resolveEffectiveDevice,
 } from '../device-resolver.js';
 
 export interface EjectOutput {
@@ -48,35 +48,22 @@ export const ejectCommand = new Command('eject')
       console.log(JSON.stringify(data, null, 2));
     };
 
-    // Resolve device from positional argument or default
-    const resolvedDevice = name
-      ? resolveDeviceFromConfig(config, name)
-      : resolveDeviceFromConfig(config);
+    // Resolve device from --device flag, positional argument, or default
+    const cliDeviceArg = parseCliDeviceArg(globalOpts.device, config);
+    const deviceResult = resolveEffectiveDevice(cliDeviceArg, name, config);
 
-    if (name && !resolvedDevice) {
-      const error = formatDeviceNotFoundError(name, config);
+    if (!deviceResult.success) {
       if (globalOpts.json) {
-        outputJson({ success: false, error });
+        outputJson({ success: false, error: deviceResult.error });
       } else {
-        console.error(error);
+        console.error(deviceResult.error);
       }
       process.exitCode = 1;
       return;
     }
 
-    if (!name && !resolvedDevice) {
-      const hasDevices = config.devices && Object.keys(config.devices).length > 0;
-      const error = hasDevices
-        ? 'No default device set. Specify a device name or set a default with: podkit device default <name>'
-        : "No devices configured. Run 'podkit device add <name>' to add one.";
-      if (globalOpts.json) {
-        outputJson({ success: false, error });
-      } else {
-        console.error(error);
-      }
-      process.exitCode = 1;
-      return;
-    }
+    const resolvedDevice = deviceResult.device;
+    const cliPath = deviceResult.cliPath;
 
     let getDeviceManager: typeof import('@podkit/core').getDeviceManager;
 
@@ -121,7 +108,7 @@ export const ejectCommand = new Command('eject')
     }
 
     const resolveResult = await resolveDevicePath({
-      cliDevice: globalOpts.device,
+      cliDevice: cliPath,
       deviceIdentity,
       manager,
       requireMounted: true,

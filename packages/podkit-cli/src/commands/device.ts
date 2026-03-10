@@ -31,10 +31,10 @@ import {
 import {
   resolveDevicePath,
   formatDeviceError,
-  resolveDeviceFromConfig,
   getDeviceIdentity,
-  formatDeviceNotFoundError,
   formatDeviceLookupMessage,
+  parseCliDeviceArg,
+  resolveEffectiveDevice,
 } from '../device-resolver.js';
 import type { DeviceConfig } from '../config/index.js';
 import {
@@ -123,41 +123,53 @@ type DeviceArgResult =
   | { error: string }
   | {
       resolvedDevice: import('../device-resolver.js').ResolvedDevice;
+      cliPath?: string;
       config: ReturnType<typeof getContext>['config'];
       globalOpts: ReturnType<typeof getContext>['globalOpts'];
     };
 
 /**
- * Resolve device from positional argument or default
+ * Resolve device from CLI arguments
+ *
+ * Resolution priority:
+ * 1. --device flag (global option) - accepts path or named device
+ * 2. Positional argument [name]
+ * 3. Default device from config
+ *
+ * @param positionalName - Device name from positional argument
+ * @returns Resolution result with device or error
  */
-function resolveDeviceArg(deviceName?: string): DeviceArgResult {
+function resolveDeviceArg(positionalName?: string): DeviceArgResult {
   const { config, globalOpts } = getContext();
 
-  const resolvedDevice = deviceName
-    ? resolveDeviceFromConfig(config, deviceName)
-    : resolveDeviceFromConfig(config); // Try default device
+  // Parse --device flag (could be path or named device)
+  const cliArg = parseCliDeviceArg(globalOpts.device, config);
 
-  // Check if named device was requested but not found
-  if (deviceName && !resolvedDevice) {
-    return { error: formatDeviceNotFoundError(deviceName, config) };
+  // Resolve effective device
+  const result = resolveEffectiveDevice(cliArg, positionalName, config);
+
+  if (!result.success) {
+    return { error: result.error };
   }
 
-  // Check if no default is set
-  if (!deviceName && !resolvedDevice) {
-    const hasDevices = config.devices && Object.keys(config.devices).length > 0;
-    if (hasDevices) {
-      return {
-        error:
-          'No default device set. Specify a device name or set a default with: podkit device default <name>',
-      };
-    }
+  // If using a direct path (no named device)
+  if (result.cliPath && !result.device) {
+    // Return a minimal result indicating path-only mode
+    // The caller will use cliPath directly
     return {
-      error: "No devices configured. Run 'podkit device add <name>' to add one.",
+      resolvedDevice: undefined as unknown as import('../device-resolver.js').ResolvedDevice,
+      cliPath: result.cliPath,
+      config,
+      globalOpts,
     };
   }
 
-  // At this point, resolvedDevice must be defined because we've checked all error cases
-  return { resolvedDevice: resolvedDevice!, config, globalOpts };
+  return {
+    resolvedDevice: result.device!,
+    cliPath: result.cliPath,
+    config,
+    globalOpts,
+  };
 }
 
 // =============================================================================
@@ -992,9 +1004,9 @@ const infoSubcommand = new Command('info')
       return;
     }
 
-    const { resolvedDevice, config } = resolved;
-    const device = resolvedDevice!.config;
-    const deviceName = resolvedDevice!.name;
+    const { resolvedDevice, cliPath, config } = resolved;
+    const device = resolvedDevice?.config;
+    const deviceName = resolvedDevice?.name;
     const defaultDevice = config.defaults?.device;
     const isDefault = deviceName === defaultDevice;
 
@@ -1006,9 +1018,10 @@ const infoSubcommand = new Command('info')
       const manager = core.getDeviceManager();
       const deviceIdentity = getDeviceIdentity(resolvedDevice);
 
-      if (deviceIdentity) {
+      // Resolve device path (cliPath takes precedence if --device was a path)
+      if (cliPath || deviceIdentity) {
         const resolveResult = await resolveDevicePath({
-          cliDevice: globalOpts.device,
+          cliDevice: cliPath,
           deviceIdentity,
           manager,
           requireMounted: true,
@@ -1076,8 +1089,8 @@ const infoSubcommand = new Command('info')
     if (globalOpts.json) {
       outputJson({
         success: true,
-        device: {
-          name: deviceName,
+        device: device ? {
+          name: deviceName!,
           volumeUuid: device.volumeUuid,
           volumeName: device.volumeName,
           quality: device.quality,
@@ -1085,16 +1098,20 @@ const infoSubcommand = new Command('info')
           artwork: device.artwork,
           transforms: device.transforms as unknown as Record<string, unknown> | undefined,
           isDefault,
-        },
+        } : undefined,
         status: liveStatus,
       });
       return;
     }
 
     // Human-readable output
-    console.log(`Device: ${deviceName}${isDefault ? ' (default)' : ''}`);
-    console.log(`  Volume UUID:   ${device.volumeUuid}`);
-    console.log(`  Volume Name:   ${device.volumeName}`);
+    if (device) {
+      console.log(`Device: ${deviceName}${isDefault ? ' (default)' : ''}`);
+      console.log(`  Volume UUID:   ${device.volumeUuid}`);
+      console.log(`  Volume Name:   ${device.volumeName}`);
+    } else if (cliPath) {
+      console.log(`Device: ${cliPath} (path mode)`);
+    }
 
     if (liveStatus) {
       if (liveStatus.mounted && liveStatus.mountPoint) {
@@ -1126,30 +1143,32 @@ const infoSubcommand = new Command('info')
       }
     }
 
-    console.log(`  Quality:       ${device.quality || '(not set)'}`);
-    if (device.videoQuality) {
-      console.log(`  Video Quality: ${device.videoQuality}`);
-    }
-    console.log(
-      `  Artwork:       ${device.artwork === true ? 'yes' : device.artwork === false ? 'no' : '(not set)'}`
-    );
+    if (device) {
+      console.log(`  Quality:       ${device.quality || '(not set)'}`);
+      if (device.videoQuality) {
+        console.log(`  Video Quality: ${device.videoQuality}`);
+      }
+      console.log(
+        `  Artwork:       ${device.artwork === true ? 'yes' : device.artwork === false ? 'no' : '(not set)'}`
+      );
 
-    if (device.transforms) {
-      console.log('  Transforms:');
-      for (const [transformName, transformConfig] of Object.entries(device.transforms)) {
-        const cfg = transformConfig as Record<string, unknown>;
-        const enabled = cfg.enabled !== false;
-        const details: string[] = [];
+      if (device.transforms) {
+        console.log('  Transforms:');
+        for (const [transformName, transformConfig] of Object.entries(device.transforms)) {
+          const cfg = transformConfig as Record<string, unknown>;
+          const enabled = cfg.enabled !== false;
+          const details: string[] = [];
 
-        if ('format' in cfg && cfg.format) {
-          details.push(`format: "${cfg.format}"`);
+          if ('format' in cfg && cfg.format) {
+            details.push(`format: "${cfg.format}"`);
+          }
+          if ('drop' in cfg && cfg.drop === true) {
+            details.push('drop');
+          }
+
+          const detailStr = details.length > 0 ? ` (${details.join(', ')})` : '';
+          console.log(`    ${transformName}: ${enabled ? 'enabled' : 'disabled'}${detailStr}`);
         }
-        if ('drop' in cfg && cfg.drop === true) {
-          details.push('drop');
-        }
-
-        const detailStr = details.length > 0 ? ` (${details.join(', ')})` : '';
-        console.log(`    ${transformName}: ${enabled ? 'enabled' : 'disabled'}${detailStr}`);
       }
     }
   });
@@ -1188,7 +1207,7 @@ const musicSubcommand = new Command('music')
       return;
     }
 
-    const { resolvedDevice } = resolved;
+    const { resolvedDevice, cliPath } = resolved;
 
     try {
       const core = await import('@podkit/core');
@@ -1200,7 +1219,7 @@ const musicSubcommand = new Command('music')
       }
 
       const resolveResult = await resolveDevicePath({
-        cliDevice: globalOpts.device,
+        cliDevice: cliPath,
         deviceIdentity,
         manager,
         requireMounted: true,
@@ -1291,7 +1310,7 @@ const videoSubcommand = new Command('video')
       return;
     }
 
-    const { resolvedDevice } = resolved;
+    const { resolvedDevice, cliPath } = resolved;
 
     try {
       const core = await import('@podkit/core');
@@ -1303,7 +1322,7 @@ const videoSubcommand = new Command('video')
       }
 
       const resolveResult = await resolveDevicePath({
-        cliDevice: globalOpts.device,
+        cliDevice: cliPath,
         deviceIdentity,
         manager,
         requireMounted: true,
@@ -1403,7 +1422,7 @@ const clearSubcommand = new Command('clear')
       return;
     }
 
-    const { resolvedDevice } = resolved;
+    const { resolvedDevice, cliPath } = resolved;
 
     let IpodDatabase: typeof import('@podkit/core').IpodDatabase;
     let IpodError: typeof import('@podkit/core').IpodError;
@@ -1436,7 +1455,7 @@ const clearSubcommand = new Command('clear')
     }
 
     const resolveResult = await resolveDevicePath({
-      cliDevice: globalOpts.device,
+      cliDevice: cliPath,
       deviceIdentity,
       manager,
       requireMounted: true,
@@ -1674,7 +1693,7 @@ const resetSubcommand = new Command('reset')
       return;
     }
 
-    const { resolvedDevice } = resolved;
+    const { resolvedDevice, cliPath } = resolved;
 
     let IpodDatabase: typeof import('@podkit/core').IpodDatabase;
     let getDeviceManager: typeof import('@podkit/core').getDeviceManager;
@@ -1705,7 +1724,7 @@ const resetSubcommand = new Command('reset')
     }
 
     const resolveResult = await resolveDevicePath({
-      cliDevice: globalOpts.device,
+      cliDevice: cliPath,
       deviceIdentity,
       manager,
       requireMounted: true,
@@ -1886,7 +1905,7 @@ const ejectSubcommand = new Command('eject')
       return;
     }
 
-    const { resolvedDevice } = resolved;
+    const { resolvedDevice, cliPath } = resolved;
 
     let getDeviceManager: typeof import('@podkit/core').getDeviceManager;
 
@@ -1931,7 +1950,7 @@ const ejectSubcommand = new Command('eject')
     }
 
     const resolveResult = await resolveDevicePath({
-      cliDevice: globalOpts.device,
+      cliDevice: cliPath,
       deviceIdentity,
       manager,
       requireMounted: true,
@@ -2013,18 +2032,18 @@ const ejectSubcommand = new Command('eject')
 // =============================================================================
 
 interface MountOptions {
-  device?: string;
+  disk?: string;
   dryRun?: boolean;
 }
 
 const mountSubcommand = new Command('mount')
   .description('mount an iPod device')
   .argument('[name]', 'device name (uses default if omitted)')
-  .option('--device <identifier>', 'device identifier (e.g., /dev/disk4s2)')
+  .option('--disk <identifier>', 'disk identifier (e.g., /dev/disk4s2)')
   .option('--dry-run', 'show mount command without executing')
   .action(async (name: string | undefined, options: MountOptions) => {
     const { globalOpts } = getContext();
-    const explicitDevice = options.device;
+    const explicitDisk = options.disk;
     const dryRun = options.dryRun ?? false;
 
     const outputJson = (data: DeviceMountOutput) => {
@@ -2032,7 +2051,7 @@ const mountSubcommand = new Command('mount')
     };
 
     const resolved = resolveDeviceArg(name);
-    if ('error' in resolved && !explicitDevice) {
+    if ('error' in resolved && !explicitDisk) {
       if (globalOpts.json) {
         outputJson({ success: false, error: resolved.error });
       } else {
@@ -2083,8 +2102,8 @@ const mountSubcommand = new Command('mount')
     let deviceId: string | undefined;
     let volumeName: string | undefined;
 
-    if (explicitDevice) {
-      deviceId = explicitDevice;
+    if (explicitDisk) {
+      deviceId = explicitDisk;
     } else {
       const volumeUuid = resolvedDevice?.config.volumeUuid;
 
@@ -2108,7 +2127,7 @@ const mountSubcommand = new Command('mount')
             console.error('Make sure the iPod is connected.');
             console.error('');
             console.error('You can specify a device explicitly:');
-            console.error('  podkit device mount --device /dev/disk4s2');
+            console.error('  podkit device mount --disk /dev/disk4s2');
           }
           process.exitCode = 1;
           return;
@@ -2139,7 +2158,7 @@ const mountSubcommand = new Command('mount')
           console.error('No device specified and no iPod registered in config.');
           console.error('');
           console.error('Either specify a device:');
-          console.error('  podkit device mount --device /dev/disk4s2');
+          console.error('  podkit device mount --disk /dev/disk4s2');
           console.error('');
           console.error('Or register an iPod first:');
           console.error('  podkit device add <name>');
@@ -2269,7 +2288,7 @@ const initSubcommand = new Command('init')
       return;
     }
 
-    const { resolvedDevice } = resolved;
+    const { resolvedDevice, cliPath } = resolved;
 
     let IpodDatabase: typeof import('@podkit/core').IpodDatabase;
     let getDeviceManager: typeof import('@podkit/core').getDeviceManager;
@@ -2300,7 +2319,7 @@ const initSubcommand = new Command('init')
     }
 
     const resolveResult = await resolveDevicePath({
-      cliDevice: globalOpts.device,
+      cliDevice: cliPath,
       deviceIdentity,
       manager,
       requireMounted: true,

@@ -121,7 +121,7 @@ describe('podkit sync', () => {
       ]);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('No iPod configured');
+      expect(result.stderr).toContain('No devices configured');
     });
 
     it('fails when collection path does not exist', async () => {

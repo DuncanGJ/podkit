@@ -77,7 +77,7 @@ describe('podkit device info', () => {
       ]);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('not found in config');
+      expect(result.stderr).toContain('not found');
     });
   });
 });

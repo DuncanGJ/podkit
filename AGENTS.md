@@ -40,9 +40,12 @@ bun test packages/podkit-core    # Run tests for specific package
 bun run build                    # Build all packages for Node.js
 
 # CLI
-podkit sync --source ~/Music --dry-run
-podkit status --device /Volumes/iPod
-podkit list --format json
+podkit sync --dry-run                   # Sync all collections (music + video)
+podkit sync music -c main --dry-run     # Sync specific music collection
+podkit sync --device terapod            # Sync to named device
+podkit sync --device /Volumes/iPod      # Sync to device by path
+podkit device info                      # Show device status
+podkit device music --format json       # List music on device
 ```
 
 ### System Dependencies

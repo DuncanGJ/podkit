@@ -57,68 +57,75 @@ podkit supports syncing movies and TV shows to iPod devices. This document cover
 
 ## CLI Usage
 
-Video sync uses a dedicated `video-sync` command, separate from audio sync.
+Video sync uses the unified `sync` command with the `video` type argument.
 
 ### Basic Usage
 
 ```bash
-# Sync videos with default quality (high)
-podkit video-sync --source ~/Movies
+# Sync all video collections with default quality (high)
+podkit sync video
+
+# Sync specific video collection
+podkit sync video -c movies
 
 # Specify quality preset
-podkit video-sync --source ~/Movies --quality medium
+podkit sync video --video-quality medium
 
 # Dry run to preview changes
-podkit video-sync --source ~/Movies --dry-run
+podkit sync video --dry-run
 
 # Remove videos from iPod that are no longer in source
-podkit video-sync --source ~/Movies --delete
+podkit sync video --delete
+
+# Sync to a specific named device
+podkit sync video --device terapod
 ```
 
 ### Command Options
 
 | Option | Description |
 |--------|-------------|
-| `-s, --source <path>` | Video source directory |
+| `-c, --collection <name>` | Video collection name from config |
 | `-n, --dry-run` | Preview changes without syncing |
-| `--quality <preset>` | Quality preset: max, high, medium, low (default: high) |
+| `--video-quality <preset>` | Quality preset: max, high, medium, low (default: high) |
 | `--no-artwork` | Skip poster artwork transfer |
 | `--delete` | Remove videos from iPod not in source |
+| `--device <name\|path>` | Target device (name from config or mount path) |
 
 ### Examples
 
-**Sync movies from a folder:**
+**Sync default video collection:**
 ```bash
-podkit video-sync --source ~/Movies
+podkit sync video
 ```
 
 **Preview what would be synced (dry run):**
 ```bash
-podkit video-sync --source ~/Movies --dry-run
+podkit sync video --dry-run
 ```
 
 **Sync with lower quality to save space:**
 ```bash
-podkit video-sync --source ~/Movies --quality low
+podkit sync video --video-quality low
 ```
 
-**Sync TV shows:**
+**Sync specific TV shows collection:**
 ```bash
-podkit video-sync --source "~/TV Shows/Breaking Bad"
+podkit sync video -c shows
 ```
 
 **Full sync with orphan removal:**
 ```bash
-podkit video-sync --source ~/Videos --delete
+podkit sync video --delete
 ```
 
 ### Global Options
 
-The `video-sync` command supports all global podkit options:
+The `sync` command supports all global podkit options:
 
 | Option | Description |
 |--------|-------------|
-| `--device <path>` | iPod mount point (auto-detect if omitted) |
+| `--device <name\|path>` | Device name from config or mount path |
 | `-v, --verbose` | Increase verbosity (stackable: -v, -vv, -vvv) |
 | `-q, --quiet` | Suppress non-essential output |
 | `--json` | Output in JSON format |
@@ -188,7 +195,7 @@ If a video is already iPod-compatible, podkit copies it directly:
 
 ```bash
 # Dry run shows which files will passthrough
-podkit video-sync --source ~/Videos --dry-run
+podkit sync video --dry-run
 
 # Output shows operations with type:
 #   + [transcode    ] Movie.mkv
@@ -380,7 +387,7 @@ ffprobe -v error -show_format -show_streams input.mkv
 ffmpeg -v verbose -i input.mkv -t 60 -c:v libx264 test.m4v
 
 # Run video sync with verbose output
-podkit video-sync --source ~/Movies --dry-run -vvv
+podkit sync video --dry-run -vvv
 ```
 
 ## Future Enhancements

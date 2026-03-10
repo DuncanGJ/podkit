@@ -1,46 +1,45 @@
 /**
  * Device path resolution
  *
- * Centralizes the logic for finding the iPod mount point.
+ * This module centralizes the logic for finding the iPod mount point.
  * Priority order:
- *   1. CLI --device flag (explicit override)
- *   2. Named device from -d flag (lookup in config.devices)
+ *   1. CLI --device flag (path or named device)
+ *   2. Named device from positional arg or -d flag
  *   3. Default device from config.defaults.device
  *   4. Auto-detect via Volume UUID (from resolved device config)
- */
-
-import type { PodkitConfig, DeviceConfig } from './config/index.js';
-import type { DeviceManager, PlatformDeviceInfo } from '@podkit/core';
-
-/**
- * Device identity for resolution
  *
- * This is passed to resolveDevicePath when we have a resolved device.
+ * @see ./resolvers/device.ts for the core implementation
  */
-export interface DeviceIdentity {
-  volumeUuid: string;
-  volumeName: string;
-}
 
-/**
- * Result of device resolution
- */
-export interface ResolveDeviceResult {
-  /** Resolved device path, if found */
-  path?: string;
-  /** How the device was found */
-  source: 'cli' | 'uuid' | 'config' | 'none';
-  /** Device info if found via UUID */
-  deviceInfo?: PlatformDeviceInfo;
-  /** Error message if resolution failed */
-  error?: string;
-}
+import type { PodkitConfig } from './config/index.js';
+import type { DeviceManager } from '@podkit/core';
+import {
+  resolveDevice,
+  getDeviceIdentity as getDeviceIdentityCore,
+  resolveDevicePath as resolveDevicePathCore,
+  formatDevicePathError,
+  formatDeviceLookupMessage as formatDeviceLookupMessageCore,
+  type DevicePathResult,
+  type DevicePathOptions,
+  type ResolvedDevice,
+  type DeviceIdentity,
+} from './resolvers/index.js';
 
-/**
- * Options for device resolution
- */
+// =============================================================================
+// Re-exports from new resolvers module
+// =============================================================================
+
+export type { ResolvedDevice, DeviceIdentity } from './resolvers/index.js';
+export { parseCliDeviceArg, resolveEffectiveDevice } from './resolvers/index.js';
+
+// =============================================================================
+// Backward-Compatible Wrappers
+// =============================================================================
+
+// Old return type aliases
+export type ResolveDeviceResult = DevicePathResult;
 export interface ResolveDeviceOptions {
-  /** CLI --device flag value */
+  /** CLI --device flag value (path) */
   cliDevice?: string;
   /** Device identity for UUID-based resolution */
   deviceIdentity?: DeviceIdentity;
@@ -53,134 +52,23 @@ export interface ResolveDeviceOptions {
 }
 
 /**
- * Resolve the iPod device path
- *
- * Priority:
- * 1. CLI --device flag (always wins)
- * 2. Auto-detect via Volume UUID from device identity
- */
-export async function resolveDevicePath(
-  options: ResolveDeviceOptions
-): Promise<ResolveDeviceResult> {
-  const { cliDevice, deviceIdentity, manager, requireMounted = true } = options;
-
-  // 1. CLI --device flag takes precedence
-  if (cliDevice) {
-    return {
-      path: cliDevice,
-      source: 'cli',
-    };
-  }
-
-  // 2. Try auto-detect via Volume UUID
-  if (deviceIdentity?.volumeUuid) {
-    const device = await manager.findByVolumeUuid(deviceIdentity.volumeUuid);
-
-    if (device) {
-      if (requireMounted) {
-        if (device.isMounted && device.mountPoint) {
-          return {
-            path: device.mountPoint,
-            source: 'uuid',
-            deviceInfo: device,
-          };
-        } else {
-          return {
-            source: 'uuid',
-            deviceInfo: device,
-            error: 'iPod found but not mounted',
-          };
-        }
-      } else {
-        // For mount command - return device info even if not mounted
-        return {
-          path: device.mountPoint,
-          source: 'uuid',
-          deviceInfo: device,
-        };
-      }
-    }
-
-    // UUID configured but device not found
-    return {
-      source: 'none',
-      error: `iPod with UUID ${deviceIdentity.volumeUuid} not found. Is it connected?`,
-    };
-  }
-
-  // No device configured
-  return {
-    source: 'none',
-    error: 'No iPod configured. Run: podkit add-device',
-  };
-}
-
-/**
- * Format a helpful error message for device resolution failures
- */
-export function formatDeviceError(result: ResolveDeviceResult): string {
-  if (result.error) {
-    return result.error;
-  }
-
-  switch (result.source) {
-    case 'uuid':
-      if (result.deviceInfo && !result.deviceInfo.isMounted) {
-        return 'iPod found but not mounted. Run: sudo podkit mount';
-      }
-      return 'iPod not found';
-    case 'none':
-      return 'No iPod configured. Run: podkit add-device';
-    default:
-      return 'Device not found';
-  }
-}
-
-// =============================================================================
-// Named Device Resolution (ADR-008)
-// =============================================================================
-
-/**
- * Resolved device information from config
- */
-export interface ResolvedDevice {
-  /** Device name (key in config.devices) */
-  name: string;
-  /** Device configuration */
-  config: DeviceConfig;
-}
-
-/**
  * Resolve a named device from config
  *
  * @param config - The merged config
  * @param deviceName - Optional device name from -d flag
  * @returns Resolved device config or undefined if not found
+ *
+ * @deprecated For new code, use resolveDevice() from './resolvers' which returns
+ * a ResolutionResult with proper error handling.
  */
 export function resolveDeviceFromConfig(
   config: PodkitConfig,
   deviceName?: string
 ): ResolvedDevice | undefined {
-  // If a specific device name is given, look it up
-  if (deviceName) {
-    if (config.devices?.[deviceName]) {
-      return {
-        name: deviceName,
-        config: config.devices[deviceName],
-      };
-    }
-    return undefined; // Device not found
+  const result = resolveDevice(config, deviceName);
+  if (result.success) {
+    return result.entity;
   }
-
-  // Use default device from config
-  const defaultDeviceName = config.defaults?.device;
-  if (defaultDeviceName && config.devices?.[defaultDeviceName]) {
-    return {
-      name: defaultDeviceName,
-      config: config.devices[defaultDeviceName],
-    };
-  }
-
   return undefined;
 }
 
@@ -193,14 +81,37 @@ export function resolveDeviceFromConfig(
 export function getDeviceIdentity(
   resolvedDevice: ResolvedDevice | undefined
 ): DeviceIdentity | undefined {
-  if (!resolvedDevice) {
-    return undefined;
-  }
+  return getDeviceIdentityCore(resolvedDevice);
+}
 
-  return {
-    volumeUuid: resolvedDevice.config.volumeUuid,
-    volumeName: resolvedDevice.config.volumeName,
+/**
+ * Resolve the iPod device path
+ *
+ * Priority:
+ * 1. CLI --device flag (always wins)
+ * 2. Auto-detect via Volume UUID from device identity
+ *
+ * @param options - Resolution options (uses cliDevice for backward compatibility)
+ * @returns Device path result
+ */
+export async function resolveDevicePath(
+  options: ResolveDeviceOptions
+): Promise<ResolveDeviceResult> {
+  // Map old option names to new ones
+  const newOptions: DevicePathOptions = {
+    cliPath: options.cliDevice,
+    deviceIdentity: options.deviceIdentity,
+    manager: options.manager,
+    requireMounted: options.requireMounted,
   };
+  return resolveDevicePathCore(newOptions);
+}
+
+/**
+ * Format a helpful error message for device resolution failures
+ */
+export function formatDeviceError(result: ResolveDeviceResult): string {
+  return formatDevicePathError(result);
 }
 
 /**
@@ -223,29 +134,11 @@ export function formatDeviceNotFoundError(
  * @param deviceIdentity - Device identity with volumeUuid
  * @param verbose - Whether to show UUID details
  * @returns Formatted lookup message
- *
- * @example Non-verbose
- * formatDeviceLookupMessage('terapod', { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' }, false)
- * // => "Looking for iPod 'terapod'..."
- *
- * @example Verbose
- * formatDeviceLookupMessage('terapod', { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' }, true)
- * // => "Looking for iPod 'terapod' (UUID: ABC-123)..."
  */
 export function formatDeviceLookupMessage(
   deviceName: string | undefined,
   deviceIdentity: DeviceIdentity | undefined,
   verbose: boolean
 ): string {
-  if (!deviceName) {
-    return 'Looking for iPod...';
-  }
-
-  const base = `Looking for iPod '${deviceName}'`;
-
-  if (verbose && deviceIdentity?.volumeUuid) {
-    return `${base} (UUID: ${deviceIdentity.volumeUuid})...`;
-  }
-
-  return `${base}...`;
+  return formatDeviceLookupMessageCore(deviceName, deviceIdentity, verbose);
 }

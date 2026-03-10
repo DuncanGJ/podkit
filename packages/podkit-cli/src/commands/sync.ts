@@ -35,7 +35,14 @@ import type {
   VideoCollectionConfig,
   DeviceConfig,
 } from '../config/index.js';
-import { resolveDevicePath, formatDeviceError, getDeviceIdentity, formatDeviceLookupMessage } from '../device-resolver.js';
+import {
+  resolveDevicePath,
+  formatDeviceError,
+  getDeviceIdentity,
+  formatDeviceLookupMessage,
+  parseCliDeviceArg,
+  resolveEffectiveDevice,
+} from '../device-resolver.js';
 import type { IPodVideo, CollectionVideo, CollectionAdapter } from '@podkit/core';
 import { MediaType } from '@podkit/core';
 import { formatBytes, formatNumber } from './display-utils.js';
@@ -94,7 +101,6 @@ interface SyncOptions {
   artwork?: boolean;
   delete?: boolean;
   collection?: string;
-  deviceName?: string;
   videoQuality?: VideoQualityPreset;
   eject?: boolean;
 }
@@ -537,44 +543,7 @@ function resolveCollections(
 /**
  * Resolved device information
  */
-interface ResolvedDevice {
-  name: string;
-  config: DeviceConfig;
-}
-
-/**
- * Resolve the device to sync to based on CLI flags and config
- *
- * @param config - The merged config
- * @param deviceName - Optional device name from -d flag
- * @returns Resolved device config or undefined if not found
- */
-function resolveDevice(
-  config: PodkitConfig,
-  deviceName?: string
-): ResolvedDevice | undefined {
-  // If a specific device name is given, look it up
-  if (deviceName) {
-    if (config.devices?.[deviceName]) {
-      return {
-        name: deviceName,
-        config: config.devices[deviceName],
-      };
-    }
-    return undefined; // Device not found
-  }
-
-  // Use default device from config
-  const defaultDeviceName = config.defaults?.device;
-  if (defaultDeviceName && config.devices?.[defaultDeviceName]) {
-    return {
-      name: defaultDeviceName,
-      config: config.devices[defaultDeviceName],
-    };
-  }
-
-  return undefined;
-}
+// ResolvedDevice type is imported from device-resolver
 
 /**
  * Get effective transforms config for a device
@@ -635,8 +604,7 @@ export const syncCommand = new Command('sync')
   .description('sync music and/or video collections to iPod')
   .argument('[type]', 'sync type: music, video, or all (default: all)')
   .option('-c, --collection <name>', 'collection name to sync (searches music and video)')
-  .option('-d, --device-name <name>', 'device name to sync to (from config)')
-  .option('-n, --dry-run', 'show what would be synced without making changes')
+    .option('-n, --dry-run', 'show what would be synced without making changes')
   .option(
     '--quality <preset>',
     'music transcoding quality: alac, max, max-cbr, high, high-cbr, medium, medium-cbr, low, low-cbr'
@@ -688,29 +656,27 @@ export const syncCommand = new Command('sync')
       // 'all' leaves syncType undefined, which means sync both
     }
 
-    // ----- Resolve named device (if -d flag used) -----
-    let resolvedDevice: ResolvedDevice | undefined;
-    if (options.deviceName) {
-      resolvedDevice = resolveDevice(config, options.deviceName);
-      if (!resolvedDevice) {
-        const availableDevices = config.devices ? Object.keys(config.devices).join(', ') : '(none)';
-        if (globalOpts.json) {
-          outputJson({
-            success: false,
-            dryRun,
-            error: `Device "${options.deviceName}" not found in config. Available: ${availableDevices}`,
-          });
-        } else {
-          console.error(`Device "${options.deviceName}" not found in config.`);
-          console.error(`Available devices: ${availableDevices}`);
-        }
-        process.exitCode = 1;
-        return;
+    // ----- Resolve device (--device flag or default) -----
+    // --device accepts either a path (/Volumes/IPOD) or named device (terapod)
+    const cliDeviceArg = parseCliDeviceArg(globalOpts.device, config);
+    const deviceResult = resolveEffectiveDevice(cliDeviceArg, undefined, config);
+
+    if (!deviceResult.success) {
+      if (globalOpts.json) {
+        outputJson({
+          success: false,
+          dryRun,
+          error: deviceResult.error,
+        });
+      } else {
+        console.error(deviceResult.error);
       }
-    } else {
-      // Try to resolve default device
-      resolvedDevice = resolveDevice(config);
+      process.exitCode = 1;
+      return;
     }
+
+    const resolvedDevice = deviceResult.device;
+    const cliPath = deviceResult.cliPath;
 
     // Get effective settings from device config
     const deviceConfig = resolvedDevice?.config;
@@ -849,7 +815,7 @@ export const syncCommand = new Command('sync')
     }
 
     const resolved = await resolveDevicePath({
-      cliDevice: globalOpts.device,
+      cliDevice: cliPath,
       deviceIdentity,
       manager,
       requireMounted: true,

@@ -45,7 +45,7 @@ describe('podkit-cli commands', () => {
     expect(opts).toContain('--no-artwork');
     expect(opts).toContain('--delete');
     expect(opts).toContain('--collection');
-    expect(opts).toContain('--device-name');
+    // Note: --device-name was removed. Use global --device flag instead.
   });
 
   it('device command has subcommands', () => {

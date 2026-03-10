@@ -45,7 +45,7 @@ describe('podkit device music', () => {
       ]);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('not found in config');
+      expect(result.stderr).toContain('not found');
     });
   });
 });

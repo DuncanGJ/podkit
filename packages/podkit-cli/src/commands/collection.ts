@@ -44,6 +44,14 @@ import {
 } from './display-utils.js';
 import type { CollectionTrack, CollectionVideo } from '@podkit/core';
 import { createMusicAdapter } from '../utils/source-adapter.js';
+import {
+  resolveMusicCollection,
+  resolveVideoCollection,
+  findCollectionByName,
+  getAllCollections,
+  type CollectionType,
+  type CollectionInfo,
+} from '../resolvers/index.js';
 
 // =============================================================================
 // Shared utilities
@@ -57,23 +65,8 @@ function getConfigPath(): string {
   return globalOpts.config ?? configResult.configPath ?? DEFAULT_CONFIG_PATH;
 }
 
-/**
- * Collection type for display/filtering
- */
-export type CollectionType = 'music' | 'video';
-
-/**
- * Collection info for display
- */
-export interface CollectionInfo {
-  name: string;
-  type: CollectionType;
-  path: string;
-  isDefault: boolean;
-  /** For subsonic collections */
-  subsonicUrl?: string;
-  subsonicUsername?: string;
-}
+// CollectionType and CollectionInfo are imported from resolvers
+export type { CollectionType, CollectionInfo } from '../resolvers/index.js';
 
 /**
  * Output structure for JSON format
@@ -151,81 +144,34 @@ function formatCollectionTable(collections: CollectionInfo[]): string {
   return lines.join('\n');
 }
 
+// Collection resolution functions are now imported from resolvers module.
+// Local wrapper functions for backward compatibility with existing command code.
+
 /**
- * Get all collections from config
+ * Get all collections from config (wrapper for resolver function)
  */
 function getCollections(filterType?: CollectionType): CollectionInfo[] {
   const { config } = getContext();
-  const collections: CollectionInfo[] = [];
-
-  // Get music collections
-  if (!filterType || filterType === 'music') {
-    const musicCollections = config.music ?? {};
-    for (const [name, col] of Object.entries(musicCollections)) {
-      collections.push({
-        name,
-        type: 'music',
-        path: col.path,
-        isDefault: config.defaults?.music === name,
-        subsonicUrl: col.type === 'subsonic' ? col.url : undefined,
-        subsonicUsername: col.type === 'subsonic' ? col.username : undefined,
-      });
-    }
-  }
-
-  // Get video collections
-  if (!filterType || filterType === 'video') {
-    const videoCollections = config.video ?? {};
-    for (const [name, col] of Object.entries(videoCollections)) {
-      collections.push({
-        name,
-        type: 'video',
-        path: col.path,
-        isDefault: config.defaults?.video === name,
-      });
-    }
-  }
-
-  // Sort: defaults first, then alphabetically by type, then by name
-  collections.sort((a, b) => {
-    // Defaults first
-    if (a.isDefault && !b.isDefault) return -1;
-    if (!a.isDefault && b.isDefault) return 1;
-    // Then by type
-    if (a.type < b.type) return -1;
-    if (a.type > b.type) return 1;
-    // Then by name
-    return a.name.localeCompare(b.name);
-  });
-
-  return collections;
+  return getAllCollections(config, filterType);
 }
 
 /**
- * Find a collection by name (searches both namespaces)
+ * Find a collection by name (wrapper for resolver function)
  */
 function findCollection(name: string): {
   music?: MusicCollectionConfig;
   video?: VideoCollectionConfig;
 } {
   const { config } = getContext();
-  const result: {
-    music?: MusicCollectionConfig;
-    video?: VideoCollectionConfig;
-  } = {};
-
-  if (config.music?.[name]) {
-    result.music = config.music[name];
-  }
-  if (config.video?.[name]) {
-    result.video = config.video[name];
-  }
-
-  return result;
+  const result = findCollectionByName(config, name);
+  return {
+    music: result.music?.config,
+    video: result.video?.config,
+  };
 }
 
 /**
- * Resolve collection from positional argument or default
+ * Resolve music collection from positional argument or default
  */
 function resolveMusicCollectionArg(
   collectionName?: string
@@ -238,38 +184,17 @@ function resolveMusicCollectionArg(
       globalOpts: ReturnType<typeof getContext>['globalOpts'];
     } {
   const { config, globalOpts } = getContext();
+  const result = resolveMusicCollection(config, collectionName);
 
-  if (collectionName) {
-    const col = config.music?.[collectionName];
-    if (!col) {
-      const available = config.music ? Object.keys(config.music).join(', ') : '(none)';
-      return {
-        error: `Music collection "${collectionName}" not found. Available: ${available}`,
-      };
-    }
-    return { collection: col, name: collectionName, config, globalOpts };
+  if (!result.success) {
+    return { error: result.error };
   }
 
-  // Use default
-  const defaultName = config.defaults?.music;
-  if (defaultName && config.music?.[defaultName]) {
-    return {
-      collection: config.music[defaultName],
-      name: defaultName,
-      config,
-      globalOpts,
-    };
-  }
-
-  const hasCollections = config.music && Object.keys(config.music).length > 0;
-  if (hasCollections) {
-    return {
-      error:
-        'No default music collection set. Specify a collection name or set a default.',
-    };
-  }
   return {
-    error: "No music collections configured. Run 'podkit collection add music <name> <path>' to add one.",
+    collection: result.entity.config,
+    name: result.entity.name,
+    config,
+    globalOpts,
   };
 }
 
@@ -287,38 +212,17 @@ function resolveVideoCollectionArg(
       globalOpts: ReturnType<typeof getContext>['globalOpts'];
     } {
   const { config, globalOpts } = getContext();
+  const result = resolveVideoCollection(config, collectionName);
 
-  if (collectionName) {
-    const col = config.video?.[collectionName];
-    if (!col) {
-      const available = config.video ? Object.keys(config.video).join(', ') : '(none)';
-      return {
-        error: `Video collection "${collectionName}" not found. Available: ${available}`,
-      };
-    }
-    return { collection: col, name: collectionName, config, globalOpts };
+  if (!result.success) {
+    return { error: result.error };
   }
 
-  // Use default
-  const defaultName = config.defaults?.video;
-  if (defaultName && config.video?.[defaultName]) {
-    return {
-      collection: config.video[defaultName],
-      name: defaultName,
-      config,
-      globalOpts,
-    };
-  }
-
-  const hasCollections = config.video && Object.keys(config.video).length > 0;
-  if (hasCollections) {
-    return {
-      error:
-        'No default video collection set. Specify a collection name or set a default.',
-    };
-  }
   return {
-    error: "No video collections configured. Run 'podkit collection add video <name> <path>' to add one.",
+    collection: result.entity.config,
+    name: result.entity.name,
+    config,
+    globalOpts,
   };
 }
 

@@ -7,13 +7,18 @@
  * ```bash
  * podkit mount                     # Mount default device
  * podkit mount terapod             # Mount named device
- * podkit mount --device /dev/disk4s2  # Explicit device identifier
+ * podkit mount --disk /dev/disk4s2    # Explicit disk identifier
  * podkit mount --dry-run           # Show mount command without executing
  * ```
  */
 import { Command } from 'commander';
 import { getContext } from '../context.js';
-import { resolveDeviceFromConfig, formatDeviceNotFoundError, getDeviceIdentity, formatDeviceLookupMessage } from '../device-resolver.js';
+import {
+  getDeviceIdentity,
+  formatDeviceLookupMessage,
+  parseCliDeviceArg,
+  resolveEffectiveDevice,
+} from '../device-resolver.js';
 
 export interface MountOutput {
   success: boolean;
@@ -25,18 +30,18 @@ export interface MountOutput {
 }
 
 interface MountOptions {
-  device?: string;
+  disk?: string;
   dryRun?: boolean;
 }
 
 export const mountCommand = new Command('mount')
   .description('mount an iPod device (shortcut for "device mount")')
   .argument('[name]', 'device name (uses default if omitted)')
-  .option('--device <identifier>', 'device identifier (e.g., /dev/disk4s2)')
+  .option('--disk <identifier>', 'disk identifier (e.g., /dev/disk4s2)')
   .option('--dry-run', 'show mount command without executing')
   .action(async (name: string | undefined, options: MountOptions) => {
     const { config, globalOpts } = getContext();
-    const explicitDevice = options.device;
+    const explicitDisk = options.disk;
     const dryRun = options.dryRun ?? false;
 
     const outputJson = (data: MountOutput) => {
@@ -44,34 +49,24 @@ export const mountCommand = new Command('mount')
     };
 
     // Resolve device from positional argument or default
-    const resolvedDevice = name
-      ? resolveDeviceFromConfig(config, name)
-      : resolveDeviceFromConfig(config);
+    // Note: explicitDisk (--disk option) bypasses named device resolution
+    // Mount's --disk is for disk identifier (e.g., /dev/disk4s2), not mount point
+    const cliDeviceArg = parseCliDeviceArg(undefined, config); // Don't use globalOpts.device here
+    const deviceResult = resolveEffectiveDevice(cliDeviceArg, name, config);
 
-    if (name && !resolvedDevice && !explicitDevice) {
-      const error = formatDeviceNotFoundError(name, config);
+    // If explicit device identifier provided, we don't need a named device
+    if (!deviceResult.success && !explicitDisk) {
       if (globalOpts.json) {
-        outputJson({ success: false, error });
+        outputJson({ success: false, error: deviceResult.error });
       } else {
-        console.error(error);
+        console.error(deviceResult.error);
       }
       process.exitCode = 1;
       return;
     }
 
-    if (!name && !resolvedDevice && !explicitDevice) {
-      const hasDevices = config.devices && Object.keys(config.devices).length > 0;
-      const error = hasDevices
-        ? 'No default device set. Specify a device name or set a default with: podkit device default <name>'
-        : "No devices configured. Run 'podkit device add <name>' to add one.";
-      if (globalOpts.json) {
-        outputJson({ success: false, error });
-      } else {
-        console.error(error);
-      }
-      process.exitCode = 1;
-      return;
-    }
+    // Get resolved device (may be undefined if using explicit device identifier)
+    const resolvedDevice = deviceResult.success ? deviceResult.device : undefined;
 
     let getDeviceManager: typeof import('@podkit/core').getDeviceManager;
 
@@ -112,8 +107,8 @@ export const mountCommand = new Command('mount')
     let deviceId: string | undefined;
     let volumeName: string | undefined;
 
-    if (explicitDevice) {
-      deviceId = explicitDevice;
+    if (explicitDisk) {
+      deviceId = explicitDisk;
     } else {
       const volumeUuid = resolvedDevice?.config.volumeUuid;
 
@@ -137,7 +132,7 @@ export const mountCommand = new Command('mount')
             console.error('Make sure the iPod is connected.');
             console.error('');
             console.error('You can specify a device explicitly:');
-            console.error('  podkit mount --device /dev/disk4s2');
+            console.error('  podkit mount --disk /dev/disk4s2');
           }
           process.exitCode = 1;
           return;
@@ -168,7 +163,7 @@ export const mountCommand = new Command('mount')
           console.error('No device specified and no iPod registered in config.');
           console.error('');
           console.error('Either specify a device:');
-          console.error('  podkit mount --device /dev/disk4s2');
+          console.error('  podkit mount --disk /dev/disk4s2');
           console.error('');
           console.error('Or register an iPod first:');
           console.error('  podkit device add <name>');
