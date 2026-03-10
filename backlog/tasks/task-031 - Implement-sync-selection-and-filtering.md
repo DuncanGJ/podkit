@@ -8,7 +8,6 @@ updated_date: '2026-02-23 01:23'
 labels:
   - feature
   - ux
-milestone: 'M3: Production Ready (v1.0.0)'
 dependencies: []
 references:
   - docs/adr/ADR-004-collection-sources.md
