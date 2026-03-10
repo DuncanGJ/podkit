@@ -179,6 +179,8 @@ interface SyncOutput {
     updateBreakdown?: UpdateBreakdown;
     tracksToTranscode: number;
     tracksToCopy: number;
+    tracksExisting: number;
+    tracksWithConflicts: number;
     estimatedSize: number;
     estimatedTime: number;
   };
@@ -1124,6 +1126,8 @@ export const syncCommand = new Command('sync')
                   updateBreakdown: diff.toUpdate.length > 0 ? updateBreakdown : undefined,
                   tracksToTranscode: summary.transcodeCount,
                   tracksToCopy: summary.copyCount,
+                  tracksExisting: diff.existing.length,
+                  tracksWithConflicts: diff.conflicts.length,
                   estimatedSize: plan.estimatedSize,
                   estimatedTime: plan.estimatedTime,
                 },
@@ -1257,6 +1261,8 @@ export const syncCommand = new Command('sync')
                   tracksToUpdate: diff.toUpdate.length,
                   tracksToTranscode: summary.transcodeCount,
                   tracksToCopy: summary.copyCount,
+                  tracksExisting: diff.existing.length,
+                  tracksWithConflicts: diff.conflicts.length,
                   estimatedSize: plan.estimatedSize,
                   estimatedTime: plan.estimatedTime,
                 },
