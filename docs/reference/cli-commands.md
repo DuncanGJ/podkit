@@ -5,8 +5,6 @@ sidebar:
   order: 1
 ---
 
-# CLI Commands Reference
-
 Complete reference for all podkit CLI commands.
 
 ## Global Options
@@ -35,7 +33,7 @@ These options work with all commands:
 | [`podkit eject`](#podkit-eject) | Safely eject iPod (shortcut for `device eject`) |
 | [`podkit mount`](#podkit-mount) | Mount an iPod (shortcut for `device mount`) |
 
-## podkit init
+## `podkit init`
 
 Create a default configuration file.
 
@@ -63,7 +61,7 @@ podkit init --force
 podkit init --path ~/my-podkit-config.toml
 ```
 
-## podkit sync
+## `podkit sync`
 
 Sync music and/or video collections to an iPod.
 
@@ -104,7 +102,7 @@ podkit sync music
 podkit sync video
 
 # Sync a specific collection
-podkit sync -c podcasts
+podkit sync -c jazz
 
 # Sync music collection named "main"
 podkit sync music -c main
@@ -125,7 +123,7 @@ podkit sync --delete --eject
 podkit sync --no-artwork
 ```
 
-## podkit device
+## `podkit device`
 
 Device management commands. Running `podkit device` with no subcommand lists all configured devices.
 
@@ -133,7 +131,7 @@ Device management commands. Running `podkit device` with no subcommand lists all
 podkit device [subcommand] [options]
 ```
 
-### podkit device list
+### `podkit device list`
 
 List all configured devices.
 
@@ -141,7 +139,7 @@ List all configured devices.
 podkit device list
 ```
 
-### podkit device add
+### `podkit device add`
 
 Detect a connected iPod and add it to the config.
 
@@ -166,7 +164,7 @@ podkit device add classic
 podkit device add classic /Volumes/IPOD
 ```
 
-### podkit device remove
+### `podkit device remove`
 
 Remove a device from the config.
 
@@ -178,7 +176,7 @@ podkit device remove <name>
 |--------|-------------|
 | `--confirm` | Skip confirmation prompt |
 
-### podkit device info
+### `podkit device info`
 
 Display device configuration and live status (storage, track count, model).
 
@@ -198,7 +196,7 @@ podkit device info
 podkit device info classic
 ```
 
-### podkit device music
+### `podkit device music`
 
 List music tracks on an iPod.
 
@@ -222,7 +220,7 @@ podkit device music --format json
 podkit device music --fields title,artist,album,genre,year
 ```
 
-### podkit device video
+### `podkit device video`
 
 List video content on an iPod.
 
@@ -235,7 +233,7 @@ podkit device video [name] [options]
 | `--format <fmt>` | Output format: `table`, `json`, `csv` (default: `table`) |
 | `--fields <list>` | Comma-separated fields to show (see [Display Fields](#display-fields)) |
 
-### podkit device clear
+### `podkit device clear`
 
 Remove content from the iPod.
 
@@ -260,7 +258,7 @@ podkit device clear --type music
 podkit device clear --confirm
 ```
 
-### podkit device reset
+### `podkit device reset`
 
 Reset the iPod database. This erases all tracks and recreates the database from scratch.
 
@@ -273,7 +271,7 @@ podkit device reset [name] [options]
 | `-y, --yes` | Skip confirmation prompt |
 | `--dry-run` | Show what would happen without making changes |
 
-### podkit device eject
+### `podkit device eject`
 
 Safely unmount an iPod device.
 
@@ -285,7 +283,7 @@ podkit device eject [name] [options]
 |--------|-------------|
 | `-f, --force` | Force unmount even if device is busy |
 
-### podkit device mount
+### `podkit device mount`
 
 Mount an iPod device.
 
@@ -312,7 +310,7 @@ podkit device mount --disk /dev/disk4s2
 podkit device mount --dry-run
 ```
 
-### podkit device init
+### `podkit device init`
 
 Initialize an iPod database on a device. Use this for blank or corrupted iPods.
 
@@ -325,7 +323,7 @@ podkit device init [name] [options]
 | `-f, --force` | Overwrite existing database |
 | `-y, --yes` | Skip confirmation prompt |
 
-## podkit collection
+## `podkit collection`
 
 Manage music and video collections. Running `podkit collection` with no subcommand lists all configured collections.
 
@@ -333,7 +331,7 @@ Manage music and video collections. Running `podkit collection` with no subcomma
 podkit collection [subcommand] [options]
 ```
 
-### podkit collection list
+### `podkit collection list`
 
 List configured collections.
 
@@ -353,7 +351,7 @@ podkit collection list
 podkit collection list music
 ```
 
-### podkit collection add
+### `podkit collection add`
 
 Add a new collection to the config.
 
@@ -375,7 +373,7 @@ podkit collection add music main /Volumes/Media/music
 podkit collection add video movies /Volumes/Media/movies
 ```
 
-### podkit collection remove
+### `podkit collection remove`
 
 Remove a collection from the config.
 
@@ -387,7 +385,7 @@ podkit collection remove <name>
 |--------|-------------|
 | `-y, --yes` | Skip confirmation prompt |
 
-### podkit collection info
+### `podkit collection info`
 
 Display collection details.
 
@@ -395,7 +393,7 @@ Display collection details.
 podkit collection info <name>
 ```
 
-### podkit collection music
+### `podkit collection music`
 
 List tracks in a music collection (scans the source directory or Subsonic server).
 
@@ -408,7 +406,7 @@ podkit collection music [name] [options]
 | `--format <fmt>` | Output format: `table`, `json`, `csv` (default: `table`) |
 | `--fields <list>` | Comma-separated fields to show (see [Display Fields](#display-fields)) |
 
-### podkit collection video
+### `podkit collection video`
 
 List videos in a video collection.
 
@@ -421,7 +419,7 @@ podkit collection video [name] [options]
 | `--format <fmt>` | Output format: `table`, `json`, `csv` (default: `table`) |
 | `--fields <list>` | Comma-separated fields to show (see [Display Fields](#display-fields)) |
 
-## podkit eject
+## `podkit eject`
 
 Safely unmount an iPod device. This is a shortcut for `podkit device eject`.
 
@@ -444,7 +442,7 @@ podkit eject classic
 podkit eject --force
 ```
 
-## podkit mount
+## `podkit mount`
 
 Mount an iPod device. This is a shortcut for `podkit device mount`.
 

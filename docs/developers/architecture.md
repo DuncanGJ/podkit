@@ -5,8 +5,6 @@ sidebar:
   order: 1
 ---
 
-# Architecture Overview
-
 This document covers the technical architecture of podkit, including component design, interfaces, and data flow.
 
 ## System Context
@@ -297,4 +295,4 @@ Device profiles define resolution and bitrate limits per iPod generation (e.g., 
 
 - [Development Setup](/developers/development) - Setting up dev environment
 - [Testing](/developers/testing) - Testing strategy
-- [ADRs](/developers/adr/) - Architecture decision records
+- [ADRs](https://github.com/jvgomg/podkit/tree/main/adr) - Architecture decision records

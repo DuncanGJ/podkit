@@ -5,8 +5,6 @@ sidebar:
   order: 3
 ---
 
-# First Sync Walkthrough
-
 This guide walks you through your first sync in detail, explaining what happens at each step and how to troubleshoot common issues.
 
 ## Before You Begin
@@ -248,6 +246,7 @@ podkit sync --help      # Sync command help
 ## Next Steps
 
 - [Configuration](/user-guide/configuration) - Full configuration reference
-- [Music Sources](/user-guide/music-sources) - Set up multiple collections or Subsonic
+- [Directory Source](/user-guide/directory-source) - Set up local directory collections
+- [Subsonic Source](/user-guide/subsonic-source) - Sync from Navidrome and other Subsonic servers
 - [Transcoding](/user-guide/transcoding) - Quality settings and encoder options
 - [Video Sync](/user-guide/video-sync) - Sync movies and TV shows

@@ -5,8 +5,6 @@ sidebar:
   order: 2
 ---
 
-# Config File Reference
-
 Complete reference for the podkit configuration file (`~/.config/podkit/config.toml`).
 
 ## File Location
@@ -236,8 +234,8 @@ ignore = ["Simon & Garfunkel", "Hall & Oates"]
 [music.main]
 path = "/Volumes/Media/music/library"
 
-[music.podcasts]
-path = "/Volumes/Media/podcasts"
+[music.vinyl-rips]
+path = "/Volumes/Media/vinyl-rips"
 
 [music.navidrome]
 type = "subsonic"

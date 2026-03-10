@@ -5,8 +5,6 @@ sidebar:
   order: 2
 ---
 
-# Quick Start
-
 Get your music syncing to your iPod in 5 minutes.
 
 ## Prerequisites
@@ -25,29 +23,15 @@ podkit init
 
 This creates `~/.config/podkit/config.toml` with a template configuration.
 
-## 2. Configure Your Music
+## 2. Add Your Music Collection
 
-Edit the config file to point to your music directory:
+Use `podkit collection add` to register your music directory:
 
 ```bash
-nano ~/.config/podkit/config.toml
-# or
-code ~/.config/podkit/config.toml
+podkit collection add music main /path/to/your/music
 ```
 
-Add your music collection:
-
-```toml
-# Music collections
-[music.main]
-path = "/path/to/your/music"
-
-# Defaults
-[defaults]
-music = "main"
-```
-
-Replace `/path/to/your/music` with the actual path to your music library.
+Replace `/path/to/your/music` with the actual path to your music library. This writes the collection to your config file and sets it as the default since it is the first music collection.
 
 ## 3. Register Your iPod
 

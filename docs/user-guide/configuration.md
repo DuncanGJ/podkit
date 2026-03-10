@@ -5,8 +5,6 @@ sidebar:
   order: 1
 ---
 
-# Configuration
-
 podkit uses a TOML configuration file located at `~/.config/podkit/config.toml`. This guide covers all configuration options.
 
 ## Creating the Config File
@@ -52,8 +50,8 @@ Define multiple music sources:
 [music.main]
 path = "/Volumes/Media/music/library"
 
-[music.podcasts]
-path = "/Volumes/Media/podcasts"
+[music.vinyl-rips]
+path = "/Volumes/Media/vinyl-rips"
 
 [music.work]
 path = "/Users/me/Music/work-playlist"
@@ -62,7 +60,7 @@ path = "/Users/me/Music/work-playlist"
 Sync a specific collection:
 
 ```bash
-podkit sync -c podcasts
+podkit sync -c vinyl-rips
 ```
 
 ### Subsonic Collections
@@ -85,7 +83,7 @@ For passwords, you can also use environment variables:
 export PODKIT_MUSIC_NAVIDROME_PASSWORD="your-password"
 ```
 
-See [Music Sources](/user-guide/music-sources) for full Subsonic configuration.
+See [Subsonic Source](/user-guide/subsonic-source) for full Subsonic configuration.
 
 ## Devices
 
@@ -175,7 +173,7 @@ video = "movies"          # Default video collection
 Override defaults on the command line:
 
 ```bash
-podkit sync --device nano --quality medium -c podcasts
+podkit sync --device nano --quality medium -c vinyl-rips
 ```
 
 ## Transforms
@@ -203,7 +201,7 @@ To override transforms for a specific device:
 enabled = false           # Disable for this device
 ```
 
-See [Transforms](/reference/transforms) for all available transforms.
+See [Transforms](/user-guide/transforms) for all available transforms.
 
 ## Environment Variables
 
@@ -225,8 +223,8 @@ Some settings can be set via environment variables:
 [music.main]
 path = "/Volumes/Media/music/library"
 
-[music.podcasts]
-path = "/Volumes/Media/podcasts"
+[music.vinyl-rips]
+path = "/Volumes/Media/vinyl-rips"
 
 [music.navidrome]
 type = "subsonic"
@@ -272,7 +270,8 @@ video = "movies"
 
 ## See Also
 
-- [Music Sources](/user-guide/music-sources) - Directory and Subsonic source configuration
+- [Directory Source](/user-guide/directory-source) - Local directory source configuration
+- [Subsonic Source](/user-guide/subsonic-source) - Subsonic server source configuration
 - [Transcoding](/user-guide/transcoding) - Quality presets and encoder settings
 - [Video Sync](/user-guide/video-sync) - Video collection configuration
 - [CLI Commands](/reference/cli-commands) - Command-line options

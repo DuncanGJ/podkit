@@ -5,8 +5,6 @@ sidebar:
   order: 2
 ---
 
-# macOS iPod Mounting Issues
-
 Large-capacity iPods using iFlash adapters with SD cards may fail to mount automatically on macOS.
 
 ## Symptoms

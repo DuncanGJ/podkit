@@ -70,9 +70,10 @@ docs/
 ├── devices/                    # Supported devices, iPod internals
 ├── reference/                  # CLI commands, config file, quality presets
 ├── troubleshooting/            # Common issues, macOS mounting
-└── developers/                 # Architecture, development, testing, ADRs
-    └── adr/                    # Architecture Decision Records
+└── developers/                 # Architecture, development, testing
 ```
+
+ADRs are stored at the repo root in `adr/` (outside `docs/` so they are not published to the docs site).
 
 ### Documentation Map
 
@@ -87,15 +88,16 @@ Read these documents based on what you're working on:
 | Architecture and design | [docs/developers/architecture.md](docs/developers/architecture.md) |
 | Development environment | [docs/developers/development.md](docs/developers/development.md) |
 | Testing strategy | [docs/developers/testing.md](docs/developers/testing.md) |
-| ADRs | [docs/developers/adr/](docs/developers/adr/) |
+| ADRs | [adr/](adr/) |
 | Contributing | [docs/developers/contributing.md](docs/developers/contributing.md) |
 | libgpod integration | [docs/developers/libgpod.md](docs/developers/libgpod.md) |
 | Transcoding (audio) | [docs/user-guide/transcoding.md](docs/user-guide/transcoding.md) |
 | Video sync | [docs/user-guide/video-sync.md](docs/user-guide/video-sync.md) |
-| Music sources | [docs/user-guide/music-sources.md](docs/user-guide/music-sources.md) |
+| Directory source | [docs/user-guide/directory-source.md](docs/user-guide/directory-source.md) |
+| Subsonic source | [docs/user-guide/subsonic-source.md](docs/user-guide/subsonic-source.md) |
 | iPod internals | [docs/devices/ipod-internals.md](docs/devices/ipod-internals.md) |
 | Troubleshooting | [docs/troubleshooting/](docs/troubleshooting/) |
-| Transforms | [docs/reference/transforms.md](docs/reference/transforms.md) |
+| Transforms | [docs/user-guide/transforms.md](docs/user-guide/transforms.md) |
 | Package READMEs | `packages/*/README.md` |
 
 ## Task Management (Backlog.md)
@@ -127,7 +129,7 @@ Documents:  document_list, document_view, document_create, document_update
 
 ## Architecture Decision Records (ADRs)
 
-ADRs document significant technical decisions. See [docs/developers/adr/](docs/developers/adr/) for the full workflow.
+ADRs document significant technical decisions. See [adr/](adr/) for the full workflow.
 
 ### When to Create ADRs
 
@@ -189,8 +191,7 @@ sidebar:
 | `devices/` | Supported devices, iPod internals | Users + developers |
 | `reference/` | CLI commands, config file, quality presets | All users |
 | `troubleshooting/` | Common issues, macOS mounting | Users with problems |
-| `developers/` | Architecture, development, testing, ADRs | Contributors |
-| `developers/adr/` | Architecture Decision Records | Contributors |
+| `developers/` | Architecture, development, testing | Contributors |
 
 ## Key Technical Decisions
 
@@ -198,12 +199,12 @@ These decisions are documented in ADRs — read the full ADR for context:
 
 | Decision | Summary | ADR |
 |----------|---------|-----|
-| Runtime | Bun for dev, Node.js for distribution | [ADR-001](docs/developers/adr/adr-001-runtime.md) |
-| libgpod bindings | N-API (node-addon-api) directly | [ADR-002](docs/developers/adr/adr-002-libgpod-binding.md) |
-| Transcoding | FFmpeg with AAC encoder | [ADR-003](docs/developers/adr/adr-003-transcoding.md) |
-| Collection sources | Adapter pattern | [ADR-004](docs/developers/adr/adr-004-collection-sources.md) |
-| Test environments | gpod-tool + temp directories | [ADR-005](docs/developers/adr/adr-005-test-ipod-environment.md) |
-| Video transcoding | FFmpeg with H.264/M4V output | [ADR-006](docs/developers/adr/adr-006-video-transcoding.md) |
+| Runtime | Bun for dev, Node.js for distribution | [ADR-001](adr/adr-001-runtime.md) |
+| libgpod bindings | N-API (node-addon-api) directly | [ADR-002](adr/adr-002-libgpod-binding.md) |
+| Transcoding | FFmpeg with AAC encoder | [ADR-003](adr/adr-003-transcoding.md) |
+| Collection sources | Adapter pattern | [ADR-004](adr/adr-004-collection-sources.md) |
+| Test environments | gpod-tool + temp directories | [ADR-005](adr/adr-005-test-ipod-environment.md) |
+| Video transcoding | FFmpeg with H.264/M4V output | [ADR-006](adr/adr-006-video-transcoding.md) |
 
 ## Testing
 

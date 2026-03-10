@@ -2,10 +2,8 @@
 title: Video Sync
 description: Sync movies and TV shows to video-capable iPods with automatic transcoding.
 sidebar:
-  order: 4
+  order: 6
 ---
-
-# Video Sync
 
 podkit supports syncing movies and TV shows to video-capable iPods. This guide covers video configuration, quality settings, and supported formats.
 

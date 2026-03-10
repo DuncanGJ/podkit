@@ -5,8 +5,6 @@ sidebar:
   order: 1
 ---
 
-# Supported iPod Models
-
 This document lists all iPod models and their compatibility with podkit.
 
 ## Overview

@@ -5,8 +5,6 @@ sidebar:
   order: 2
 ---
 
-# Development Environment Setup
-
 This guide covers setting up a development environment for podkit on macOS, Linux, and Windows.
 
 ## Overview
@@ -253,7 +251,7 @@ podkit/
 
 - [Testing](/developers/testing) - Testing strategy and conventions
 - [Architecture](/developers/architecture) - Component design
-- [ADRs](/developers/adr/) - Architecture decision records
+- [ADRs](https://github.com/jvgomg/podkit/tree/main/adr) - Architecture decision records
 
 ## Troubleshooting
 

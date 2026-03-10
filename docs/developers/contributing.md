@@ -5,8 +5,6 @@ sidebar:
   order: 6
 ---
 
-# Contributing to podkit
-
 This guide covers how to contribute code, tests, and documentation to podkit.
 
 ## Getting Started
@@ -75,7 +73,7 @@ When making code changes, update relevant docs if behavior changes. When you fin
 
 ## Architecture Decision Records
 
-For significant technical decisions, create an ADR in `docs/developers/adr/`. See the [ADR index](/developers/adr/) for the format and existing records.
+For significant technical decisions, create an ADR in the [`adr/`](https://github.com/jvgomg/podkit/tree/main/adr) directory. See the [ADR index](https://github.com/jvgomg/podkit/blob/main/adr/index.md) for the format and existing records.
 
 ## See Also
 

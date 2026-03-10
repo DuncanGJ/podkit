@@ -5,8 +5,6 @@ sidebar:
   order: 5
 ---
 
-# libgpod Integration
-
 This document covers the libgpod C library and how podkit integrates with it through native Node.js bindings.
 
 ## Overview

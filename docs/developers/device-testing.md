@@ -5,8 +5,6 @@ sidebar:
   order: 4
 ---
 
-# Device Testing Strategy
-
 This document describes how podkit verifies iPod device compatibility through automated testing and real hardware confirmation.
 
 ## Overview

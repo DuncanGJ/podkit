@@ -5,8 +5,6 @@ sidebar:
   order: 1
 ---
 
-# Installation
-
 This guide covers installing podkit and its dependencies on macOS and Linux.
 
 ## Prerequisites

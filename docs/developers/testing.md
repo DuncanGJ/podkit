@@ -5,8 +5,6 @@ sidebar:
   order: 3
 ---
 
-# Testing Strategy
-
 This document describes the testing approach for podkit.
 
 ## Overview

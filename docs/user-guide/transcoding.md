@@ -2,10 +2,8 @@
 title: Transcoding
 description: Configure audio transcoding quality, codecs, and presets for syncing to iPod.
 sidebar:
-  order: 3
+  order: 4
 ---
-
-# Transcoding
 
 podkit uses FFmpeg to transcode audio files to iPod-compatible formats. This guide covers quality settings, encoder options, and how podkit decides what to transcode.
 
@@ -203,4 +201,5 @@ podkit sync -vvv --dry-run
 
 - [Quality Presets Reference](/reference/quality-presets) - Detailed preset specifications
 - [Configuration](/user-guide/configuration) - Config file options
-- [Music Sources](/user-guide/music-sources) - Source configuration
+- [Directory Source](/user-guide/directory-source) - Local directory source configuration
+- [Subsonic Source](/user-guide/subsonic-source) - Subsonic server source configuration

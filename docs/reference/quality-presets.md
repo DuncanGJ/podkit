@@ -5,8 +5,6 @@ sidebar:
   order: 3
 ---
 
-# Quality Presets
-
 Detailed specifications for podkit's audio and video transcoding presets.
 
 ## Audio Presets

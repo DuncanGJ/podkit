@@ -5,8 +5,6 @@ sidebar:
   order: 1
 ---
 
-# Common Issues
-
 Solutions for frequently encountered problems with podkit.
 
 ## Device Issues

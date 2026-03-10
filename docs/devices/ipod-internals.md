@@ -5,8 +5,6 @@ sidebar:
   order: 2
 ---
 
-# iPod Internals
-
 This document covers the internal structure of iPod devices, focusing on the database format, file organization, and artwork handling. This is primarily useful for debugging and development.
 
 ## Directory Structure
