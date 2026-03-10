@@ -88,6 +88,6 @@ path = "/tmp/work-cache"
 
 ## See Also
 
-- [Directory Source](/user-guide/directory-source) - Local filesystem collections
+- [Directory Source](/user-guide/collection-sources/directory) - Local filesystem collections
 - [Configuration](/user-guide/configuration) - Full configuration reference
 - [Transcoding](/user-guide/transcoding) - Quality settings for transcoding

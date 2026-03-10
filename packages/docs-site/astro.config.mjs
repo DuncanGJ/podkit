@@ -46,7 +46,20 @@ export default defineConfig({
         },
         {
           label: 'User Guide',
-          autogenerate: { directory: 'user-guide' },
+          items: [
+            { slug: 'user-guide/configuration' },
+            {
+              label: 'Collection Sources',
+              items: [
+                { slug: 'user-guide/collection-sources' },
+                { slug: 'user-guide/collection-sources/directory' },
+                { slug: 'user-guide/collection-sources/subsonic' },
+              ],
+            },
+            { slug: 'user-guide/transcoding' },
+            { slug: 'user-guide/transforms' },
+            { slug: 'user-guide/video-sync' },
+          ],
         },
         {
           label: 'Device Compatibility',

@@ -201,5 +201,5 @@ podkit sync -vvv --dry-run
 
 - [Quality Presets Reference](/reference/quality-presets) - Detailed preset specifications
 - [Configuration](/user-guide/configuration) - Config file options
-- [Directory Source](/user-guide/directory-source) - Local directory source configuration
-- [Subsonic Source](/user-guide/subsonic-source) - Subsonic server source configuration
+- [Directory Source](/user-guide/collection-sources/directory) - Local directory source configuration
+- [Subsonic Source](/user-guide/collection-sources/subsonic) - Subsonic server source configuration

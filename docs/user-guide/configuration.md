@@ -83,7 +83,7 @@ For passwords, you can also use environment variables:
 export PODKIT_MUSIC_NAVIDROME_PASSWORD="your-password"
 ```
 
-See [Subsonic Source](/user-guide/subsonic-source) for full Subsonic configuration.
+See [Subsonic Source](/user-guide/collection-sources/subsonic) for full Subsonic configuration.
 
 ## Devices
 
@@ -270,8 +270,8 @@ video = "movies"
 
 ## See Also
 
-- [Directory Source](/user-guide/directory-source) - Local directory source configuration
-- [Subsonic Source](/user-guide/subsonic-source) - Subsonic server source configuration
+- [Directory Source](/user-guide/collection-sources/directory) - Local directory source configuration
+- [Subsonic Source](/user-guide/collection-sources/subsonic) - Subsonic server source configuration
 - [Transcoding](/user-guide/transcoding) - Quality presets and encoder settings
 - [Video Sync](/user-guide/video-sync) - Video collection configuration
 - [CLI Commands](/reference/cli-commands) - Command-line options
