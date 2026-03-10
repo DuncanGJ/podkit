@@ -38,17 +38,29 @@ ARCH="$(uname -m)"
 if [ "$OS" = "Darwin" ]; then
   HOMEBREW_PREFIX="$(brew --prefix)"
 
+  # Collect Homebrew lib paths for image libraries (libpng, jpeg, tiff)
+  # These are needed at link time when building gdk-pixbuf's tools/tests
+  HOMEBREW_LIB_PATHS="-L$STATIC_DEPS_DIR/lib"
+  for formula in libpng jpeg-turbo libtiff zstd xz; do
+    fprefix="$(brew --prefix "$formula" 2>/dev/null || true)"
+    if [ -n "$fprefix" ] && [ -d "$fprefix/lib" ]; then
+      HOMEBREW_LIB_PATHS="$HOMEBREW_LIB_PATHS -L$fprefix/lib"
+    fi
+  done
+
   # Helper: build a Meson project with static libs
   build_meson_static() {
     local name="$1" src="$2"
     shift 2
     log "Building $name (static)..."
     cd "$src"
+    # Remove stale build dir if exists
+    rm -rf _build
     meson setup _build --prefix="$STATIC_DEPS_DIR" \
       --default-library=static \
-      --pkg-config-path="$STATIC_DEPS_DIR/lib/pkgconfig:$HOMEBREW_PREFIX/lib/pkgconfig" \
+      --pkg-config-path="$STATIC_DEPS_DIR/lib/pkgconfig:$HOMEBREW_PREFIX/lib/pkgconfig:$(brew --prefix libpng)/lib/pkgconfig:$(brew --prefix jpeg-turbo)/lib/pkgconfig:$(brew --prefix libtiff)/lib/pkgconfig" \
       -Dc_args="-I$STATIC_DEPS_DIR/include" \
-      -Dc_link_args="-L$STATIC_DEPS_DIR/lib" \
+      -Dc_link_args="$HOMEBREW_LIB_PATHS" \
       "$@"
     ninja -C _build -j"$NPROC"
     ninja -C _build install
@@ -185,7 +197,7 @@ elif [ "$OS" = "Linux" ]; then
     sudo apt-get install -y -qq \
       build-essential pkg-config \
       libglib2.0-dev libgdk-pixbuf-2.0-dev \
-      libplist-dev libffi-dev \
+      libplist-dev libffi-dev libsqlite3-dev \
       libpng-dev libjpeg-dev libtiff-dev \
       autoconf automake libtool intltool gtk-doc-tools \
       curl
