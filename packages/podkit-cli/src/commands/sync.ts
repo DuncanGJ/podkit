@@ -164,6 +164,19 @@ interface UpdateBreakdown {
 }
 
 /**
+ * Conflict info for JSON output - tracks that match but have metadata differences
+ */
+interface ConflictInfo {
+  track: string;
+  fields: string[];
+  details: Array<{
+    field: string;
+    collection: string | number | undefined;
+    ipod: string | number | undefined;
+  }>;
+}
+
+/**
  * JSON output structure for sync command
  */
 interface SyncOutput {
@@ -184,8 +197,16 @@ interface SyncOutput {
     estimatedSize: number;
     estimatedTime: number;
   };
+  conflictDetails?: ConflictInfo[];
   operations?: Array<{
-    type: 'transcode' | 'copy' | 'remove' | 'update-metadata' | 'video-transcode' | 'video-copy' | 'video-remove';
+    type:
+      | 'transcode'
+      | 'copy'
+      | 'remove'
+      | 'update-metadata'
+      | 'video-transcode'
+      | 'video-copy'
+      | 'video-remove';
     track: string;
     status?: 'pending' | 'completed' | 'failed' | 'skipped';
     error?: string;
@@ -234,9 +255,7 @@ export function formatDuration(seconds: number): string {
 /**
  * Get storage information for a mount point
  */
-function getStorageInfo(
-  mountpoint: string
-): { total: number; free: number; used: number } | null {
+function getStorageInfo(mountpoint: string): { total: number; free: number; used: number } | null {
   try {
     const stats = statfsSync(mountpoint);
     const total = stats.blocks * stats.bsize;
@@ -358,7 +377,8 @@ function formatErrors(errors: CollectedError[], verbosity: number): string[] {
       if (err.stack) {
         lines.push('    Stack trace:');
         const stackLines = err.stack.split('\n').slice(1); // Skip first line (error message)
-        for (const stackLine of stackLines.slice(0, 5)) { // Limit to 5 lines
+        for (const stackLine of stackLines.slice(0, 5)) {
+          // Limit to 5 lines
           lines.push(`      ${stackLine.trim()}`);
         }
         if (stackLines.length > 5) {
@@ -399,7 +419,9 @@ function formatTransformsConfig(transforms: TransformsConfig): string | null {
 /**
  * Format update reason for display
  */
-function formatUpdateReason(reason: 'transform-apply' | 'transform-remove' | 'metadata-changed'): string {
+function formatUpdateReason(
+  reason: 'transform-apply' | 'transform-remove' | 'metadata-changed'
+): string {
   switch (reason) {
     case 'transform-apply':
       return 'Apply ftintitle';
@@ -591,10 +613,7 @@ function getEffectiveVideoQuality(
 /**
  * Get effective artwork setting for a device
  */
-function getEffectiveArtwork(
-  globalArtwork: boolean,
-  deviceConfig?: DeviceConfig
-): boolean {
+function getEffectiveArtwork(globalArtwork: boolean, deviceConfig?: DeviceConfig): boolean {
   return deviceConfig?.artwork ?? globalArtwork;
 }
 
@@ -606,15 +625,12 @@ export const syncCommand = new Command('sync')
   .description('sync music and/or video collections to iPod')
   .argument('[type]', 'sync type: music, video, or all (default: all)')
   .option('-c, --collection <name>', 'collection name to sync (searches music and video)')
-    .option('-n, --dry-run', 'show what would be synced without making changes')
+  .option('-n, --dry-run', 'show what would be synced without making changes')
   .option(
     '--quality <preset>',
     'music transcoding quality: alac, max, max-cbr, high, high-cbr, medium, medium-cbr, low, low-cbr'
   )
-  .option(
-    '--video-quality <preset>',
-    'video transcoding quality: max, high, medium, low'
-  )
+  .option('--video-quality <preset>', 'video transcoding quality: max, high, medium, low')
   .option(
     '--fallback <preset>',
     'fallback quality for lossy sources when quality=alac (default: max)'
@@ -689,9 +705,10 @@ export const syncCommand = new Command('sync')
     const effectiveVideoQuality = options.videoQuality
       ? (options.videoQuality as VideoQualityPreset)
       : getEffectiveVideoQuality(undefined, deviceConfig);
-    const effectiveArtwork = options.artwork !== undefined
-      ? options.artwork
-      : getEffectiveArtwork(config.artwork, deviceConfig);
+    const effectiveArtwork =
+      options.artwork !== undefined
+        ? options.artwork
+        : getEffectiveArtwork(config.artwork, deviceConfig);
     const fallback = options.fallback ?? config.fallback;
 
     // Build transcode config for music planner
@@ -787,8 +804,7 @@ export const syncCommand = new Command('sync')
     try {
       core = await import('@podkit/core');
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to load podkit-core';
+      const message = err instanceof Error ? err.message : 'Failed to load podkit-core';
       if (globalOpts.json) {
         outputJson({
           success: false,
@@ -813,7 +829,9 @@ export const syncCommand = new Command('sync')
     const deviceIdentity = getDeviceIdentity(resolvedDevice);
 
     if (!globalOpts.quiet && !globalOpts.json && deviceIdentity?.volumeUuid) {
-      console.log(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0));
+      console.log(
+        formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, globalOpts.verbose > 0)
+      );
     }
 
     const resolved = await resolveDevicePath({
@@ -1023,7 +1041,9 @@ export const syncCommand = new Command('sync')
           if (!globalOpts.json && !globalOpts.quiet) {
             spinner.stop(`Found ${formatNumber(collectionTracks.length)} tracks in source`);
             if (scanWarnings.length > 0) {
-              console.log(`  ${scanWarnings.length} file${scanWarnings.length === 1 ? '' : 's'} could not be parsed`);
+              console.log(
+                `  ${scanWarnings.length} file${scanWarnings.length === 1 ? '' : 's'} could not be parsed`
+              );
               if (globalOpts.verbose) {
                 for (const warning of scanWarnings) {
                   console.log(`    - ${warning.file}: ${warning.message}`);
@@ -1038,7 +1058,9 @@ export const syncCommand = new Command('sync')
           }
 
           const ipodTracks = ipod.getTracks();
-          const diff = core.computeDiff(collectionTracks, ipodTracks, { transforms: effectiveTransforms });
+          const diff = core.computeDiff(collectionTracks, ipodTracks, {
+            transforms: effectiveTransforms,
+          });
 
           if (!globalOpts.json && !globalOpts.quiet) {
             spinner.stop('Diff computed');
@@ -1052,9 +1074,7 @@ export const syncCommand = new Command('sync')
 
           const summary = core.getPlanSummary(plan);
           const storage = getStorageInfo(devicePath);
-          const hasEnoughSpace = storage
-            ? core.willFitInSpace(plan, storage.free)
-            : true;
+          const hasEnoughSpace = storage ? core.willFitInSpace(plan, storage.free) : true;
 
           // Dry-run output
           if (dryRun) {
@@ -1103,7 +1123,9 @@ export const syncCommand = new Command('sync')
                   name: 'ftintitle',
                   enabled: true,
                   mode: effectiveTransforms.ftintitle.drop ? 'drop' : 'move',
-                  format: effectiveTransforms.ftintitle.drop ? undefined : effectiveTransforms.ftintitle.format,
+                  format: effectiveTransforms.ftintitle.drop
+                    ? undefined
+                    : effectiveTransforms.ftintitle.format,
                 });
               }
 
@@ -1112,6 +1134,23 @@ export const syncCommand = new Command('sync')
                 const count = updateBreakdown[update.reason] ?? 0;
                 updateBreakdown[update.reason] = count + 1;
               }
+
+              // Build conflict details for JSON output
+              const conflictDetails: ConflictInfo[] = diff.conflicts.map((conflict) => ({
+                track: `${conflict.collection.artist} - ${conflict.collection.title}`,
+                fields: conflict.conflicts,
+                details: conflict.conflicts.map((field) => ({
+                  field,
+                  collection: (conflict.collection as unknown as Record<string, unknown>)[field] as
+                    | string
+                    | number
+                    | undefined,
+                  ipod: (conflict.ipod as unknown as Record<string, unknown>)[field] as
+                    | string
+                    | number
+                    | undefined,
+                })),
+              }));
 
               outputJson({
                 success: true,
@@ -1132,6 +1171,7 @@ export const syncCommand = new Command('sync')
                   estimatedTime: plan.estimatedTime,
                 },
                 operations,
+                conflictDetails: conflictDetails.length > 0 ? conflictDetails : undefined,
                 planWarnings: planWarningInfos.length > 0 ? planWarningInfos : undefined,
                 scanWarnings: scanWarningInfos.length > 0 ? scanWarningInfos : undefined,
               });
@@ -1141,7 +1181,9 @@ export const syncCommand = new Command('sync')
               console.log('');
               console.log(`Source: ${sourcePath}`);
               console.log(`Device: ${devicePath}`);
-              const qualityDisplay = fallback ? `${effectiveQuality} (fallback: ${fallback})` : effectiveQuality;
+              const qualityDisplay = fallback
+                ? `${effectiveQuality} (fallback: ${fallback})`
+                : effectiveQuality;
               console.log(`Quality: ${qualityDisplay}`);
               const transformsDisplay = formatTransformsConfig(effectiveTransforms);
               if (transformsDisplay) {
@@ -1161,6 +1203,42 @@ export const syncCommand = new Command('sync')
                 console.log(`  Tracks to remove: ${formatNumber(diff.toRemove.length)}`);
               }
               console.log(`  Already synced: ${formatNumber(diff.existing.length)}`);
+              if (diff.conflicts.length > 0) {
+                console.log(
+                  `  Metadata conflicts: ${formatNumber(diff.conflicts.length)} (no action will be taken)`
+                );
+                // Group conflicts by field - always show this
+                const fieldCounts = new Map<string, number>();
+                for (const conflict of diff.conflicts) {
+                  for (const field of conflict.conflicts) {
+                    fieldCounts.set(field, (fieldCounts.get(field) ?? 0) + 1);
+                  }
+                }
+                const fieldParts = [...fieldCounts.entries()]
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([field, count]) => `${field}: ${count}`);
+                console.log(`    Fields: ${fieldParts.join(', ')}`);
+                // Show examples only in verbose mode
+                if (globalOpts.verbose) {
+                  const examples = diff.conflicts.slice(0, 3);
+                  console.log('    Examples:');
+                  for (const conflict of examples) {
+                    console.log(
+                      `      ${conflict.collection.artist} - ${conflict.collection.title}`
+                    );
+                    for (const field of conflict.conflicts) {
+                      const colVal = (conflict.collection as unknown as Record<string, unknown>)[
+                        field
+                      ];
+                      const ipodVal = (conflict.ipod as unknown as Record<string, unknown>)[field];
+                      console.log(`        ${field}: "${colVal ?? ''}" vs iPod "${ipodVal ?? ''}"`);
+                    }
+                  }
+                  if (diff.conflicts.length > 3) {
+                    console.log(`      ... and ${diff.conflicts.length - 3} more`);
+                  }
+                }
+              }
               if (diff.toUpdate.length > 0) {
                 const updatesByReason = new Map<string, number>();
                 for (const update of diff.toUpdate) {
@@ -1169,9 +1247,13 @@ export const syncCommand = new Command('sync')
                 }
                 const reasonParts: string[] = [];
                 for (const [reason, count] of updatesByReason) {
-                  reasonParts.push(`${formatUpdateReason(reason as 'transform-apply' | 'transform-remove' | 'metadata-changed')}: ${count}`);
+                  reasonParts.push(
+                    `${formatUpdateReason(reason as 'transform-apply' | 'transform-remove' | 'metadata-changed')}: ${count}`
+                  );
                 }
-                console.log(`  Tracks to update: ${formatNumber(diff.toUpdate.length)} (${reasonParts.join(', ')})`);
+                console.log(
+                  `  Tracks to update: ${formatNumber(diff.toUpdate.length)} (${reasonParts.join(', ')})`
+                );
               }
               console.log('');
 
@@ -1189,7 +1271,9 @@ export const syncCommand = new Command('sync')
               if (effectiveTransforms.ftintitle.enabled) {
                 const tracksToTransform = [
                   ...diff.toAdd,
-                  ...diff.toUpdate.filter((u) => u.reason === 'transform-apply').map((u) => u.source),
+                  ...diff.toUpdate
+                    .filter((u) => u.reason === 'transform-apply')
+                    .map((u) => u.source),
                 ];
                 if (tracksToTransform.length > 0) {
                   const preview = buildTransformPreview(
@@ -1201,7 +1285,9 @@ export const syncCommand = new Command('sync')
                     console.log('Artist transforms:');
                     for (const entry of preview) {
                       const countStr = entry.count > 1 ? `  [${entry.count} tracks]` : '';
-                      console.log(`  "${entry.originalArtist}" → "${entry.transformedArtist}"${countStr}`);
+                      console.log(
+                        `  "${entry.originalArtist}" → "${entry.transformedArtist}"${countStr}`
+                      );
                     }
                     console.log('');
                   }
@@ -1229,14 +1315,18 @@ export const syncCommand = new Command('sync')
                   console.log('');
                 }
               } else if (plan.operations.length > 20) {
-                console.log(`Operations: ${plan.operations.length} total (use --verbose to list all)`);
+                console.log(
+                  `Operations: ${plan.operations.length} total (use --verbose to list all)`
+                );
                 console.log('');
               }
 
               if (plan.warnings.length > 0) {
                 for (const warning of plan.warnings) {
                   if (warning.type === 'lossy-to-lossy') {
-                    console.log(`Warning: ${warning.tracks.length} track${warning.tracks.length === 1 ? '' : 's'} require lossy-to-lossy conversion`);
+                    console.log(
+                      `Warning: ${warning.tracks.length} track${warning.tracks.length === 1 ? '' : 's'} require lossy-to-lossy conversion`
+                    );
                   }
                 }
                 console.log('');
@@ -1308,11 +1398,17 @@ export const syncCommand = new Command('sync')
 
           const executor = new core.DefaultSyncExecutor({ ipod, transcoder });
 
-          for await (const progress of executor.execute(plan, { dryRun: false, continueOnError: true, artwork: effectiveArtwork, adapter })) {
+          for await (const progress of executor.execute(plan, {
+            dryRun: false,
+            continueOnError: true,
+            artwork: effectiveArtwork,
+            adapter,
+          })) {
             if (progress.error) {
               const categorized = progress.categorizedError;
               collectedErrors.push({
-                trackName: categorized?.trackName ?? core.getOperationDisplayName(progress.operation),
+                trackName:
+                  categorized?.trackName ?? core.getOperationDisplayName(progress.operation),
                 category: categorized?.category ?? 'unknown',
                 message: progress.error.message,
                 retryAttempts: categorized?.retryAttempts ?? 0,
@@ -1320,7 +1416,11 @@ export const syncCommand = new Command('sync')
                 stack: progress.error.stack,
               });
               failed++;
-            } else if (progress.phase !== 'preparing' && progress.phase !== 'updating-db' && progress.phase !== 'complete') {
+            } else if (
+              progress.phase !== 'preparing' &&
+              progress.phase !== 'updating-db' &&
+              progress.phase !== 'complete'
+            ) {
               completed++;
             }
 
@@ -1420,21 +1520,23 @@ export const syncCommand = new Command('sync')
               continue;
             }
 
-            const movieCount = collectionVideos.filter(v => v.contentType === 'movie').length;
-            const tvShowCount = collectionVideos.filter(v => v.contentType === 'tvshow').length;
+            const movieCount = collectionVideos.filter((v) => v.contentType === 'movie').length;
+            const tvShowCount = collectionVideos.filter((v) => v.contentType === 'tvshow').length;
 
             if (!globalOpts.json && !globalOpts.quiet) {
-              spinner.stop(`Found ${formatNumber(collectionVideos.length)} videos (${movieCount} movies, ${tvShowCount} TV episodes)`);
+              spinner.stop(
+                `Found ${formatNumber(collectionVideos.length)} videos (${movieCount} movies, ${tvShowCount} TV episodes)`
+              );
             }
 
             // Get iPod video tracks
             const allTracks = ipod.getTracks();
             const ipodVideos: IPodVideo[] = allTracks
-              .filter(t =>
-                (t.mediaType & MediaType.Movie) !== 0 ||
-                (t.mediaType & MediaType.TVShow) !== 0
+              .filter(
+                (t) =>
+                  (t.mediaType & MediaType.Movie) !== 0 || (t.mediaType & MediaType.TVShow) !== 0
               )
-              .map(t => {
+              .map((t) => {
                 const isMovie = (t.mediaType & MediaType.Movie) !== 0;
                 return {
                   id: t.filePath,
@@ -1472,9 +1574,7 @@ export const syncCommand = new Command('sync')
 
             const videoSummary = core.getVideoPlanSummary(videoPlan);
             const storage = getStorageInfo(devicePath);
-            const hasEnoughSpace = storage
-              ? core.willVideoPlanFit(videoPlan, storage.free)
-              : true;
+            const hasEnoughSpace = storage ? core.willVideoPlanFit(videoPlan, storage.free) : true;
 
             if (!hasEnoughSpace) {
               if (!globalOpts.json) {
@@ -1599,14 +1699,16 @@ export const syncCommand = new Command('sync')
 
             const allTracks = ipod.getTracks();
             const ipodVideos: IPodVideo[] = allTracks
-              .filter(t =>
-                (t.mediaType & MediaType.Movie) !== 0 ||
-                (t.mediaType & MediaType.TVShow) !== 0
+              .filter(
+                (t) =>
+                  (t.mediaType & MediaType.Movie) !== 0 || (t.mediaType & MediaType.TVShow) !== 0
               )
-              .map(t => ({
+              .map((t) => ({
                 id: t.filePath,
                 filePath: t.filePath,
-                contentType: ((t.mediaType & MediaType.Movie) !== 0 ? 'movie' : 'tvshow') as 'movie' | 'tvshow',
+                contentType: ((t.mediaType & MediaType.Movie) !== 0 ? 'movie' : 'tvshow') as
+                  | 'movie'
+                  | 'tvshow',
                 title: t.title,
                 year: t.year,
                 seriesTitle: t.tvShow,
@@ -1626,8 +1728,8 @@ export const syncCommand = new Command('sync')
             });
 
             const videoSummary = core.getVideoPlanSummary(videoPlan);
-            const movieCount = collectionVideos.filter(v => v.contentType === 'movie').length;
-            const tvShowCount = collectionVideos.filter(v => v.contentType === 'tvshow').length;
+            const movieCount = collectionVideos.filter((v) => v.contentType === 'movie').length;
+            const tvShowCount = collectionVideos.filter((v) => v.contentType === 'tvshow').length;
 
             if (!globalOpts.json && !globalOpts.quiet) {
               spinner.stop();
@@ -1676,7 +1778,9 @@ export const syncCommand = new Command('sync')
         console.log('=== Summary ===');
         console.log('');
         if (totalFailed > 0) {
-          console.log(`Synced ${formatNumber(totalCompleted)} items (${formatNumber(totalFailed)} failed)`);
+          console.log(
+            `Synced ${formatNumber(totalCompleted)} items (${formatNumber(totalFailed)} failed)`
+          );
         } else if (totalCompleted > 0) {
           console.log(`Synced ${formatNumber(totalCompleted)} items successfully`);
         } else {
