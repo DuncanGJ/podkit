@@ -53,6 +53,8 @@ jobs:
         run: |
           brew install libplist gdk-pixbuf intltool autoconf automake libtool \
             gtk-doc pkg-config gettext libpng jpeg-turbo libtiff meson ninja
+          # intltool requires XML::Parser perl module for libgpod's autoreconf
+          sudo cpan -T XML::Parser
 
       # Linux: install system -dev packages (including libgpod-dev)
       - name: Install Linux build deps

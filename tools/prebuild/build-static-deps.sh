@@ -57,8 +57,8 @@ build_gdk_pixbuf_static() {
     -Dc_args="-I$STATIC_DEPS_DIR/include" \
     -Dc_link_args="-L$STATIC_DEPS_DIR/lib $extra_link_args" \
     -Dman=false -Dgtk_doc=false -Dintrospection=disabled \
-    -Dinstalled_tests=false -Dbuiltin_loaders=png,jpeg \
-    -Dtests=false
+    -Dinstalled_tests=false -Dbuiltin_loaders=all \
+    -Dgio_sniffing=false -Dtests=false
   ninja -C _build -j"$NPROC"
   ninja -C _build install
   cd "$WORK_DIR"
