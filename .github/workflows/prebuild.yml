@@ -34,31 +34,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Set environment
         run: |
           echo "STATIC_DEPS_DIR=${GITHUB_WORKSPACE}/static-deps" >> "$GITHUB_ENV"
           echo "WORK_DIR=${RUNNER_TEMP}/prebuild-work" >> "$GITHUB_ENV"
 
-      # macOS: install Homebrew dependencies for building from source
+      # Check cache FIRST — everything below gates on this
+      - name: Cache static dependencies
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STATIC_DEPS_DIR }}
+          key: static-deps-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('tools/prebuild/build-static-deps.sh') }}
+
+      # ---- Cache MISS: install full build toolchain and build from source ----
+
       - name: Install macOS build deps
-        if: matrix.platform == 'darwin'
+        if: matrix.platform == 'darwin' && steps.cache.outputs.cache-hit != 'true'
         run: |
           brew install libplist gdk-pixbuf intltool autoconf automake libtool \
             gtk-doc pkg-config gettext libpng jpeg-turbo libtiff meson ninja
-          # intltool requires XML::Parser perl module for libgpod's autoreconf
           sudo cpan -T XML::Parser
 
-      # Linux: install system -dev packages for building libgpod from source
       - name: Install Linux build deps
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && steps.cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
@@ -69,27 +68,43 @@ jobs:
             intltool autoconf automake libtool gtk-doc-tools \
             meson ninja-build curl
 
-      # Cache static dependencies (libgpod, gdk-pixbuf, glib .a files)
-      - name: Cache static dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STATIC_DEPS_DIR }}
-          key: static-deps-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('tools/prebuild/build-static-deps.sh') }}
-
-      # Build all native dependencies as static libraries
       - name: Build static dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
         run: bash tools/prebuild/build-static-deps.sh
 
-      # Install Node.js dependencies
+      # ---- Cache HIT: install only what prebuildify needs (headers via pkg-config) ----
+
+      - name: Install macOS prebuild deps
+        if: matrix.platform == 'darwin' && steps.cache.outputs.cache-hit == 'true'
+        run: brew install libplist gdk-pixbuf pkg-config gettext libpng jpeg-turbo libtiff
+
+      - name: Install Linux prebuild deps
+        if: matrix.platform == 'linux' && steps.cache.outputs.cache-hit == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential pkg-config \
+            libglib2.0-dev libgdk-pixbuf-2.0-dev \
+            libplist-dev libffi-dev \
+            libpng-dev libjpeg-dev libtiff-dev
+
+      # ---- Always: build the .node binary ----
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Install dependencies
         run: bun install
 
-      # Build the native addon with static linking and create prebuild
       - name: Create prebuild
         working-directory: packages/libgpod-node
         run: npx prebuildify --napi --strip
 
-      # Verify no dynamic deps on libgpod/glib
       - name: Verify static linking (macOS)
         if: matrix.platform == 'darwin'
         working-directory: packages/libgpod-node
