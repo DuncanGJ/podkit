@@ -274,6 +274,15 @@ export class MacOSDeviceManager implements DeviceManager {
     return null;
   }
 
+  requiresPrivileges(operation: 'mount' | 'eject'): boolean {
+    if (operation === 'mount') {
+      // Mount requires root on macOS
+      return typeof process.getuid === 'function' && process.getuid() !== 0;
+    }
+    // Eject via diskutil doesn't require root
+    return false;
+  }
+
   getManualInstructions(operation: 'mount' | 'eject'): string {
     if (operation === 'eject') {
       return `To safely eject your iPod on macOS:

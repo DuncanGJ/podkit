@@ -56,6 +56,11 @@ export class UnsupportedDeviceManager implements DeviceManager {
     return null;
   }
 
+  requiresPrivileges(_operation: 'mount' | 'eject'): boolean {
+    // Unknown for unsupported platforms - operation will fail anyway
+    return false;
+  }
+
   getManualInstructions(operation: 'mount' | 'eject'): string {
     const platformName = this.getPlatformDisplayName();
 

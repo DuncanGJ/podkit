@@ -141,6 +141,17 @@ export interface DeviceManager {
    * Returns platform-specific guidance for manual device operations.
    */
   getManualInstructions(operation: 'mount' | 'eject'): string;
+
+  /**
+   * Check if an operation requires elevated privileges
+   *
+   * Allows early detection of privilege requirements before attempting
+   * operations that would fail without proper permissions.
+   *
+   * @param operation - The operation to check
+   * @returns true if elevated privileges are required but not available
+   */
+  requiresPrivileges(operation: 'mount' | 'eject'): boolean;
 }
 
 /**

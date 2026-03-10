@@ -89,6 +89,24 @@ export const mountCommand = new Command('mount')
 
     const manager = getDeviceManager();
 
+    // Check early if privileges are required (before device lookup)
+    if (!options.dryRun && manager.requiresPrivileges('mount')) {
+      if (globalOpts.json) {
+        outputJson({
+          success: false,
+          error: 'Mount requires elevated privileges',
+          requiresSudo: true,
+        });
+      } else {
+        console.error('Mount requires elevated privileges.');
+        console.error('');
+        console.error('Run with sudo:');
+        console.error('  sudo podkit mount [options]');
+      }
+      process.exitCode = 1;
+      return;
+    }
+
     if (!manager.isSupported) {
       if (globalOpts.json) {
         outputJson({
