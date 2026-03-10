@@ -42,7 +42,7 @@ bun run build                    # Build all packages for Node.js
 # CLI
 podkit sync --dry-run                   # Sync all collections (music + video)
 podkit sync music -c main --dry-run     # Sync specific music collection
-podkit sync --device terapod            # Sync to named device
+podkit sync --device myipod            # Sync to named device
 podkit sync --device /Volumes/iPod      # Sync to device by path
 podkit device info                      # Show device status
 podkit device music --format json       # List music on device
@@ -66,7 +66,7 @@ The `docs/` directory is organized for web publication (Starlight-compatible):
 docs/
 ├── index.md                    # Introduction
 ├── getting-started/            # Installation, quick start, first sync
-├── user-guide/                 # Configuration, sources, transcoding, video
+├── user-guide/                 # Configuration, sources, devices, transcoding
 ├── devices/                    # Supported devices, iPod internals
 ├── reference/                  # CLI commands, config file, quality presets
 ├── troubleshooting/            # Common issues, macOS mounting
@@ -91,8 +91,9 @@ Read these documents based on what you're working on:
 | ADRs | [adr/](adr/) |
 | Contributing | [docs/developers/contributing.md](docs/developers/contributing.md) |
 | libgpod integration | [docs/developers/libgpod.md](docs/developers/libgpod.md) |
-| Transcoding (audio) | [docs/user-guide/transcoding.md](docs/user-guide/transcoding.md) |
-| Video sync | [docs/user-guide/video-sync.md](docs/user-guide/video-sync.md) |
+| Device management | [docs/user-guide/devices/](docs/user-guide/devices/) |
+| Transcoding (audio) | [docs/user-guide/transcoding/audio.md](docs/user-guide/transcoding/audio.md) |
+| Transcoding (video) | [docs/user-guide/transcoding/video.md](docs/user-guide/transcoding/video.md) |
 | Directory source | [docs/user-guide/directory-source.md](docs/user-guide/directory-source.md) |
 | Subsonic source | [docs/user-guide/subsonic-source.md](docs/user-guide/subsonic-source.md) |
 | iPod internals | [docs/devices/ipod-internals.md](docs/devices/ipod-internals.md) |

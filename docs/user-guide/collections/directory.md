@@ -78,4 +78,4 @@ This writes the `[music.main]` section to your config file automatically. If it 
 
 - [Subsonic Source](/user-guide/collection-sources/subsonic) - Sync from Navidrome and other Subsonic servers
 - [Configuration](/user-guide/configuration) - Full configuration reference
-- [Transcoding](/user-guide/transcoding) - Quality settings for transcoding
+- [Audio Transcoding](/user-guide/transcoding/audio) - Quality settings for transcoding

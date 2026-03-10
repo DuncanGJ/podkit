@@ -9,37 +9,22 @@ This document covers the technical architecture of podkit, including component d
 
 ## System Context
 
-```
-+-----------------------------------------------------------------------------+
-|                              User Environment                                |
-|                                                                             |
-|                          +------------------+                               |
-|                          |  Music Directory |                               |
-|                          |   (FLAC, MP3,    |                               |
-|                          |    M4A, etc.)    |                               |
-|                          +--------+---------+                               |
-|                                   |                                         |
-|                                   v                                         |
-|                          +----------------+                                 |
-|                          |     podkit     |                                 |
-|                          |      CLI       |                                 |
-|                          +--------+-------+                                 |
-|                              |                                              |
-|         +--------------------+--------------------+                         |
-|         |                    |                    |                         |
-|         v                    v                    v                         |
-|  +--------------+    +--------------+    +--------------+                  |
-|  |    FFmpeg    |    |   libgpod    |    |   System     |                  |
-|  |  (transcode) |    |  (via node)  |    |   Storage    |                  |
-|  +--------------+    +------+-------+    +--------------+                  |
-|                              |                                              |
-+------------------------------+----------------------------------------------+
-                               |
-                               v
-                        +--------------+
-                        |    iPod      |
-                        |   Device     |
-                        +--------------+
+```mermaid
+flowchart TD
+    subgraph env["User Environment"]
+        music["Music Directory<br/>(FLAC, MP3, M4A, etc.)"]
+        cli["podkit CLI"]
+        ffmpeg["FFmpeg<br/>(transcode)"]
+        libgpod["libgpod<br/>(via node)"]
+        storage["System Storage"]
+    end
+    ipod["iPod Device"]
+
+    music --> cli
+    cli --> ffmpeg
+    cli --> libgpod
+    cli --> storage
+    libgpod --> ipod
 ```
 
 ## Package Architecture
@@ -98,26 +83,22 @@ tools/
 
 ### Layer Diagram
 
-```
-+-------------------------------------------------------------+
-|                       podkit-cli                            |
-|                    (CLI commands)                           |
-+---------------------------+---------------------------------+
-                            |
-                            v
-+-------------------------------------------------------------+
-|                      podkit-core                            |
-|  +-------------------+  +----------------+  +-----------+  |
-|  |   IpodDatabase    |  |  Sync Engine   |  | Transcode |  |
-|  |   (iPod access)   |  |  (diff/plan)   |  | (FFmpeg)  |  |
-|  +---------+---------+  +----------------+  +-----------+  |
-+------------+------------------------------------------------+
-             |
-             v
-+-------------------------------------------------------------+
-|                    libgpod-node (internal)                  |
-|                 (N-API bindings for libgpod)                |
-+-------------------------------------------------------------+
+```mermaid
+flowchart TD
+    subgraph cli_layer["podkit-cli"]
+        cli_commands["CLI commands"]
+    end
+    subgraph core_layer["podkit-core"]
+        ipoddb["IpodDatabase<br/>(iPod access)"]
+        sync["Sync Engine<br/>(diff/plan)"]
+        transcode["Transcode<br/>(FFmpeg)"]
+    end
+    subgraph binding_layer["libgpod-node (internal)"]
+        napi["N-API bindings for libgpod"]
+    end
+
+    cli_commands --> core_layer
+    ipoddb --> napi
 ```
 
 **Important:** Applications should use `IpodDatabase` from `@podkit/core`, not `@podkit/libgpod-node` directly. The libgpod-node package is an internal implementation detail.
@@ -211,41 +192,34 @@ The transforms module applies metadata transformations before syncing. For examp
 
 ### Sync Operation Flow
 
-```
-1. Initialize
-   +-- Parse CLI arguments
-   +-- Load configuration
-   +-- Connect to collection source (adapter)
-   +-- Open iPod database (IpodDatabase.open())
+```mermaid
+flowchart TD
+    subgraph init["1. Initialize"]
+        i1["Parse CLI arguments"] --> i2["Load configuration"]
+        i2 --> i3["Connect to collection source"]
+        i3 --> i4["Open iPod database"]
+    end
+    subgraph diff["2. Diff"]
+        d1["Load collection tracks"] --> d2["Load iPod tracks"]
+        d2 --> d3["Match by artist, title, album"]
+        d3 --> d4["Generate diff: toAdd, toRemove, existing"]
+    end
+    subgraph plan["3. Plan"]
+        p1["Check transcoding needed"] --> p2["Estimate output size"]
+        p2 --> p3["Create operations"] --> p4["Return SyncPlan"]
+    end
+    subgraph exec["4. Execute (if not dry-run)"]
+        e1["Transcode if needed"] --> e2["Extract artwork"]
+        e2 --> e3["Add track to iPod"]
+        e3 --> e4["Copy file + set artwork"]
+        e4 --> e5["Save iPod database"]
+    end
+    subgraph fin["5. Finalize"]
+        f1["Report summary"] --> f2["Close database"]
+        f2 --> f3["Cleanup temp files"]
+    end
 
-2. Diff
-   +-- Load all collection tracks (adapter.getTracks())
-   +-- Load all iPod tracks (ipod.getTracks())
-   +-- Match by (artist, title, album)
-   +-- Generate diff: toAdd, toRemove, existing
-
-3. Plan
-   +-- For each track to add:
-   |   +-- Check if transcoding needed
-   |   +-- Estimate output size
-   |   +-- Create operation
-   +-- Calculate total time/size
-   +-- Return SyncPlan
-
-4. Execute (if not dry-run)
-   +-- For each operation:
-   |   +-- Transcode if needed (FFmpeg)
-   |   +-- Extract artwork
-   |   +-- Add track to iPod (ipod.addTrack())
-   |   +-- Copy file to iPod (track.copyFile())
-   |   +-- Set artwork (track.setArtwork())
-   |   +-- Report progress
-   +-- Save iPod database (ipod.save())
-
-5. Finalize
-   +-- Report summary
-   +-- Close database (ipod.close())
-   +-- Cleanup temp files
+    init --> diff --> plan --> exec --> fin
 ```
 
 ### Track Matching Algorithm

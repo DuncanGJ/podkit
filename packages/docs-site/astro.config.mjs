@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLlmsTxt from 'starlight-llms-txt';
+import mermaid from 'astro-mermaid';
 import { remarkBaseUrl } from './src/remark-base-url.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -19,18 +20,20 @@ export default defineConfig({
     resolve: {
       // Allow MDX files in symlinked docs/ to resolve Starlight components
       alias: {
-        '@astrojs/starlight/components': resolve(__dirname, 'node_modules/@astrojs/starlight/components'),
+        '@astrojs/starlight/components': resolve(
+          __dirname,
+          'node_modules/@astrojs/starlight/components'
+        ),
       },
     },
   },
   integrations: [
+    mermaid(),
     starlight({
       plugins: [starlightLlmsTxt()],
       title: 'podkit',
       description: 'Sync your music collection to iPod devices',
-      social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/jvgomg/podkit' },
-      ],
+      social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/jvgomg/podkit' }],
       editLink: {
         baseUrl: 'https://github.com/jvgomg/podkit/edit/main/',
       },
@@ -49,16 +52,33 @@ export default defineConfig({
           items: [
             { slug: 'user-guide/configuration' },
             {
-              label: 'Collection Sources',
+              label: 'Collections',
               items: [
-                { slug: 'user-guide/collection-sources' },
-                { slug: 'user-guide/collection-sources/directory' },
-                { slug: 'user-guide/collection-sources/subsonic' },
+                { slug: 'user-guide/collections' },
+                { slug: 'user-guide/collections/directory' },
+                { slug: 'user-guide/collections/subsonic' },
+                { slug: 'user-guide/collections/additional-sources' },
               ],
             },
-            { slug: 'user-guide/transcoding' },
+            {
+              label: 'Devices',
+              items: [
+                { slug: 'user-guide/devices' },
+                { slug: 'user-guide/devices/adding-devices' },
+                { slug: 'user-guide/devices/mounting-ejecting' },
+                { slug: 'user-guide/devices/clearing' },
+                { slug: 'user-guide/devices/resetting' },
+                { slug: 'user-guide/devices/formatting' },
+              ],
+            },
+            {
+              label: 'Transcoding',
+              items: [
+                { slug: 'user-guide/transcoding/audio' },
+                { slug: 'user-guide/transcoding/video' },
+              ],
+            },
             { slug: 'user-guide/transforms' },
-            { slug: 'user-guide/video-sync' },
           ],
         },
         {

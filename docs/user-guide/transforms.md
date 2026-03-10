@@ -1,5 +1,5 @@
 ---
-title: Transforms
+title: Album Artist Transform
 description: Clean up messy artist lists on your iPod by moving featured artist credits into the track title.
 sidebar:
   order: 5
@@ -83,7 +83,7 @@ ignore = ["Simon & Garfunkel", "Hall & Oates", "Earth, Wind & Fire"]
 You can override transform settings for specific devices:
 
 ```toml
-[devices.terapod.transforms.ftintitle]
+[devices.myipod.transforms.ftintitle]
 enabled = true
 format = "feat. {}"
 

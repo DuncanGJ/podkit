@@ -248,5 +248,5 @@ podkit sync --help      # Sync command help
 - [Configuration](/user-guide/configuration) - Full configuration reference
 - [Directory Source](/user-guide/collection-sources/directory) - Set up local directory collections
 - [Subsonic Source](/user-guide/collection-sources/subsonic) - Sync from Navidrome and other Subsonic servers
-- [Transcoding](/user-guide/transcoding) - Quality settings and encoder options
-- [Video Sync](/user-guide/video-sync) - Sync movies and TV shows
+- [Audio Transcoding](/user-guide/transcoding/audio) - Quality settings and encoder options
+- [Video Transcoding](/user-guide/transcoding/video) - Sync movies and TV shows

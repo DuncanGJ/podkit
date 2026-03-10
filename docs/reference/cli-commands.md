@@ -108,7 +108,7 @@ podkit sync -c jazz
 podkit sync music -c main
 
 # Sync to a specific device
-podkit sync --device terapod
+podkit sync --device myipod
 
 # Sync with lower quality to save space
 podkit sync --quality medium

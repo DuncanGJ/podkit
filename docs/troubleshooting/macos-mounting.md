@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-Large-capacity iPods using iFlash adapters with SD cards may fail to mount automatically on macOS.
+Large-capacity iPods using iFlash adapters with SD cards may fail to mount automatically on macOS. This issue was [originally documented by u/Efficient_Pattern on Reddit](https://www.reddit.com/r/IpodClassic/comments/1o6nk41/mounting_issues_workaround_with_1tb_ipodsiflash/).
 
 ## Symptoms
 
@@ -16,7 +16,23 @@ Large-capacity iPods using iFlash adapters with SD cards may fail to mount autom
 
 This affects iPods with 1TB+ storage (iFlash Quad with multiple SD cards). The issue occurs because macOS refuses to automatically mount very large FAT32 volumes.
 
-## Workaround
+## Using podkit mount
+
+If your device is registered with podkit, the easiest solution is the built-in mount command:
+
+```bash
+podkit mount
+```
+
+This auto-detects the disk identifier and mounts it for you. You can also specify the disk identifier directly:
+
+```bash
+podkit mount --disk /dev/disk4s2
+```
+
+See [Mounting and Ejecting](/user-guide/devices/mounting-ejecting) for more details.
+
+## Manual Workaround
 
 ### 1. Find the disk identifier
 
@@ -87,9 +103,6 @@ podkit eject
 
 ## See Also
 
+- [Mounting and Ejecting](/user-guide/devices/mounting-ejecting) - podkit mount/eject commands
 - [Supported Devices](/devices/supported-devices) - Device compatibility
 - [iPod Internals](/devices/ipod-internals) - Device technical details
-
-## References
-
-- [Original workaround by u/Efficient_Pattern on Reddit](https://www.reddit.com/r/IpodClassic/comments/1o6nk41/mounting_issues_workaround_with_1tb_ipodsiflash/)

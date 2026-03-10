@@ -129,6 +129,6 @@ Video quality is capped to source quality:
 
 ## See Also
 
-- [Transcoding Guide](/user-guide/transcoding) - Full transcoding documentation
-- [Video Sync](/user-guide/video-sync) - Video configuration
+- [Audio Transcoding](/user-guide/transcoding/audio) - Full audio transcoding documentation
+- [Video Transcoding](/user-guide/transcoding/video) - Video transcoding and configuration
 - [Configuration](/user-guide/configuration) - Setting presets in config

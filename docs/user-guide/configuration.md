@@ -140,7 +140,7 @@ fallback = "max"          # Fallback for lossy sources when using ALAC
 
 CBR variants are also available: `max-cbr`, `high-cbr`, `medium-cbr`, `low-cbr`.
 
-See [Transcoding](/user-guide/transcoding) for detailed quality settings.
+See [Audio Transcoding](/user-guide/transcoding/audio) for detailed quality settings.
 
 ## Video Collections
 
@@ -157,7 +157,7 @@ path = "/path/to/tv-shows"
 video = "movies"
 ```
 
-See [Video Sync](/user-guide/video-sync) for video configuration.
+See [Video Transcoding](/user-guide/transcoding/video) for video configuration.
 
 ## Defaults
 
@@ -272,7 +272,7 @@ video = "movies"
 
 - [Directory Source](/user-guide/collection-sources/directory) - Local directory source configuration
 - [Subsonic Source](/user-guide/collection-sources/subsonic) - Subsonic server source configuration
-- [Transcoding](/user-guide/transcoding) - Quality presets and encoder settings
-- [Video Sync](/user-guide/video-sync) - Video collection configuration
+- [Audio Transcoding](/user-guide/transcoding/audio) - Quality presets and encoder settings
+- [Video Transcoding](/user-guide/transcoding/video) - Video collection configuration
 - [CLI Commands](/reference/cli-commands) - Command-line options
 - [Config File Reference](/reference/config-file) - Complete config schema

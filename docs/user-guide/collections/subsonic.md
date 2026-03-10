@@ -90,4 +90,4 @@ path = "/tmp/work-cache"
 
 - [Directory Source](/user-guide/collection-sources/directory) - Local filesystem collections
 - [Configuration](/user-guide/configuration) - Full configuration reference
-- [Transcoding](/user-guide/transcoding) - Quality settings for transcoding
+- [Audio Transcoding](/user-guide/transcoding/audio) - Quality settings for transcoding

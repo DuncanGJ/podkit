@@ -1,8 +1,8 @@
 ---
-title: Video Sync
-description: Sync movies and TV shows to video-capable iPods with automatic transcoding.
+title: Video Transcoding
+description: Configure video transcoding quality, formats, and device profiles for syncing movies and TV shows to iPod.
 sidebar:
-  order: 6
+  order: 2
 ---
 
 podkit supports syncing movies and TV shows to video-capable iPods. This guide covers video configuration, quality settings, and supported formats.
@@ -249,6 +249,7 @@ podkit sync video --dry-run -vvv
 
 ## See Also
 
+- [Audio Transcoding](/user-guide/transcoding/audio) - Audio transcoding quality and codec settings
 - [Supported Devices](/devices/supported-devices) - Video-capable iPod models
 - [Configuration](/user-guide/configuration) - Full configuration reference
 - [CLI Commands](/reference/cli-commands) - Command-line options
