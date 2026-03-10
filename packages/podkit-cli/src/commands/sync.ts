@@ -67,7 +67,7 @@ import { createMusicAdapter } from '../utils/source-adapter.js';
 /**
  * AAC-only quality presets (for lossyQuality)
  */
-type AacQualityPreset = Exclude<QualityPreset, 'alac'>;
+type AacQualityPreset = Exclude<QualityPreset, 'lossless'>;
 
 /**
  * Valid sync types
@@ -389,7 +389,7 @@ function getEffectiveVideoQuality(
 
 /**
  * Check if an audio quality preset is also valid as a video quality preset
- * (i.e., max, high, medium, low — not alac or *-cbr variants)
+ * (i.e., max, high, medium, low — not lossless or *-cbr variants)
  */
 function isVideoQualityCompatible(quality: QualityPreset): boolean {
   return ['max', 'high', 'medium', 'low'].includes(quality);
@@ -1191,12 +1191,12 @@ export const syncCommand = new Command('sync')
   )
   .option(
     '--audio-quality <preset>',
-    'audio transcoding quality (overrides --quality): alac, max, max-cbr, high, high-cbr, medium, medium-cbr, low, low-cbr'
+    'audio transcoding quality (overrides --quality): lossless, max, max-cbr, high, high-cbr, medium, medium-cbr, low, low-cbr'
   )
   .option('--video-quality <preset>', 'video transcoding quality (overrides --quality): max, high, medium, low')
   .option(
     '--lossy-quality <preset>',
-    'quality for lossy sources when audio quality is alac (default: max)'
+    'quality for lossy sources when audio quality is lossless (default: max)'
   )
   .option('--filter <pattern>', 'only sync tracks matching pattern')
   .option('--no-artwork', 'skip artwork transfer')

@@ -94,7 +94,7 @@ export interface VideoCollectionConfig {
  * volumeUuid = "ABC-123"
  * volumeName = "TERAPOD"
  * quality = "high"
- * audioQuality = "alac"
+ * audioQuality = "lossless"
  * videoQuality = "medium"
  * artwork = true
  *
@@ -161,8 +161,8 @@ export interface PodkitConfig {
   /** Video transcoding quality preset (overrides quality for video) */
   videoQuality?: VideoQualityPreset;
   /**
-   * Quality preset for lossy sources when audioQuality='alac'.
-   * Default: 'max' if audioQuality='alac', otherwise inherits from audioQuality
+   * Quality preset for lossy sources when audioQuality='lossless'.
+   * Default: 'max' if audioQuality='lossless', otherwise inherits from audioQuality
    */
   lossyQuality?: AacQualityPreset;
   /** Include artwork in sync (global default, can be overridden per-device) */
@@ -271,7 +271,7 @@ export interface ConfigFileDefaults {
  * @example Multi-collection/device format (ADR-008)
  * ```toml
  * quality = "high"
- * audioQuality = "alac"
+ * audioQuality = "lossless"
  * videoQuality = "medium"
  * lossyQuality = "max"
  * artwork = true

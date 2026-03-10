@@ -11,7 +11,7 @@ This guide covers audio quality presets, encoder options, and file size estimate
 
 | Preset | Type | Target | Description |
 |--------|------|--------|-------------|
-| `alac` | Lossless | N/A | Apple Lossless (only from lossless sources) |
+| `lossless` | Lossless | N/A | Apple Lossless (only from lossless sources) |
 | `max` | VBR | ~320 kbps | Highest VBR quality level |
 | `max-cbr` | CBR | 320 kbps | Guaranteed 320 kbps |
 | `high` | VBR | ~256 kbps | Transparent quality (default) |
@@ -32,7 +32,7 @@ This guide covers audio quality presets, encoder options, and file size estimate
 podkit sync
 
 # Lossless (ALAC) with lossy quality fallback
-podkit sync --audio-quality alac --lossy-quality max
+podkit sync --audio-quality lossless --lossy-quality max
 
 # Guaranteed 320 kbps CBR
 podkit sync --audio-quality max-cbr
@@ -49,8 +49,8 @@ podkit sync --quality medium --audio-quality high
 ```toml
 # Top-level settings in config.toml
 quality = "high"          # Unified quality for audio and video
-audioQuality = "high"     # Audio-specific override: alac | max | max-cbr | high | high-cbr | medium | medium-cbr | low | low-cbr
-lossyQuality = "max"     # Quality for lossy sources when audioQuality = "alac"
+audioQuality = "high"     # Audio-specific override: lossless | max | max-cbr | high | high-cbr | medium | medium-cbr | low | low-cbr
+lossyQuality = "max"     # Quality for lossy sources when audioQuality = "lossless"
 ```
 
 ## Example Scenarios
@@ -58,7 +58,7 @@ lossyQuality = "max"     # Quality for lossy sources when audioQuality = "alac"
 **Scenario 1: Audiophile with mixed collection**
 
 ```toml
-audioQuality = "alac"
+audioQuality = "lossless"
 lossyQuality = "max"
 ```
 
@@ -105,7 +105,7 @@ quality = "high-cbr"
 
 | Preset | Mode | Approx Bitrate | File Size (4 min song) |
 |--------|------|----------------|------------------------|
-| **alac** | Lossless | ~900 kbps | ~26 MB |
+| **lossless** | Lossless | ~900 kbps | ~26 MB |
 | **max** | VBR | ~320 kbps | ~9.4 MB |
 | **high** | VBR | ~256 kbps | ~7.5 MB |
 | **medium** | VBR | ~192 kbps | ~5.6 MB |

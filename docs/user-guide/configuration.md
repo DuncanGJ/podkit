@@ -112,7 +112,7 @@ Configure per-device options:
 volumeUuid = "ABC-123"
 volumeName = "CLASSIC"
 quality = "high"          # Unified quality (audio + video)
-audioQuality = "alac"     # Override: lossless audio
+audioQuality = "lossless" # Override: lossless audio
 videoQuality = "high"     # Override: high video quality
 artwork = true            # Include album artwork
 
@@ -132,10 +132,10 @@ podkit uses a unified quality system. The `quality` field sets both audio and vi
 quality = "high"              # max | high | medium | low (applies to audio and video)
 
 # Or override audio and video separately
-audioQuality = "alac"         # alac | max | max-cbr | high | high-cbr | medium | medium-cbr | low | low-cbr
+audioQuality = "lossless"     # lossless | max | max-cbr | high | high-cbr | medium | medium-cbr | low | low-cbr
 videoQuality = "medium"       # max | high | medium | low
 
-# Quality for lossy sources when audioQuality = "alac"
+# Quality for lossy sources when audioQuality = "lossless"
 lossyQuality = "max"
 ```
 
@@ -143,7 +143,7 @@ lossyQuality = "max"
 
 | Preset | Type | Target Bitrate | Description |
 |--------|------|----------------|-------------|
-| `alac` | Lossless | N/A | Apple Lossless (from lossless sources only) |
+| `lossless` | Lossless | N/A | Apple Lossless (from lossless sources only) |
 | `max` | VBR | ~320 kbps | Highest VBR quality |
 | `high` | VBR | ~256 kbps | Transparent quality (default) |
 | `medium` | VBR | ~192 kbps | Excellent quality |
@@ -162,9 +162,9 @@ CBR variants are also available: `max-cbr`, `high-cbr`, `medium-cbr`, `low-cbr`.
 
 ### How Quality Resolves
 
-More specific settings always override less specific ones. For example, if you set `quality = "medium"` and `audioQuality = "alac"`, audio uses ALAC while video uses medium.
+More specific settings always override less specific ones. For example, if you set `quality = "medium"` and `audioQuality = "lossless"`, audio uses ALAC while video uses medium.
 
-Audio-only values like `alac` and CBR variants can be used with `quality`, but they only affect audio -- video falls through to the next applicable setting or the default (`"high"`).
+Audio-only values like `lossless` and CBR variants can be used with `quality`, but they only affect audio -- video falls through to the next applicable setting or the default (`"high"`).
 
 See [Audio Transcoding](/user-guide/transcoding/audio) and [Video Transcoding](/user-guide/transcoding/video) for detailed quality settings.
 
@@ -239,7 +239,7 @@ Some settings can be set via environment variables:
 | `PODKIT_QUALITY` | Unified quality preset |
 | `PODKIT_AUDIO_QUALITY` | Audio-specific quality override |
 | `PODKIT_VIDEO_QUALITY` | Video-specific quality override |
-| `PODKIT_LOSSY_QUALITY` | Quality for lossy sources when audio quality is `alac` |
+| `PODKIT_LOSSY_QUALITY` | Quality for lossy sources when audio quality is `lossless` |
 | `PODKIT_ARTWORK` | Default artwork setting |
 | `PODKIT_MUSIC_{NAME}_PASSWORD` | Password for Subsonic collection (NAME is uppercased, hyphens become underscores) |
 | `SUBSONIC_PASSWORD` | Fallback password for any Subsonic collection |
@@ -269,14 +269,14 @@ path = "/Volumes/Media/tv-shows"
 
 # Global transcoding settings
 quality = "high"              # Unified quality for audio and video
-lossyQuality = "max"         # Quality for lossy sources when audioQuality = "alac"
+lossyQuality = "max"         # Quality for lossy sources when audioQuality = "lossless"
 
 # Devices
 [devices.classic]
 volumeUuid = "ABCD-1234"
 volumeName = "CLASSIC"
 quality = "high"
-audioQuality = "alac"         # Lossless audio on Classic
+audioQuality = "lossless"     # Lossless audio on Classic
 videoQuality = "high"
 artwork = true
 

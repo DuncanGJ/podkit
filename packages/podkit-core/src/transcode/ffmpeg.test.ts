@@ -215,7 +215,7 @@ describe('buildAlacArgs', () => {
   const output = '/path/to/output.m4a';
 
   it('generates ALAC arguments via buildTranscodeArgs', () => {
-    const args = buildTranscodeArgs(input, output, 'aac', 'alac');
+    const args = buildTranscodeArgs(input, output, 'aac', 'lossless');
 
     expect(args).toContain('-i');
     expect(args).toContain(input);

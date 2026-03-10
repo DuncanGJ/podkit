@@ -23,7 +23,7 @@ For audio-specific control, use `audioQuality` on a device. This overrides `qual
 ```toml
 [devices.classic]
 quality = "high"              # Video uses high
-audioQuality = "alac"         # Audio uses lossless (overrides quality)
+audioQuality = "lossless"     # Audio uses lossless (overrides quality)
 
 [devices.nano]
 audioQuality = "medium"
@@ -33,7 +33,7 @@ This overrides the global `audioQuality` and `quality` settings in your [config 
 
 | Preset | Bitrate | Best for |
 |--------|---------|----------|
-| `alac` | Lossless | High-capacity devices |
+| `lossless` | Lossless | High-capacity devices |
 | `max` | ~320 kbps VBR | Best AAC quality |
 | `high` | ~256 kbps VBR | Good quality, reasonable size (**default**) |
 | `medium` | ~192 kbps VBR | Saving space |
@@ -71,7 +71,7 @@ quality = "high"
 [devices.classic]
 volumeUuid = "ABCD-1234"
 volumeName = "CLASSIC"
-audioQuality = "alac"         # Lossless audio
+audioQuality = "lossless"     # Lossless audio
 videoQuality = "high"
 
 [devices.nano]
@@ -90,7 +90,7 @@ You can override quality on the command line for a single sync. Reference device
 
 ```bash
 podkit sync --quality medium
-podkit sync --audio-quality alac --lossy-quality max
+podkit sync --audio-quality lossless --lossy-quality max
 podkit sync --video-quality low
 podkit sync --device nano --quality medium --video-quality low
 podkit sync --device /Volumes/NANO --audio-quality high

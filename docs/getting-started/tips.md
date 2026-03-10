@@ -17,7 +17,7 @@ podkit sync --quality medium
 
 | Preset | Bitrate | Best for |
 |--------|---------|----------|
-| `alac` | Lossless | Audiophiles with high-capacity iPods |
+| `lossless` | Lossless | Audiophiles with high-capacity iPods |
 | `max` | ~256 kbps VBR | Best AAC quality |
 | `high` | ~192 kbps VBR | Good quality, reasonable size (**default**) |
 | `medium` | ~128 kbps VBR | Saving space |

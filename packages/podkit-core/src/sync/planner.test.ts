@@ -523,7 +523,7 @@ describe('createPlan - operation types', () => {
     expect(plan.operations[0]!.type).toBe('transcode');
   });
 
-  it('copies ALAC files when quality=alac and source is ALAC', () => {
+  it('copies ALAC files when quality=lossless and source is ALAC', () => {
     // When user wants lossless output and source is already ALAC, just copy it
     const track = createCollectionTrack('Artist', 'Song', 'Album', 'alac');
     track.codec = 'alac'; // Mark as ALAC codec
@@ -532,7 +532,7 @@ describe('createPlan - operation types', () => {
       toAdd: [track],
     };
 
-    const plan = createPlan(diff, { transcodeConfig: { quality: 'alac' } });
+    const plan = createPlan(diff, { transcodeConfig: { quality: 'lossless' } });
 
     expect(plan.operations).toHaveLength(1);
     expect(plan.operations[0]!.type).toBe('copy');
@@ -1470,43 +1470,43 @@ describe('createPlan - lossy-to-lossy warnings', () => {
 // ALAC Preset with Fallback Tests
 // =============================================================================
 
-describe('createPlan - ALAC preset with lossyQuality', () => {
-  it('uses ALAC for lossless sources with quality=alac', () => {
+describe('createPlan - lossless preset with lossyQuality', () => {
+  it('uses ALAC for lossless sources with quality=lossless', () => {
     const diff: SyncDiff = {
       ...createEmptyDiff(),
       toAdd: [createCollectionTrack('Artist', 'FLAC', 'Album', 'flac')],
     };
 
-    const plan = createPlan(diff, { transcodeConfig: { quality: 'alac' } });
+    const plan = createPlan(diff, { transcodeConfig: { quality: 'lossless' } });
 
     expect(plan.operations).toHaveLength(1);
     expect(plan.operations[0]!.type).toBe('transcode');
     if (plan.operations[0]!.type === 'transcode') {
-      expect(plan.operations[0]!.preset.name).toBe('alac');
+      expect(plan.operations[0]!.preset.name).toBe('lossless');
     }
   });
 
-  it('uses ALAC for WAV sources with quality=alac', () => {
+  it('uses ALAC for WAV sources with quality=lossless', () => {
     const diff: SyncDiff = {
       ...createEmptyDiff(),
       toAdd: [createCollectionTrack('Artist', 'WAV', 'Album', 'wav')],
     };
 
-    const plan = createPlan(diff, { transcodeConfig: { quality: 'alac' } });
+    const plan = createPlan(diff, { transcodeConfig: { quality: 'lossless' } });
 
     expect(plan.operations[0]!.type).toBe('transcode');
     if (plan.operations[0]!.type === 'transcode') {
-      expect(plan.operations[0]!.preset.name).toBe('alac');
+      expect(plan.operations[0]!.preset.name).toBe('lossless');
     }
   });
 
-  it('uses default lossyQuality (max) for lossy sources with quality=alac', () => {
+  it('uses default lossyQuality (max) for lossy sources with quality=lossless', () => {
     const diff: SyncDiff = {
       ...createEmptyDiff(),
       toAdd: [createCollectionTrack('Artist', 'OGG', 'Album', 'ogg')],
     };
 
-    const plan = createPlan(diff, { transcodeConfig: { quality: 'alac' } });
+    const plan = createPlan(diff, { transcodeConfig: { quality: 'lossless' } });
 
     expect(plan.operations[0]!.type).toBe('transcode');
     if (plan.operations[0]!.type === 'transcode') {
@@ -1514,14 +1514,14 @@ describe('createPlan - ALAC preset with lossyQuality', () => {
     }
   });
 
-  it('uses custom lossyQuality for lossy sources with quality=alac', () => {
+  it('uses custom lossyQuality for lossy sources with quality=lossless', () => {
     const diff: SyncDiff = {
       ...createEmptyDiff(),
       toAdd: [createCollectionTrack('Artist', 'OGG', 'Album', 'ogg')],
     };
 
     const plan = createPlan(diff, {
-      transcodeConfig: { quality: 'alac', lossyQuality: 'high' },
+      transcodeConfig: { quality: 'lossless', lossyQuality: 'high' },
     });
 
     expect(plan.operations[0]!.type).toBe('transcode');
@@ -1530,18 +1530,18 @@ describe('createPlan - ALAC preset with lossyQuality', () => {
     }
   });
 
-  it('copies compatible lossy sources even with quality=alac', () => {
+  it('copies compatible lossy sources even with quality=lossless', () => {
     const diff: SyncDiff = {
       ...createEmptyDiff(),
       toAdd: [createCollectionTrack('Artist', 'MP3', 'Album', 'mp3')],
     };
 
-    const plan = createPlan(diff, { transcodeConfig: { quality: 'alac' } });
+    const plan = createPlan(diff, { transcodeConfig: { quality: 'lossless' } });
 
     expect(plan.operations[0]!.type).toBe('copy');
   });
 
-  it('copies ALAC sources when quality=alac', () => {
+  it('copies ALAC sources when quality=lossless', () => {
     const track = createCollectionTrack('Artist', 'ALAC', 'Album', 'alac');
     track.codec = 'alac';
 
@@ -1550,12 +1550,12 @@ describe('createPlan - ALAC preset with lossyQuality', () => {
       toAdd: [track],
     };
 
-    const plan = createPlan(diff, { transcodeConfig: { quality: 'alac' } });
+    const plan = createPlan(diff, { transcodeConfig: { quality: 'lossless' } });
 
     expect(plan.operations[0]!.type).toBe('copy');
   });
 
-  it('handles mixed collection with ALAC quality correctly', () => {
+  it('handles mixed collection with lossless quality correctly', () => {
     const alacTrack = createCollectionTrack('Artist', 'Existing ALAC', 'Album', 'm4a', {
       codec: 'alac',
     });
@@ -1572,7 +1572,7 @@ describe('createPlan - ALAC preset with lossyQuality', () => {
     };
 
     const plan = createPlan(diff, {
-      transcodeConfig: { quality: 'alac', lossyQuality: 'high' },
+      transcodeConfig: { quality: 'lossless', lossyQuality: 'high' },
     });
     const summary = getPlanSummary(plan);
 
@@ -1586,8 +1586,8 @@ describe('createPlan - ALAC preset with lossyQuality', () => {
     const transcodeOps = plan.operations.filter((op) => op.type === 'transcode');
     const presets = transcodeOps.map((op) => (op.type === 'transcode' ? op.preset.name : ''));
 
-    // Should have 2 ALAC and 1 high
-    expect(presets.filter((p) => p === 'alac')).toHaveLength(2);
+    // Should have 2 lossless and 1 high
+    expect(presets.filter((p) => p === 'lossless')).toHaveLength(2);
     expect(presets.filter((p) => p === 'high')).toHaveLength(1);
   });
 });
@@ -1670,7 +1670,7 @@ describe('createPlan - quality presets', () => {
       ],
     };
 
-    const planAlac = createPlan(diff, { transcodeConfig: { quality: 'alac' } });
+    const planAlac = createPlan(diff, { transcodeConfig: { quality: 'lossless' } });
     const planHigh = createPlan(diff, { transcodeConfig: { quality: 'high' } });
 
     // ALAC ~900 kbps vs AAC ~256 kbps

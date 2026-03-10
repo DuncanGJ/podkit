@@ -11,7 +11,7 @@ Detailed specifications for podkit's audio and video transcoding presets.
 
 podkit uses a layered quality system:
 
-- **`quality`** sets a baseline for both audio and video. Values common to both (`max`, `high`, `medium`, `low`) apply to everything. Audio-only values like `alac` and CBR variants are accepted but only affect audio.
+- **`quality`** sets a baseline for both audio and video. Values common to both (`max`, `high`, `medium`, `low`) apply to everything. Audio-only values like `lossless` and CBR variants are accepted but only affect audio.
 - **`audioQuality`** overrides `quality` for audio specifically. Accepts all audio presets.
 - **`videoQuality`** overrides `quality` for video specifically. Accepts `max`, `high`, `medium`, `low`.
 
@@ -23,7 +23,7 @@ This lets you use a single `quality` setting for simplicity, or fine-tune audio 
 
 | Preset | Type | Target | Description |
 |--------|------|--------|-------------|
-| `alac` | Lossless | N/A | Apple Lossless (only from lossless sources) |
+| `lossless` | Lossless | N/A | Apple Lossless (only from lossless sources) |
 | `max` | VBR | ~320 kbps | Highest VBR quality level |
 | `max-cbr` | CBR | 320 kbps | Guaranteed 320 kbps |
 | `high` | VBR | ~256 kbps | Transparent quality (default) |
@@ -39,7 +39,7 @@ For a 4-minute song:
 
 | Preset | Mode | Approx Bitrate | File Size |
 |--------|------|----------------|-----------|
-| **alac** | Lossless | ~900 kbps | ~26 MB |
+| **lossless** | Lossless | ~900 kbps | ~26 MB |
 | **max** | VBR | ~320 kbps | ~9.4 MB |
 | **high** | VBR | ~256 kbps | ~7.5 MB |
 | **medium** | VBR | ~192 kbps | ~5.6 MB |
@@ -56,9 +56,9 @@ VBR file sizes vary based on content complexity. CBR sizes are exact.
 
 VBR is recommended for most uses. VBR AAC works correctly for seeking on iPods.
 
-### ALAC Preset
+### Lossless Preset
 
-The `alac` preset produces Apple Lossless (ALAC) files:
+The `lossless` preset produces Apple Lossless (ALAC) files:
 
 - **Lossless** - No quality loss from original
 - **Larger files** - Approximately 50-60% of original lossless size
@@ -122,7 +122,7 @@ Video quality is capped to source quality:
 
 | Use Case | Recommended Preset |
 |----------|-------------------|
-| Audiophile, large storage | `alac` with `lossyQuality = "max"` |
+| Audiophile, large storage | `lossless` with `lossyQuality = "max"` |
 | Best quality, reasonable size | `high` (default) |
 | Limited storage | `medium` |
 | Minimum storage | `low` |

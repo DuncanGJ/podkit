@@ -77,7 +77,7 @@ quality = "invalid"
 
     // Quality preset tests
     const validPresets = [
-      'alac',
+      'lossless',
       'max',
       'max-cbr',
       'high',
@@ -103,23 +103,23 @@ quality = "invalid"
       fs.writeFileSync(
         configPath,
         `
-quality = "alac"
+quality = "lossless"
 lossyQuality = "high"
 `
       );
 
       const result = loadConfigFile(configPath);
-      expect(result?.quality).toBe('alac');
+      expect(result?.quality).toBe('lossless');
       expect(result?.lossyQuality).toBe('high');
     });
 
-    it('throws on alac as lossyQuality (alac is not valid AAC preset)', () => {
+    it('throws on lossless as lossyQuality (lossless is not valid AAC preset)', () => {
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
         `
-quality = "alac"
-lossyQuality = "alac"
+quality = "lossless"
+lossyQuality = "lossless"
 `
       );
 
@@ -142,7 +142,7 @@ lossyQuality = "alac"
         fs.writeFileSync(
           configPath,
           `
-quality = "alac"
+quality = "lossless"
 lossyQuality = "${lossyQuality}"
 `
         );
@@ -158,12 +158,12 @@ lossyQuality = "${lossyQuality}"
       fs.writeFileSync(
         configPath,
         `
-audioQuality = "alac"
+audioQuality = "lossless"
 `
       );
 
       const result = loadConfigFile(configPath);
-      expect(result?.audioQuality).toBe('alac');
+      expect(result?.audioQuality).toBe('lossless');
     });
 
     it('throws on invalid audioQuality', () => {
@@ -591,7 +591,7 @@ volumeName = "TERAPOD"
 volumeUuid = "ABC-123"
 volumeName = "TERAPOD"
 quality = "high"
-audioQuality = "alac"
+audioQuality = "lossless"
 videoQuality = "medium"
 artwork = true
 `
@@ -602,7 +602,7 @@ artwork = true
           volumeUuid: 'ABC-123',
           volumeName: 'TERAPOD',
           quality: 'high',
-          audioQuality: 'alac',
+          audioQuality: 'lossless',
           videoQuality: 'medium',
           artwork: true,
         });
@@ -867,7 +867,7 @@ device = "terapod"
 
     // All quality presets via env
     const envPresets = [
-      'alac',
+      'lossless',
       'max',
       'max-cbr',
       'high',
@@ -910,9 +910,9 @@ device = "terapod"
     });
 
     it('reads PODKIT_AUDIO_QUALITY with valid value', () => {
-      process.env[ENV_KEYS.audioQuality] = 'alac';
+      process.env[ENV_KEYS.audioQuality] = 'lossless';
       const result = loadEnvConfig();
-      expect(result.audioQuality).toBe('alac');
+      expect(result.audioQuality).toBe('lossless');
     });
 
     it('ignores PODKIT_AUDIO_QUALITY with invalid value', () => {
@@ -940,7 +940,7 @@ device = "terapod"
     });
 
     it('ignores PODKIT_LOSSY_QUALITY with invalid value', () => {
-      process.env[ENV_KEYS.lossyQuality] = 'alac';
+      process.env[ENV_KEYS.lossyQuality] = 'lossless';
       const result = loadEnvConfig();
       expect(result.lossyQuality).toBeUndefined();
     });
@@ -996,7 +996,7 @@ device = "terapod"
 
     // All quality presets via CLI
     const cliPresets = [
-      'alac',
+      'lossless',
       'max',
       'max-cbr',
       'high',
@@ -1028,9 +1028,9 @@ device = "terapod"
         json: false,
         color: true,
       };
-      const commandOpts = { audioQuality: 'alac', lossyQuality: 'high' };
+      const commandOpts = { audioQuality: 'lossless', lossyQuality: 'high' };
       const result = loadCliConfig(globalOpts, commandOpts);
-      expect(result.audioQuality).toBe('alac');
+      expect(result.audioQuality).toBe('lossless');
       expect(result.lossyQuality).toBe('high');
     });
 

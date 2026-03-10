@@ -192,10 +192,10 @@ export function willWarnLossyToLossy(category: SourceCategory): boolean {
  * @returns The effective quality preset to use
  */
 function resolveEffectivePreset(config: TranscodeConfig, category: SourceCategory): QualityPreset {
-  // ALAC only valid for lossless sources
-  if (config.quality === 'alac') {
+  // Lossless preset only valid for lossless sources
+  if (config.quality === 'lossless') {
     if (category === 'lossless') {
-      return 'alac';
+      return 'lossless';
     }
     // Lossy quality for lossy sources
     return resolveLossyQuality(config);
@@ -372,7 +372,7 @@ function planAddOperations(tracks: CollectionTrack[], config: TranscodeConfig): 
 
     switch (category) {
       case 'lossless':
-        if (effectivePreset === 'alac') {
+        if (effectivePreset === 'lossless') {
           // Check if source is already ALAC - can copy directly
           if (track.codec?.toLowerCase() === 'alac') {
             operations.push(createCopyOperation(track));

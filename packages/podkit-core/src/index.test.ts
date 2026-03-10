@@ -92,7 +92,7 @@ describe('podkit-core', () => {
 
   describe('QUALITY_PRESETS constant', () => {
     it('includes all preset names', () => {
-      expect(QUALITY_PRESETS).toContain('alac');
+      expect(QUALITY_PRESETS).toContain('lossless');
       expect(QUALITY_PRESETS).toContain('max');
       expect(QUALITY_PRESETS).toContain('high');
       expect(QUALITY_PRESETS).toContain('medium');

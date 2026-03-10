@@ -10,7 +10,7 @@
  *
  * | Preset | Type | Target | Notes |
  * |--------|------|--------|-------|
- * | `alac` | Lossless | N/A | Only from lossless sources |
+ * | `lossless` | Lossless | N/A | Only from lossless sources |
  * | `max` | VBR | ~320 kbps | Highest VBR quality level |
  * | `max-cbr` | CBR | 320 kbps | Guaranteed 320 kbps |
  * | `high` | VBR | ~256 kbps | Transparent quality (default) |
@@ -28,7 +28,7 @@
 /**
  * Quality preset names for transcoding
  *
- * - `alac`: Lossless (ALAC) - only valid for lossless sources
+ * - `lossless`: Lossless (ALAC) - only valid for lossless sources
  * - `max`: VBR ~320 kbps - highest VBR quality level
  * - `max-cbr`: CBR 320 kbps - guaranteed 320 kbps
  * - `high`: VBR ~256 kbps - transparent quality (default)
@@ -39,7 +39,7 @@
  * - `low-cbr`: CBR 128 kbps
  */
 export type QualityPreset =
-  | 'alac'
+  | 'lossless'
   | 'max'
   | 'max-cbr'
   | 'high'
@@ -53,7 +53,7 @@ export type QualityPreset =
  * All valid quality preset names
  */
 export const QUALITY_PRESETS: readonly QualityPreset[] = [
-  'alac',
+  'lossless',
   'max',
   'max-cbr',
   'high',
@@ -83,32 +83,32 @@ export interface TranscodeConfig {
    * Primary quality target (applies to lossless sources)
    *
    * - For lossless sources: used directly
-   * - For lossy sources with 'alac': uses fallback
+   * - For lossy sources with 'lossless': uses fallback
    * - For compatible lossy sources (MP3, AAC): copies as-is
    */
   quality: QualityPreset;
 
   /**
-   * Quality preset for lossy sources when quality='alac'.
+   * Quality preset for lossy sources when quality='lossless'.
    *
-   * When the primary quality is set to 'alac' (lossless), lossy source files
+   * When the primary quality is set to 'lossless' (lossless), lossy source files
    * (MP3, OGG, etc.) cannot be converted to lossless. This preset determines
    * the AAC quality used for those files instead.
    *
-   * Default: 'max' if quality='alac', otherwise inherits from quality
+   * Default: 'max' if quality='lossless', otherwise inherits from quality
    */
-  lossyQuality?: Exclude<QualityPreset, 'alac'>;
+  lossyQuality?: Exclude<QualityPreset, 'lossless'>;
 }
 
 /**
  * Resolve the effective lossy quality preset
  */
-export function resolveLossyQuality(config: TranscodeConfig): Exclude<QualityPreset, 'alac'> {
+export function resolveLossyQuality(config: TranscodeConfig): Exclude<QualityPreset, 'lossless'> {
   if (config.lossyQuality) {
     return config.lossyQuality;
   }
-  // Default is 'max' if quality is 'alac', otherwise use quality
-  return config.quality === 'alac' ? 'max' : config.quality;
+  // Default is 'max' if quality is 'lossless', otherwise use quality
+  return config.quality === 'lossless' ? 'max' : config.quality;
 }
 
 // =============================================================================
@@ -133,7 +133,7 @@ export interface AacPreset {
  * tops out around ~256 kbps, so 'max' VBR may produce similar bitrates to 'high'.
  * Use 'max-cbr' for guaranteed 320 kbps.
  */
-export const AAC_PRESETS: Record<Exclude<QualityPreset, 'alac'>, AacPreset> = {
+export const AAC_PRESETS: Record<Exclude<QualityPreset, 'lossless'>, AacPreset> = {
   // VBR presets (variable bitrate, better quality-per-byte)
   max: { mode: 'vbr', quality: 5, targetKbps: 320 },
   high: { mode: 'vbr', quality: 5, targetKbps: 256 },
@@ -161,7 +161,7 @@ export const ALAC_PRESET = {
  * Get the target bitrate for a preset (for size estimation)
  */
 export function getPresetBitrate(preset: QualityPreset): number {
-  if (preset === 'alac') {
+  if (preset === 'lossless') {
     return ALAC_PRESET.estimatedKbps;
   }
   return AAC_PRESETS[preset].targetKbps;
@@ -171,23 +171,23 @@ export function getPresetBitrate(preset: QualityPreset): number {
  * Check if a preset is lossless
  */
 export function isLosslessPreset(preset: QualityPreset): boolean {
-  return preset === 'alac';
+  return preset === 'lossless';
 }
 
 /**
  * Check if a preset uses VBR encoding
  */
 export function isVbrPreset(preset: QualityPreset): boolean {
-  if (preset === 'alac') {
+  if (preset === 'lossless') {
     return false; // ALAC is lossless, not VBR
   }
   return AAC_PRESETS[preset].mode === 'vbr';
 }
 
 /**
- * AAC-only quality presets (excludes 'alac')
+ * AAC-only quality presets (excludes 'lossless')
  */
-export type AacQualityPreset = Exclude<QualityPreset, 'alac'>;
+export type AacQualityPreset = Exclude<QualityPreset, 'lossless'>;
 
 /**
  * All AAC quality preset names (for validation)

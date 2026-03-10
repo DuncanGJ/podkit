@@ -18,9 +18,9 @@ Override with `--config <path>` or the `PODKIT_CONFIG` environment variable.
 ```toml
 # Global defaults
 quality = "high"             # Unified quality: max | high | medium | low
-audioQuality = "high"        # Audio override: alac | max | max-cbr | high | high-cbr | medium | medium-cbr | low | low-cbr
+audioQuality = "high"        # Audio override: lossless | max | max-cbr | high | high-cbr | medium | medium-cbr | low | low-cbr
 videoQuality = "high"        # Video override: max | high | medium | low
-lossyQuality = "max"         # Quality for lossy sources when audioQuality = "alac"
+lossyQuality = "max"         # Quality for lossy sources when audioQuality = "lossless"
 artwork = true               # Include album artwork
 
 # Global transforms
@@ -65,10 +65,10 @@ These apply to all devices unless overridden at the device level.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `quality` | string | `"high"` | Unified quality preset for both audio and video. Values common to both: `max`, `high`, `medium`, `low`. Audio-only values (`alac`, `*-cbr`) are accepted but only affect audio. |
-| `audioQuality` | string | - | Audio-specific quality override. Accepts all audio presets: `alac`, `max`, `max-cbr`, `high`, `high-cbr`, `medium`, `medium-cbr`, `low`, `low-cbr`. Overrides `quality` for audio. |
+| `quality` | string | `"high"` | Unified quality preset for both audio and video. Values common to both: `max`, `high`, `medium`, `low`. Audio-only values (`lossless`, `*-cbr`) are accepted but only affect audio. |
+| `audioQuality` | string | - | Audio-specific quality override. Accepts all audio presets: `lossless`, `max`, `max-cbr`, `high`, `high-cbr`, `medium`, `medium-cbr`, `low`, `low-cbr`. Overrides `quality` for audio. |
 | `videoQuality` | string | - | Video-specific quality override: `max`, `high`, `medium`, `low`. Overrides `quality` for video. |
-| `lossyQuality` | string | `"max"` | Quality preset for lossy sources when `audioQuality` resolves to `alac` |
+| `lossyQuality` | string | `"max"` | Quality preset for lossy sources when `audioQuality` resolves to `lossless` |
 | `artwork` | boolean | `true` | Include album artwork during sync |
 
 ## Music Collections
@@ -130,7 +130,7 @@ Each device is defined under `[devices.<name>]`. Use `podkit device add <name>` 
 volumeUuid = "ABCD-1234"
 volumeName = "IPOD"
 quality = "high"              # Unified quality (audio + video)
-audioQuality = "alac"         # Override: lossless audio
+audioQuality = "lossless"     # Override: lossless audio
 videoQuality = "high"         # Override: high video quality
 artwork = true
 ```
@@ -257,7 +257,7 @@ Audio and video quality each have their own resolution chain. More specific sett
 quality = "high"              # Unified quality for audio and video
 audioQuality = "high"         # Override quality for audio only
 videoQuality = "high"         # Override quality for video only
-lossyQuality = "max"         # Quality for lossy sources when audioQuality = "alac"
+lossyQuality = "max"         # Quality for lossy sources when audioQuality = "lossless"
 artwork = true
 
 # Global transforms
@@ -291,7 +291,7 @@ path = "/Volumes/Media/tv-shows"
 volumeUuid = "ABCD-1234"
 volumeName = "CLASSIC"
 quality = "high"              # Unified quality for this device
-audioQuality = "alac"         # Lossless audio on Classic (overrides quality)
+audioQuality = "lossless"     # Lossless audio on Classic (overrides quality)
 videoQuality = "high"
 artwork = true
 

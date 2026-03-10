@@ -50,7 +50,7 @@ describe('video/types', () => {
       expect(isValidVideoQualityPreset('ultra')).toBe(false);
       expect(isValidVideoQualityPreset('')).toBe(false);
       expect(isValidVideoQualityPreset('HIGH')).toBe(false); // case-sensitive
-      expect(isValidVideoQualityPreset('alac')).toBe(false); // audio preset
+      expect(isValidVideoQualityPreset('lossless')).toBe(false); // audio preset
     });
   });
 

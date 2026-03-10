@@ -106,7 +106,7 @@ export function buildTranscodeArgs(
   preset: QualityPreset
 ): string[] {
   // Handle ALAC encoding
-  if (preset === 'alac') {
+  if (preset === 'lossless') {
     return buildAlacArgs(input, output);
   }
 

@@ -347,10 +347,10 @@ describe('FFmpegTranscoder integration', () => {
     }
 
     // ALAC preset (lossless)
-    it('transcodes with alac preset (lossless)', async () => {
+    it('transcodes with lossless preset (lossless)', async () => {
       const outputPath = join(testDir, 'output-alac.m4a');
 
-      const result = await transcoder.transcode(testAudioPath, outputPath, 'alac');
+      const result = await transcoder.transcode(testAudioPath, outputPath, 'lossless');
 
       expect(result.outputPath).toBe(outputPath);
 
@@ -425,7 +425,7 @@ describe('FFmpegTranscoder - multi-format inputs', () => {
       const input = join(fixturesDir, '01-wav-track.wav');
       const output = join(outputDir, 'wav-to-alac.m4a');
 
-      const result = await transcoder.transcode(input, output, 'alac');
+      const result = await transcoder.transcode(input, output, 'lossless');
 
       expect(result.size).toBeGreaterThan(0);
       const meta = await transcoder.probe(output);
@@ -447,7 +447,7 @@ describe('FFmpegTranscoder - multi-format inputs', () => {
       const input = join(fixturesDir, '02-aiff-track.aiff');
       const output = join(outputDir, 'aiff-to-alac.m4a');
 
-      const result = await transcoder.transcode(input, output, 'alac');
+      const result = await transcoder.transcode(input, output, 'lossless');
 
       expect(result.size).toBeGreaterThan(0);
       const meta = await transcoder.probe(output);
@@ -469,7 +469,7 @@ describe('FFmpegTranscoder - multi-format inputs', () => {
       const input = join(fixturesDir, '03-flac-track.flac');
       const output = join(outputDir, 'flac-to-alac.m4a');
 
-      const result = await transcoder.transcode(input, output, 'alac');
+      const result = await transcoder.transcode(input, output, 'lossless');
 
       expect(result.size).toBeGreaterThan(0);
       const meta = await transcoder.probe(output);

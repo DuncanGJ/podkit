@@ -81,10 +81,10 @@ podkit sync [type] [options]
 |--------|-------------|
 | `-c, --collection <name>` | Collection name to sync (searches both music and video) |
 | `-n, --dry-run` | Show what would be synced without making changes |
-| `--quality <preset>` | Unified quality preset for audio and video: `max`, `high`, `medium`, `low` (also accepts audio-only values like `alac`, `*-cbr` which only affect audio) |
-| `--audio-quality <preset>` | Audio-specific quality override: `alac`, `max`, `max-cbr`, `high`, `high-cbr`, `medium`, `medium-cbr`, `low`, `low-cbr` |
+| `--quality <preset>` | Unified quality preset for audio and video: `max`, `high`, `medium`, `low` (also accepts audio-only values like `lossless`, `*-cbr` which only affect audio) |
+| `--audio-quality <preset>` | Audio-specific quality override: `lossless`, `max`, `max-cbr`, `high`, `high-cbr`, `medium`, `medium-cbr`, `low`, `low-cbr` |
 | `--video-quality <preset>` | Video-specific quality override: `max`, `high`, `medium`, `low` |
-| `--lossy-quality <preset>` | Quality for lossy sources when audio quality is `alac` (default: `max`) |
+| `--lossy-quality <preset>` | Quality for lossy sources when audio quality is `lossless` (default: `max`) |
 | `--filter <pattern>` | Only sync tracks matching pattern |
 | `--no-artwork` | Skip artwork transfer |
 | `--delete` | Remove tracks from iPod that are not in the source |
@@ -115,7 +115,7 @@ podkit sync --device myipod
 podkit sync --quality medium
 
 # Lossless audio with fallback for lossy sources
-podkit sync --audio-quality alac --lossy-quality high
+podkit sync --audio-quality lossless --lossy-quality high
 
 # Set unified quality, but override audio specifically
 podkit sync --quality medium --audio-quality high
