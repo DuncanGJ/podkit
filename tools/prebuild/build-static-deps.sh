@@ -163,29 +163,61 @@ if [ "$OS" = "Darwin" ]; then
   log "macOS static dependencies built to $STATIC_DEPS_DIR"
 
 # ---------------------------------------------------------------------------
-# Linux: use system -dev packages, only build gdk-pixbuf .a from source
+# Linux: build libgpod + gdk-pixbuf from source with -fPIC, use system glib
 # ---------------------------------------------------------------------------
 elif [ "$OS" = "Linux" ]; then
   log "Collecting system static libraries..."
 
-  # Copy system .a files to our prefix (skip missing ones silently).
-  # Note: image libs (libpng, libjpeg, libtiff) are NOT copied — Ubuntu's .a
-  # files aren't built with -fPIC so can't be linked into a .node shared object.
-  # They'll be linked dynamically via get-ldflags.sh fallback.
-  for lib in libgpod.a \
-             libglib-2.0.a libgobject-2.0.a libgio-2.0.a libgmodule-2.0.a \
+  # Copy system .a files — glib/gmodule/gio/gobject are built with -fPIC on Ubuntu
+  for lib in libglib-2.0.a libgobject-2.0.a libgio-2.0.a libgmodule-2.0.a \
              libffi.a libpcre2-8.a; do
     found=$(find /usr/lib /usr/lib64 /usr/local/lib -name "$lib" 2>/dev/null | head -1)
     [ -n "$found" ] && cp "$found" "$STATIC_DEPS_DIR/lib/"
   done
 
-  # Build gdk-pixbuf .a from source (Ubuntu doesn't ship it)
-  # Use -fPIC so the .a can be linked into a .node shared object
+  # Build gdk-pixbuf .a from source with -fPIC (Ubuntu doesn't ship it)
   SYS_PKG_PATH=$(pkg-config --variable pc_path pkg-config 2>/dev/null || echo "/usr/lib/pkgconfig:/usr/share/pkgconfig")
   build_gdk_pixbuf_static \
     "$SYS_PKG_PATH" \
     "-fPIC" \
     "-lpng16 -ljpeg -ltiff -lz"
+
+  # Build libgpod from source with -fPIC (Ubuntu's libgpod.a lacks -fPIC)
+  if [ ! -f "$STATIC_DEPS_DIR/lib/libgpod.a" ]; then
+    log "Building libgpod from source (static, -fPIC)..."
+    cd "$WORK_DIR"
+
+    LIBGPOD_VERSION="0.8.3"
+    if [ ! -f "libgpod-${LIBGPOD_VERSION}.tar.bz2" ]; then
+      log "Downloading libgpod source..."
+      curl -L -o "libgpod-${LIBGPOD_VERSION}.tar.bz2" \
+        "https://downloads.sourceforge.net/project/gtkpod/libgpod/libgpod-0.8/libgpod-${LIBGPOD_VERSION}.tar.bz2"
+    fi
+
+    rm -rf "libgpod-${LIBGPOD_VERSION}"
+    tar -xjf "libgpod-${LIBGPOD_VERSION}.tar.bz2"
+    cd "libgpod-${LIBGPOD_VERSION}"
+
+    curl -sL -o callout.patch "https://raw.githubusercontent.com/macports/macports-ports/master/multimedia/libgpod/files/patch-tools-generic-callout.c.diff"
+    curl -sL -o libplist.patch "https://raw.githubusercontent.com/pld-linux/libgpod/master/libgpod-libplist.patch"
+    patch -p0 < callout.patch
+    patch -p1 < libplist.patch
+
+    export CFLAGS="-fPIC $(pkg-config --cflags glib-2.0 gdk-pixbuf-2.0 libplist-2.0)"
+    export LDFLAGS="$(pkg-config --libs glib-2.0)"
+
+    autoreconf -fi
+    ./configure \
+      --prefix="$STATIC_DEPS_DIR" \
+      --enable-static --disable-shared \
+      --disable-more-warnings --disable-silent-rules \
+      --disable-udev --disable-pygobject \
+      --with-python=no --without-hal
+    make -j"$NPROC"
+    make install
+  else
+    log "libgpod already built, skipping"
+  fi
 
   log "Linux static dependencies built to $STATIC_DEPS_DIR"
 fi

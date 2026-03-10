@@ -16,8 +16,9 @@ if [ -n "$STATIC_DEPS_DIR" ]; then
     PKG_CONFIG_PATH="$STATIC_DEPS_DIR/lib/pkgconfig:$HOMEBREW_PREFIX/lib/pkgconfig:$LIBPLIST_PREFIX/lib/pkgconfig" \
       pkg-config --cflags libgpod-1.0 glib-2.0 gdk-pixbuf-2.0
   else
-    # Linux: headers come from system -dev packages
-    pkg-config --cflags libgpod-1.0 glib-2.0 gdk-pixbuf-2.0
+    # Linux: libgpod headers from STATIC_DEPS_DIR (built from source), rest from system
+    PKG_CONFIG_PATH="$STATIC_DEPS_DIR/lib/pkgconfig:${PKG_CONFIG_PATH}" \
+      pkg-config --cflags libgpod-1.0 glib-2.0 gdk-pixbuf-2.0
   fi
 else
   if [ "$(uname)" = "Darwin" ]; then

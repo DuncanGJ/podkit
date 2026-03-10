@@ -56,16 +56,17 @@ jobs:
           # intltool requires XML::Parser perl module for libgpod's autoreconf
           sudo cpan -T XML::Parser
 
-      # Linux: install system -dev packages (including libgpod-dev)
+      # Linux: install system -dev packages for building libgpod from source
       - name: Install Linux build deps
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
             build-essential pkg-config python3-pip \
-            libgpod-dev libglib2.0-dev libgdk-pixbuf-2.0-dev \
+            libglib2.0-dev libgdk-pixbuf-2.0-dev \
             libplist-dev libffi-dev libsqlite3-dev \
-            libpng-dev libjpeg-dev libtiff-dev \
+            libpng-dev libjpeg-dev libtiff-dev libxml2-dev \
+            intltool autoconf automake libtool gtk-doc-tools \
             meson ninja-build curl
 
       # Build all native dependencies as static libraries
