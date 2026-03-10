@@ -33,6 +33,7 @@ If you're new to the project, read in this order:
 
 | Document | Purpose |
 |----------|---------|
+| [PROJECT-NAMING.md](PROJECT-NAMING.md) | Naming research, alternatives considered, recommendations |
 | [LIBGPOD.md](LIBGPOD.md) | libgpod C library API, binding approaches, implementation notes |
 | [TRANSCODING.md](TRANSCODING.md) | FFmpeg AAC encoding, quality presets, metadata handling |
 | [COLLECTION-SOURCES.md](COLLECTION-SOURCES.md) | Directory scanning with music-metadata, adapter interface |
