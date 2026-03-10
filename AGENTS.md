@@ -50,11 +50,13 @@ podkit device music --format json       # List music on device
 
 ### System Dependencies
 
-| Dependency | Debian/Ubuntu | macOS |
-|------------|---------------|-------|
-| libgpod | `libgpod-dev` | Build from source (see `tools/libgpod-macos/`) |
-| FFmpeg | `ffmpeg` | `brew install ffmpeg` |
-| GLib | `libglib2.0-dev` | `brew install glib` (installed as libgpod dep) |
+**For end users:** Only FFmpeg is required. libgpod is statically linked into prebuilt binaries.
+
+| Dependency | Debian/Ubuntu | macOS | Required for |
+|------------|---------------|-------|--------------|
+| FFmpeg | `ffmpeg` | `brew install ffmpeg` | Users + developers |
+| libgpod | `libgpod-dev` | Build from source (see `tools/libgpod-macos/`) | Development only |
+| GLib | `libglib2.0-dev` | `brew install glib` (installed as libgpod dep) | Development only |
 
 See [docs/developers/development.md](docs/developers/development.md) for full setup instructions.
 

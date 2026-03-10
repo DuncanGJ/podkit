@@ -1,0 +1,162 @@
+name: Prebuild Native Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  prebuild:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15        # Apple Silicon (arm64)
+            arch: arm64
+            platform: darwin
+          - os: macos-15-intel  # Intel (x64)
+            arch: x64
+            platform: darwin
+          - os: ubuntu-24.04    # Linux x64
+            arch: x64
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.platform }}-${{ matrix.arch }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set environment
+        run: |
+          echo "STATIC_DEPS_DIR=${GITHUB_WORKSPACE}/static-deps" >> "$GITHUB_ENV"
+          echo "WORK_DIR=${RUNNER_TEMP}/prebuild-work" >> "$GITHUB_ENV"
+
+      # Check cache FIRST — everything below gates on this
+      - name: Cache static dependencies
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STATIC_DEPS_DIR }}
+          key: static-deps-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('tools/prebuild/build-static-deps.sh') }}
+
+      # ---- Cache MISS: install full build toolchain and build from source ----
+
+      - name: Install macOS build deps
+        if: matrix.platform == 'darwin' && steps.cache.outputs.cache-hit != 'true'
+        run: |
+          brew install --quiet libplist gdk-pixbuf intltool autoconf automake libtool \
+            gtk-doc pkg-config gettext libpng jpeg-turbo libtiff meson ninja 2>/dev/null
+          sudo cpan -T XML::Parser
+
+      - name: Install Linux build deps
+        if: matrix.platform == 'linux' && steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential pkg-config python3-pip \
+            libglib2.0-dev libgdk-pixbuf-2.0-dev \
+            libplist-dev libffi-dev libsqlite3-dev \
+            libpng-dev libjpeg-dev libtiff-dev libxml2-dev \
+            intltool autoconf automake libtool gtk-doc-tools \
+            meson ninja-build curl
+
+      - name: Build static dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash tools/prebuild/build-static-deps.sh
+
+      # ---- Cache HIT: install only what prebuildify needs (headers via pkg-config) ----
+
+      - name: Install macOS prebuild deps
+        if: matrix.platform == 'darwin' && steps.cache.outputs.cache-hit == 'true'
+        run: brew install --quiet libplist gdk-pixbuf pkg-config gettext libpng jpeg-turbo libtiff 2>/dev/null
+
+      - name: Install Linux prebuild deps
+        if: matrix.platform == 'linux' && steps.cache.outputs.cache-hit == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential pkg-config \
+            libglib2.0-dev libgdk-pixbuf-2.0-dev \
+            libplist-dev libffi-dev \
+            libpng-dev libjpeg-dev libtiff-dev
+
+      # ---- Always: build the .node binary ----
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Create prebuild
+        working-directory: packages/libgpod-node
+        run: npx prebuildify --napi --strip
+
+      - name: Verify static linking (macOS)
+        if: matrix.platform == 'darwin'
+        working-directory: packages/libgpod-node
+        run: |
+          echo "Dynamic dependencies:"
+          PREBUILD=$(find prebuilds -name "*.node" | head -1)
+          otool -L "$PREBUILD"
+          if otool -L "$PREBUILD" | tail -n +2 | grep -E 'libgpod|libglib|libgobject|libgdk_pixbuf'; then
+            echo "ERROR: Found unexpected dynamic dependencies"
+            exit 1
+          fi
+
+      - name: Verify static linking (Linux)
+        if: matrix.platform == 'linux'
+        working-directory: packages/libgpod-node
+        run: |
+          echo "Dynamic dependencies:"
+          PREBUILD=$(find prebuilds -name "*.node" | head -1)
+          ldd "$PREBUILD"
+          if ldd "$PREBUILD" | grep -E 'libgpod|libgdk_pixbuf'; then
+            echo "ERROR: Found unexpected dynamic dependencies"
+            exit 1
+          fi
+
+      - name: Run tests
+        working-directory: packages/libgpod-node
+        run: bun run test:unit
+
+      - name: Upload prebuild
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuild-${{ matrix.platform }}-${{ matrix.arch }}
+          path: packages/libgpod-node/prebuilds/
+          retention-days: 30
+
+  # Collect all prebuilds into a single artifact
+  collect:
+    needs: prebuild
+    runs-on: ubuntu-latest
+    name: Collect prebuilds
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all prebuilds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: prebuild-*
+          path: packages/libgpod-node/prebuilds/
+          merge-multiple: true
+
+      - name: List prebuilds
+        run: find packages/libgpod-node/prebuilds -type f -name "*.node" | sort
+
+      - name: Upload combined prebuilds
+        uses: actions/upload-artifact@v4
+        with:
+          name: prebuilds-all
+          path: packages/libgpod-node/prebuilds/
+          retention-days: 90

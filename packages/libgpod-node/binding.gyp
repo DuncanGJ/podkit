@@ -25,22 +25,22 @@
             "CLANG_CXX_LIBRARY": "libc++",
             "MACOSX_DEPLOYMENT_TARGET": "10.15",
             "OTHER_CFLAGS": [
-              "<!@(PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH pkg-config --cflags libgpod-1.0 glib-2.0)"
+              "<!@(bash ../../tools/prebuild/get-cflags.sh 2>/dev/null || PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH pkg-config --cflags libgpod-1.0 glib-2.0)"
             ],
             "OTHER_LDFLAGS": [
-              "<!@(PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH pkg-config --libs libgpod-1.0 glib-2.0)"
+              "<!@(bash ../../tools/prebuild/get-ldflags.sh 2>/dev/null || PKG_CONFIG_PATH=$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH pkg-config --libs libgpod-1.0 glib-2.0)"
             ]
           }
         }],
         ["OS=='linux'", {
           "cflags": [
-            "<!@(pkg-config --cflags libgpod-1.0 glib-2.0)"
+            "<!@(bash ../../tools/prebuild/get-cflags.sh 2>/dev/null || pkg-config --cflags libgpod-1.0 glib-2.0)"
           ],
           "ldflags": [
-            "<!@(pkg-config --libs libgpod-1.0 glib-2.0)"
+            "<!@(bash ../../tools/prebuild/get-ldflags.sh 2>/dev/null || pkg-config --libs libgpod-1.0 glib-2.0)"
           ],
           "libraries": [
-            "<!@(pkg-config --libs libgpod-1.0 glib-2.0)"
+            "<!@(bash ../../tools/prebuild/get-ldflags.sh 2>/dev/null || pkg-config --libs libgpod-1.0 glib-2.0)"
           ]
         }]
       ]

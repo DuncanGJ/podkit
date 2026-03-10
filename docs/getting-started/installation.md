@@ -17,7 +17,6 @@ Before installing podkit, you need:
 
 - **Node.js 20+** or **Bun** - JavaScript runtime ([nodejs.org](https://nodejs.org/) or [bun.sh](https://bun.sh/))
 - **FFmpeg** - Audio transcoding (FLAC to AAC)
-- **libgpod** - iPod database library
 - **A supported iPod** - See [Supported Devices](/devices/supported-devices)
 
 > **Note:** iOS devices (iPod Touch, iPhone, iPad) are not supported. podkit works with classic iPods that use USB Mass Storage mode.
@@ -57,39 +56,19 @@ curl -fsSL https://bun.sh/install | bash
 
 Verify: `bun --version`
 
-## Step 2: Install System Dependencies
+## Step 2: Install FFmpeg
 
 ### macOS
 
 ```bash
-# Install FFmpeg
 brew install ffmpeg
-
-# Build and install libgpod (not available in Homebrew)
-# Clone podkit first, then run the build script:
-git clone https://github.com/jvgomg/podkit.git
-cd podkit/tools/libgpod-macos
-./build.sh
-```
-
-The build script installs libgpod to `~/.local`. Add to your shell profile (`~/.zshrc` or `~/.bashrc`):
-
-```bash
-export PKG_CONFIG_PATH="$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH"
-export DYLD_LIBRARY_PATH="$HOME/.local/lib:$DYLD_LIBRARY_PATH"
-```
-
-Reload your shell:
-
-```bash
-source ~/.zshrc  # or ~/.bashrc
 ```
 
 ### Ubuntu/Debian
 
 ```bash
 sudo apt update
-sudo apt install -y libgpod-dev ffmpeg
+sudo apt install -y ffmpeg
 ```
 
 ### Fedora
@@ -99,14 +78,18 @@ sudo apt install -y libgpod-dev ffmpeg
 sudo dnf install -y \
     https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
 
-sudo dnf install -y libgpod-devel ffmpeg
+sudo dnf install -y ffmpeg
 ```
 
 ### Arch Linux
 
 ```bash
-sudo pacman -S libgpod ffmpeg
+sudo pacman -S ffmpeg
 ```
+
+:::tip[libgpod is included]
+podkit ships with prebuilt native binaries for iPod database support. You **do not** need to install libgpod separately. Prebuilt binaries are available for macOS (Intel and Apple Silicon) and Linux (x64).
+:::
 
 ## Step 3: Install podkit
 
@@ -133,11 +116,46 @@ ffmpeg -version | head -1
 # Check FFmpeg has AAC support
 ffmpeg -encoders 2>/dev/null | grep aac
 
-# Check libgpod (macOS/Linux)
-pkg-config --modversion libgpod-1.0
-
 # Check podkit
 podkit --version
+```
+
+## Building from Source
+
+If prebuilt binaries are not available for your platform, podkit will attempt to build the native module from source during installation. This requires **libgpod** development headers:
+
+### macOS (building from source)
+
+```bash
+# Build and install libgpod (not available in Homebrew)
+git clone https://github.com/jvgomg/podkit.git
+cd podkit/tools/libgpod-macos
+./build.sh
+```
+
+Add to your shell profile (`~/.zshrc` or `~/.bashrc`):
+
+```bash
+export PKG_CONFIG_PATH="$HOME/.local/lib/pkgconfig:$PKG_CONFIG_PATH"
+export DYLD_LIBRARY_PATH="$HOME/.local/lib:$DYLD_LIBRARY_PATH"
+```
+
+### Ubuntu/Debian (building from source)
+
+```bash
+sudo apt install -y libgpod-dev
+```
+
+### Fedora (building from source)
+
+```bash
+sudo dnf install -y libgpod-devel
+```
+
+### Arch Linux (building from source)
+
+```bash
+sudo pacman -S libgpod
 ```
 
 ## Next Steps
