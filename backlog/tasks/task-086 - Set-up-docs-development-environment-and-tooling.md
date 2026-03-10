@@ -1,10 +1,10 @@
 ---
 id: TASK-086
 title: Set up docs development environment and tooling
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-10 10:25'
-updated_date: '2026-03-10 13:27'
+updated_date: '2026-03-10 20:36'
 labels:
   - docs-site
   - setup

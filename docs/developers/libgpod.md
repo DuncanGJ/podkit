@@ -2,7 +2,7 @@
 title: libgpod Integration
 description: Technical reference for the libgpod C library and podkit's Node.js bindings.
 sidebar:
-  order: 5
+  order: 6
 ---
 
 This document covers the libgpod C library and how podkit integrates with it through native Node.js bindings.

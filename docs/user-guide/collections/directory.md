@@ -1,6 +1,6 @@
 ---
 title: Directory Source
-description: Configure local filesystem directories as music collection sources for syncing to iPod.
+description: Configure local filesystem directories as music sources for syncing to iPod.
 sidebar:
   order: 2
 ---
@@ -76,6 +76,6 @@ This writes the `[music.main]` section to your config file automatically. If it 
 
 ## See Also
 
-- [Subsonic Source](/user-guide/collection-sources/subsonic) - Sync from Navidrome and other Subsonic servers
+- [Subsonic Source](/user-guide/collections/subsonic) - Sync from Navidrome and other Subsonic servers
 - [Configuration](/user-guide/configuration) - Full configuration reference
 - [Audio Transcoding](/user-guide/transcoding/audio) - Quality settings for transcoding

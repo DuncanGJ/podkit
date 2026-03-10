@@ -30,7 +30,62 @@ export default defineConfig({
   integrations: [
     mermaid(),
     starlight({
-      plugins: [starlightLlmsTxt()],
+      plugins: [
+        starlightLlmsTxt({
+          description: `podkit is a TypeScript CLI for syncing music and video collections to classic iPod devices. It handles automatic transcoding (FLAC→AAC, MKV→M4V), full metadata preservation, album artwork, intelligent duplicate detection, and incremental syncs. It works with all classic iPod models including iFlash-modded devices.`,
+          details: `Key concepts:
+- **Media sources**: Local directories or Subsonic-compatible servers (Navidrome, Airsonic, Gonic)
+- **Devices**: Multiple iPods with independent quality settings and transforms
+- **Transcoding**: Only transcodes what's needed — compatible files are copied as-is
+- **Transforms**: The ftintitle transform cleans up "Artist feat. X" entries on iPod
+- **Configuration**: TOML config file at ~/.config/podkit/config.toml`,
+          optionalLinks: [
+            {
+              label: 'Installation',
+              url: 'https://jvgomg.github.io/podkit/getting-started/installation',
+              description: 'Install FFmpeg and podkit',
+            },
+            {
+              label: 'Quick Start',
+              url: 'https://jvgomg.github.io/podkit/getting-started/quick-start',
+              description: 'First sync walkthrough',
+            },
+            {
+              label: 'Configuration',
+              url: 'https://jvgomg.github.io/podkit/user-guide/configuration',
+              description: 'TOML config file reference',
+            },
+            {
+              label: 'Media Sources',
+              url: 'https://jvgomg.github.io/podkit/user-guide/collections',
+              description: 'Directory and Subsonic collection sources',
+            },
+            {
+              label: 'Managing Devices',
+              url: 'https://jvgomg.github.io/podkit/user-guide/devices',
+              description: 'Multi-device setup, quality, and transforms',
+            },
+            {
+              label: 'Transcoding',
+              url: 'https://jvgomg.github.io/podkit/user-guide/transcoding',
+              description: 'Audio and video transcoding methodology',
+            },
+            {
+              label: 'CLI Commands',
+              url: 'https://jvgomg.github.io/podkit/reference/cli-commands',
+              description: 'Complete command reference',
+            },
+            {
+              label: 'Supported Devices',
+              url: 'https://jvgomg.github.io/podkit/devices/supported-devices',
+              description: 'iPod model compatibility matrix',
+            },
+          ],
+          promote: ['index*', 'getting-started/**', 'user-guide/**'],
+          demote: ['developers/**'],
+          exclude: ['developers/**'],
+        }),
+      ],
       title: 'podkit',
       description: 'Sync your music collection to iPod devices',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/jvgomg/podkit' }],
@@ -44,7 +99,7 @@ export default defineConfig({
             { label: 'Introduction', slug: 'index' },
             { label: 'Installation', slug: 'getting-started/installation' },
             { label: 'Quick Start', slug: 'getting-started/quick-start' },
-            { label: 'First Sync', slug: 'getting-started/first-sync' },
+            { label: 'Tips & Next Steps', slug: 'getting-started/tips' },
           ],
         },
         {
@@ -61,10 +116,20 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Syncing',
+              items: [
+                { slug: 'user-guide/syncing' },
+                { slug: 'user-guide/syncing/music' },
+                { slug: 'user-guide/syncing/video' },
+              ],
+            },
+            {
               label: 'Devices',
               items: [
                 { slug: 'user-guide/devices' },
                 { slug: 'user-guide/devices/adding-devices' },
+                { slug: 'user-guide/devices/quality' },
+                { slug: 'user-guide/devices/artist-transforms' },
                 { slug: 'user-guide/devices/mounting-ejecting' },
                 { slug: 'user-guide/devices/clearing' },
                 { slug: 'user-guide/devices/resetting' },
@@ -74,11 +139,11 @@ export default defineConfig({
             {
               label: 'Transcoding',
               items: [
+                { slug: 'user-guide/transcoding' },
                 { slug: 'user-guide/transcoding/audio' },
                 { slug: 'user-guide/transcoding/video' },
               ],
             },
-            { slug: 'user-guide/transforms' },
           ],
         },
         {

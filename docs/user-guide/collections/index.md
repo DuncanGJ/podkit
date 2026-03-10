@@ -1,11 +1,11 @@
 ---
-title: Collection Sources
-description: Overview of music and video collection sources supported by podkit.
+title: Media Sources
+description: Overview of music and video media sources supported by podkit.
 sidebar:
   order: 1
 ---
 
-podkit syncs media from **collection sources** — locations where your music or video files live. Each source is configured as a named collection in your config file and can be synced independently.
+podkit syncs media from **media sources** — locations where your music or video files live. Each source is configured as a named collection in your config file and can be synced independently.
 
 ## Source Types
 
@@ -13,8 +13,8 @@ podkit currently supports two source types:
 
 | Type | Description | Config `type` field |
 |------|-------------|---------------------|
-| [Directory](/user-guide/collection-sources/directory) | Local filesystem path containing audio/video files | *(default, no type needed)* |
-| [Subsonic](/user-guide/collection-sources/subsonic) | Subsonic-compatible server (Navidrome, Airsonic, Gonic) | `"subsonic"` |
+| [Directory](/user-guide/collections/directory) | Local filesystem path containing audio/video files | *(default, no type needed)* |
+| [Subsonic](/user-guide/collections/subsonic) | Subsonic-compatible server (Navidrome, Airsonic, Gonic) | `"subsonic"` |
 
 ## Music vs Video Collections
 
@@ -61,6 +61,24 @@ podkit collection add music main /path/to/your/music
 ```
 
 Or edit `~/.config/podkit/config.toml` directly.
+
+## Default Collections
+
+If you have multiple collections, you can set defaults so `podkit sync` knows which to use without the `-c` flag:
+
+```toml
+[defaults]
+music = "main"
+video = "movies"
+```
+
+With defaults set, `podkit sync music` syncs the `main` music collection automatically. You can always override with `-c`:
+
+```bash
+podkit sync music -c navidrome
+```
+
+If you only have one collection of a given type, it's used automatically — no default needed.
 
 ## Multiple Collections
 

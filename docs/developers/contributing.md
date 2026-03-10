@@ -2,7 +2,7 @@
 title: Contributing
 description: How to contribute to podkit development.
 sidebar:
-  order: 6
+  order: 7
 ---
 
 This guide covers how to contribute code, tests, and documentation to podkit.

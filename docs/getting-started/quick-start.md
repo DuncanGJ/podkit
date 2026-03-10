@@ -5,59 +5,62 @@ sidebar:
   order: 2
 ---
 
-Get your music syncing to your iPod in 5 minutes.
+Get your music on your iPod in 5 minutes. This guide walks you through each step — from first install to hearing your music play.
 
 ## Prerequisites
 
-- podkit installed (see [Installation](/getting-started/installation))
+- [podkit installed](/getting-started/installation) with FFmpeg
 - A supported iPod connected to your computer
-- Music files on your computer
+- Music files on your computer (or a Subsonic-compatible server)
 
 ## 1. Initialize Configuration
 
-Create a default configuration file:
+Create your config file:
 
 ```bash
 podkit init
 ```
 
-This creates `~/.config/podkit/config.toml` with a template configuration.
+This creates `~/.config/podkit/config.toml` — the central place where podkit stores your collections, devices, and preferences.
 
-## 2. Add Your Music Collection
+## 2. Add Your Music
 
-Use `podkit collection add` to register your music directory:
+Register a local music directory:
 
 ```bash
 podkit collection add music main /path/to/your/music
 ```
 
-Replace `/path/to/your/music` with the actual path to your music library. This writes the collection to your config file and sets it as the default since it is the first music collection.
+podkit scans this directory for audio files (FLAC, MP3, M4A, WAV, and more) and reads their metadata. Since this is your first music collection, it's automatically set as the default.
+
+:::tip[Other sources]
+You can also sync from a **Navidrome** or other Subsonic-compatible server — see [Subsonic Source](/user-guide/collections/subsonic). For video, see [Video Transcoding](/user-guide/transcoding/video). You can add as many collections as you need — see [Media Sources](/user-guide/collections) for an overview.
+:::
 
 ## 3. Register Your iPod
 
-1. Connect your iPod to your computer
-2. Wait for it to mount (appears in Finder/Files)
-3. Register it with podkit:
+1. Connect your iPod and wait for it to mount (it should appear in Finder on macOS)
+2. Register it with podkit:
 
 ```bash
 podkit device add myipod
 ```
 
-This auto-detects the connected iPod and saves its identity to your config.
+podkit auto-detects the connected iPod and saves its identity to your config. Since this is your first device, it's set as the default.
 
-4. Set it as the default device (the command will prompt you).
+You can manage multiple devices with different quality settings — see [Managing Devices](/user-guide/devices) for more.
 
-## 4. Preview Changes
+## 4. Preview with Dry Run
 
-Before syncing, see what podkit will do:
+See what podkit will do before it does anything:
 
 ```bash
 podkit sync --dry-run
 ```
 
-This shows how many tracks will be added, what needs transcoding, and estimated size.
+This shows how many tracks will be added, what needs transcoding (e.g., FLAC to AAC), and estimated size. Nothing is written to your iPod.
 
-## 5. Sync Your Music
+## 5. Sync
 
 When you're happy with the plan:
 
@@ -65,43 +68,40 @@ When you're happy with the plan:
 podkit sync
 ```
 
-podkit will scan your collection, transcode files if needed, and copy everything to your iPod.
+podkit scans your collection, transcodes lossless files to AAC if needed, copies everything to your iPod, and updates the iPod database. Lossy files that are already iPod-compatible (MP3, AAC) are copied directly without re-encoding.
 
-## 6. Eject Safely
+## 6. Eject and Enjoy
 
-After syncing:
+Safely eject before disconnecting:
 
 ```bash
-podkit eject
+podkit device eject
 ```
 
-Or use `--eject` to auto-eject after sync:
+Or combine sync and eject in one step:
 
 ```bash
 podkit sync --eject
 ```
 
-## Common Commands
+Disconnect your iPod and enjoy your music!
+
+## Explore More
 
 ```bash
-# Check device status
-podkit device info
+# See everything podkit can do
+podkit --help
 
-# List music on iPod
-podkit device music
-
-# Sync with verbose output
-podkit sync -v
-
-# Remove tracks not in source
-podkit sync --delete
-
-# Use lower quality (smaller files)
-podkit sync --quality medium
+# Get help for a specific command
+podkit sync --help
+podkit device --help
 ```
 
 ## Next Steps
 
-- [First Sync](/getting-started/first-sync) - Detailed walkthrough with troubleshooting
-- [Configuration](/user-guide/configuration) - Full configuration options
-- [CLI Reference](/reference/cli-commands) - All available commands
+Now that you've completed your first sync, here are some things to explore:
+
+- **[Tips & Next Steps](/getting-started/tips)** — Quality presets, incremental syncs, removing deleted tracks, and troubleshooting
+- **[Configuration](/user-guide/configuration)** — Customize quality, artwork, and transforms
+- **[CLI Reference](/reference/cli-commands)** — All available commands
+- **[Audio Transcoding](/user-guide/transcoding/audio)** — Quality settings and encoder options

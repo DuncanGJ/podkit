@@ -2,7 +2,7 @@
 title: Testing
 description: Testing strategy, conventions, and how to write tests for podkit.
 sidebar:
-  order: 3
+  order: 4
 ---
 
 This document describes the testing approach for podkit.

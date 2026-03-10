@@ -2,7 +2,7 @@
 title: Device Testing
 description: How to test iPod device compatibility and contribute device verification results.
 sidebar:
-  order: 4
+  order: 5
 ---
 
 This document describes how podkit verifies iPod device compatibility through automated testing and real hardware confirmation.

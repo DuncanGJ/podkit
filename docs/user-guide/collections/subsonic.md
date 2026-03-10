@@ -47,6 +47,10 @@ podkit sync -c navidrome
 
 > **Security note:** Storing passwords in config files is convenient but less secure than environment variables.
 
+:::note[Want more secure options?]
+If you'd like support for keychain/secret manager integration or other secure password storage methods, [open an issue on GitHub](https://github.com/jvgomg/podkit/issues) to let us know.
+:::
+
 ## How It Works
 
 1. Connect to the Subsonic server using the API
@@ -88,6 +92,6 @@ path = "/tmp/work-cache"
 
 ## See Also
 
-- [Directory Source](/user-guide/collection-sources/directory) - Local filesystem collections
+- [Directory Source](/user-guide/collections/directory) - Local filesystem collections
 - [Configuration](/user-guide/configuration) - Full configuration reference
 - [Audio Transcoding](/user-guide/transcoding/audio) - Quality settings for transcoding

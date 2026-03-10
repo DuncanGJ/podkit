@@ -2,7 +2,7 @@
 title: Mounting and Ejecting
 description: Mount and safely eject iPod devices with podkit on macOS.
 sidebar:
-  order: 3
+  order: 5
 ---
 
 podkit provides commands to mount and safely eject iPod devices. Proper ejecting is important to avoid database corruption on the iPod.
@@ -57,6 +57,10 @@ If you have trouble with iFlash-based iPods not mounting correctly, see the [mac
 ### Linux
 
 Linux support does not exist yet. While podkit's core functionality (syncing, transcoding) works on Linux, the mount and eject commands are not implemented for Linux volume management.
+
+:::note[Want Linux mount/eject support?]
+If this would be useful for your workflow, [open an issue on GitHub](https://github.com/jvgomg/podkit/issues) to let us know. In the meantime, you can mount and eject your iPod using standard Linux tools (`mount`, `umount`, `udisksctl`).
+:::
 
 ## See Also
 

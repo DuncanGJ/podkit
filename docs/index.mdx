@@ -44,20 +44,26 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 ## Quick Start
 
 ```bash
-# Install podkit
+# Install
 npm install -g podkit
 
-# Initialize configuration
-podkit init
+# Add your music (or Navidrome — see docs)
+podkit collection add music main ~/Music/library
 
-# Add your iPod
+# Add a video collection
+podkit collection add video movies ~/Movies
+
+# Register your iPod
 podkit device add myipod
 
-# Preview what will be synced
+# Mount, sync, and eject
+podkit device mount
 podkit sync --dry-run
-
-# Sync your music
 podkit sync
+podkit device eject
+
+# See all available commands
+podkit --help
 ```
 
 ## Supported Devices
@@ -78,10 +84,10 @@ Modded iPods with iFlash SD card adapters are fully supported. See the [complete
 
 <CardGrid>
   <Card title="Getting Started" icon="open-book">
-    [Installation](/getting-started/installation), [Quick Start](/getting-started/quick-start), and [First Sync](/getting-started/first-sync) guides to get syncing in minutes.
+    [Installation](/getting-started/installation) and [Quick Start](/getting-started/quick-start) guides to get syncing in minutes.
   </Card>
   <Card title="User Guide" icon="pencil">
-    [Configuration](/user-guide/configuration), [directory sources](/user-guide/collection-sources/directory), [Subsonic sources](/user-guide/collection-sources/subsonic), [audio transcoding](/user-guide/transcoding/audio), and [video transcoding](/user-guide/transcoding/video).
+    [Configuration](/user-guide/configuration), [directory sources](/user-guide/collections/directory), [Subsonic sources](/user-guide/collections/subsonic), [audio transcoding](/user-guide/transcoding/audio), and [video transcoding](/user-guide/transcoding/video).
   </Card>
   <Card title="Reference" icon="information">
     [CLI commands](/reference/cli-commands), [config file](/reference/config-file), and [quality presets](/reference/quality-presets).

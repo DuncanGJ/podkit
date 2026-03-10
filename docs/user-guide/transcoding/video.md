@@ -2,60 +2,12 @@
 title: Video Transcoding
 description: Configure video transcoding quality, formats, and device profiles for syncing movies and TV shows to iPod.
 sidebar:
-  order: 2
+  order: 3
 ---
 
-podkit aims to get your videos onto your iPod at the best possible quality for the device. It matches output to each device's capabilities, passes through files that are already compatible without re-encoding, and caps output quality to the source — so low-resolution files won't be wastefully upscaled.
+This guide covers video transcoding quality settings, device profiles, and output format. For an overview of how podkit decides what to transcode, see [Transcoding Methodology](/user-guide/transcoding). For supported formats, content types, and how to set up video syncing, see [Video Syncing](/user-guide/syncing/video).
 
-This guide covers video configuration, quality settings, and supported formats.
-
-## Supported Devices
-
-Video sync works with iPods that support video playback:
-
-- iPod Video (5th and 5.5th generation)
-- iPod Classic (6th and 7th generation)
-- iPod Nano (3rd through 5th generation)
-
-## Quick Start
-
-### 1. Configure Video Collection
-
-Add a video source to your config:
-
-```toml
-[video.movies]
-path = "/path/to/movies"
-
-[defaults]
-video = "movies"
-```
-
-### 2. Sync Video
-
-```bash
-# Sync video collection
-podkit sync video
-
-# Preview first
-podkit sync video --dry-run
-```
-
-## Configuration
-
-### Video Collections
-
-Define multiple video sources:
-
-```toml
-[video.movies]
-path = "/Volumes/Media/movies"
-
-[video.shows]
-path = "/Volumes/Media/tv-shows"
-```
-
-### Quality Settings
+## Quality Settings
 
 ```toml
 [video]
@@ -68,39 +20,6 @@ quality = "high"           # max | high | medium | low
 | `high` | Excellent quality (default) | General use |
 | `medium` | Good quality, smaller files | Limited storage |
 | `low` | Space-efficient | Maximum capacity |
-
-## CLI Usage
-
-```bash
-# Sync all video with default quality
-podkit sync video
-
-# Sync specific collection
-podkit sync video -c shows
-
-# Specify quality preset
-podkit sync video --video-quality medium
-
-# Dry run to preview
-podkit sync video --dry-run
-
-# Remove videos not in source
-podkit sync video --delete
-
-# Sync to specific device
-podkit sync video --device myipod
-```
-
-## Supported Input Formats
-
-| Format | Extensions | Notes |
-|--------|------------|-------|
-| Matroska | `.mkv` | Common for rips |
-| MP4 | `.mp4`, `.m4v` | May passthrough if compatible |
-| AVI | `.avi` | Legacy support |
-| MOV | `.mov` | QuickTime |
-| WebM | `.webm` | VP8/VP9 transcoded to H.264 |
-| WMV | `.wmv` | Windows Media |
 
 ## Output Format
 
@@ -143,16 +62,6 @@ Quality settings affect bitrate, not resolution. Resolution is always matched to
 | medium | 640x480 @ 1500 kbps | 320x240 @ 400 kbps |
 | low | 640x480 @ 1000 kbps | 320x240 @ 300 kbps |
 
-### Source Quality Awareness
-
-podkit analyzes source files and caps output quality accordingly. Low-quality sources won't be "upscaled":
-
-| Source Quality | User Setting | Effective Output |
-|----------------|--------------|------------------|
-| 1080p @ 8 Mbps | high | 640x480 @ 2000 kbps |
-| 480p @ 1.5 Mbps | high | 480p @ 1500 kbps (capped) |
-| 360p @ 800 kbps | high | 360p @ 800 kbps (source limited) |
-
 ## File Size Estimates
 
 For a 2-hour movie on iPod Classic:
@@ -163,58 +72,6 @@ For a 2-hour movie on iPod Classic:
 | high | ~1.8 GB |
 | medium | ~1.3 GB |
 | low | ~900 MB |
-
-## Passthrough (No Transcoding)
-
-If a video is already iPod-compatible, podkit copies it directly:
-
-**Compatible criteria:**
-- H.264 video (Baseline or Main profile)
-- Resolution <= device maximum
-- Bitrate <= device maximum
-- AAC audio
-- MP4/M4V container
-
-The dry run shows which files will passthrough:
-
-```
-+ [transcode    ] Movie.mkv
-+ [passthrough  ] Compatible.m4v
-- [remove       ] OldVideo.m4v
-```
-
-## Content Type Detection
-
-podkit determines movie vs. TV show by:
-
-1. **Embedded tags** - If file contains episode/season tags
-2. **Folder structure** - `TV Shows/Series Name/Season 01/`
-3. **Filename patterns** - `S01E01`, `1x01`, etc.
-
-### Folder Organization
-
-**Movies:**
-
-```
-Movies/
-├── The Matrix (1999).mkv
-├── Inception (2010)/
-│   └── Inception.mkv
-└── Sci-Fi/
-    └── Blade Runner (1982).mkv
-```
-
-**TV Shows:**
-
-```
-TV Shows/
-└── Breaking Bad/
-    ├── Season 1/
-    │   ├── S01E01 - Pilot.mkv
-    │   └── S01E02 - Cat's in the Bag.mkv
-    └── Season 2/
-        └── S02E01 - Seven Thirty-Seven.mkv
-```
 
 ## Hardware Acceleration
 
@@ -251,7 +108,7 @@ podkit sync video --dry-run -vvv
 
 ## See Also
 
+- [Video Syncing](/user-guide/syncing/video) - Supported formats, content types, and folder organization
+- [Transcoding Methodology](/user-guide/transcoding) - How podkit decides what to transcode
 - [Audio Transcoding](/user-guide/transcoding/audio) - Audio transcoding quality and codec settings
-- [Supported Devices](/devices/supported-devices) - Video-capable iPod models
-- [Configuration](/user-guide/configuration) - Full configuration reference
-- [CLI Commands](/reference/cli-commands) - Command-line options
+- [Quality Settings](/user-guide/devices/quality) - Per-device video quality configuration

@@ -1,0 +1,74 @@
+---
+title: Artist Transforms
+description: Clean up messy artist lists on your iPod by moving featured artist credits into the track title.
+sidebar:
+  order: 3
+---
+
+Classic iPods don't use the Album Artist field for navigation — when you browse by Artist, it uses the track-level Artist field. If your music tags tracks as "Daft Punk feat. Pharrell Williams", you end up with dozens of one-off artist entries cluttering your artist list.
+
+For the full configuration reference including all recognized patterns, bracket positioning, and edge cases, see the [Album Artist Transform Reference](/reference/transforms).
+
+## The ftintitle Transform
+
+The `ftintitle` transform moves featured artist credits from the Artist field into the Title field during sync. Your source files are never modified.
+
+| | Artist | Title |
+|---|--------|-------|
+| **Before** | Daft Punk feat. Pharrell Williams | Get Lucky |
+| **After** | Daft Punk | Get Lucky (feat. Pharrell Williams) |
+
+Your iPod artist list goes from a mess of one-off entries to a clean, browsable list — and you still see who's featured in the track title.
+
+## Quick Setup
+
+Enable it globally in your [config file](/user-guide/configuration):
+
+```toml
+[transforms.ftintitle]
+enabled = true
+```
+
+That's all you need. podkit recognizes common featuring patterns (`feat.`, `ft.`, `featuring`, `with`, `vs`, `&`) and handles them automatically.
+
+## Protecting Artist Names
+
+Some artist names naturally contain words like "&" or "with" that the transform would incorrectly split on. Add these to the `ignore` list:
+
+```toml
+[transforms.ftintitle]
+enabled = true
+ignore = ["Simon & Garfunkel", "Earth, Wind & Fire", "Hall & Oates"]
+```
+
+## Per-Device Override
+
+You can enable the transform for some devices and not others. Devices can be referenced by their config name or mount path with `--device`:
+
+```toml
+# Global: transform enabled
+[transforms.ftintitle]
+enabled = true
+
+# This device uses the global transform
+[devices.classic]
+volumeUuid = "ABCD-1234"
+volumeName = "CLASSIC"
+
+# This device uses original metadata
+[devices.nano.transforms.ftintitle]
+enabled = false
+```
+
+## Reversibility
+
+Transforms are reversible. If you disable a transform and re-sync, podkit updates the iPod tracks back to their original metadata — without re-copying or re-transcoding the audio files.
+
+## More Options
+
+For the full list of configuration options, recognized patterns, bracket positioning rules, and edge cases, see the [Album Artist Transform Reference](/reference/transforms).
+
+## See Also
+
+- [Album Artist Transform Reference](/reference/transforms) — Full configuration reference
+- [Managing Devices](/user-guide/devices) — Device configuration overview

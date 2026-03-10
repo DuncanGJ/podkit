@@ -1,0 +1,109 @@
+---
+title: Installation
+description: Install podkit and its system dependencies on macOS or Linux.
+sidebar:
+  order: 1
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Install FFmpeg
+
+<Tabs>
+  <TabItem label="macOS">
+    ```bash
+    brew install ffmpeg
+    ```
+  </TabItem>
+  <TabItem label="Ubuntu / Debian">
+    ```bash
+    sudo apt update && sudo apt install -y ffmpeg
+    ```
+  </TabItem>
+  <TabItem label="Fedora">
+    ```bash
+    sudo dnf install -y \
+        https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+    sudo dnf install -y ffmpeg
+    ```
+  </TabItem>
+  <TabItem label="Arch">
+    ```bash
+    sudo pacman -S ffmpeg
+    ```
+  </TabItem>
+</Tabs>
+
+## Install podkit
+
+```bash
+npm install -g podkit
+```
+
+Verify it worked:
+
+```bash
+podkit --version
+```
+
+That's it — you're ready to go. Continue to [Quick Start](/getting-started/quick-start) to set up your first sync.
+
+:::note[Windows support]
+Windows is not currently supported. If you'd like to see Windows support, please [open an issue on GitHub](https://github.com/jvgomg/podkit/issues) to let us know.
+:::
+
+## Prerequisites
+
+### Node.js
+
+podkit requires **Node.js 20+**. Check your version:
+
+```bash
+node --version
+```
+
+If you need to install Node.js:
+
+<Tabs>
+  <TabItem label="macOS">
+    ```bash
+    brew install node
+    ```
+  </TabItem>
+  <TabItem label="Ubuntu / Debian">
+    ```bash
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt install -y nodejs
+    ```
+  </TabItem>
+  <TabItem label="Fedora">
+    ```bash
+    sudo dnf install nodejs
+    ```
+  </TabItem>
+</Tabs>
+
+You can also use [Bun](https://bun.sh/) as an alternative runtime:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+bun install -g podkit
+```
+
+### Verify FFmpeg
+
+Check that FFmpeg has AAC encoder support:
+
+```bash
+ffmpeg -encoders 2>/dev/null | grep aac
+```
+
+You should see at least one AAC encoder listed. On macOS, you'll typically see both `aac` (native) and `aac_at` (AudioToolbox).
+
+### Supported Devices
+
+podkit works with classic iPods that use USB Mass Storage mode. iOS devices (iPod Touch, iPhone, iPad) are **not** supported. See [Supported Devices](/devices/supported-devices) for the full compatibility matrix.
+
+## Building from Source
+
+If prebuilt binaries are not available for your platform, see the [Building from Source](/developers/building-from-source) guide.

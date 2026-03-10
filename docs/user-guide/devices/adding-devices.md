@@ -2,7 +2,7 @@
 title: Adding a Device
 description: Register iPod devices with podkit using auto-detection or manual configuration.
 sidebar:
-  order: 2
+  order: 4
 ---
 
 Before you can sync music to an iPod, you need to register it with podkit. This page covers automatic and manual device registration.

@@ -2,7 +2,7 @@
 title: Resetting a Device
 description: Reset the iPod database to fix corruption or start fresh with podkit.
 sidebar:
-  order: 5
+  order: 7
 ---
 
 The `podkit device reset` command recreates the iPod database from scratch. This is more thorough than clearing content and is the right choice when the database itself is corrupted.

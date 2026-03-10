@@ -83,7 +83,7 @@ For passwords, you can also use environment variables:
 export PODKIT_MUSIC_NAVIDROME_PASSWORD="your-password"
 ```
 
-See [Subsonic Source](/user-guide/collection-sources/subsonic) for full Subsonic configuration.
+See [Subsonic Source](/user-guide/collections/subsonic) for full Subsonic configuration.
 
 ## Devices
 
@@ -201,7 +201,7 @@ To override transforms for a specific device:
 enabled = false           # Disable for this device
 ```
 
-See [Transforms](/user-guide/transforms) for all available transforms.
+See [Artist Transforms](/user-guide/devices/artist-transforms) for a setup guide and [Album Artist Transform Reference](/reference/transforms) for the full configuration reference.
 
 ## Environment Variables
 
@@ -270,8 +270,8 @@ video = "movies"
 
 ## See Also
 
-- [Directory Source](/user-guide/collection-sources/directory) - Local directory source configuration
-- [Subsonic Source](/user-guide/collection-sources/subsonic) - Subsonic server source configuration
+- [Directory Source](/user-guide/collections/directory) - Local directory source configuration
+- [Subsonic Source](/user-guide/collections/subsonic) - Subsonic server source configuration
 - [Audio Transcoding](/user-guide/transcoding/audio) - Quality presets and encoder settings
 - [Video Transcoding](/user-guide/transcoding/video) - Video collection configuration
 - [CLI Commands](/reference/cli-commands) - Command-line options

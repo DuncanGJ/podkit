@@ -1,11 +1,11 @@
 ---
 title: Additional Sources
-description: Planned collection sources and how to request or build your own.
+description: Planned media sources and how to request or build your own.
 sidebar:
   order: 4
 ---
 
-podkit currently supports [directory](/user-guide/collections/directory) and [Subsonic](/user-guide/collections/subsonic) collection sources. Additional sources are planned for the future.
+podkit currently supports [directory](/user-guide/collections/directory) and [Subsonic](/user-guide/collections/subsonic) media sources. Additional sources are planned for the future.
 
 ## Planned Sources
 
@@ -23,7 +23,7 @@ If there's a music source you'd like to see supported, [open an issue on GitHub]
 
 ## Build Your Own
 
-podkit's collection source system uses an adapter pattern that makes it possible to add new sources. If you're interested in building a source adapter, see the [Developer Guide](/developers/architecture) for an overview of the adapter interface and how collection sources work.
+podkit's media source system uses an adapter pattern that makes it possible to add new sources. If you're interested in building a source adapter, see the [Developer Guide](/developers/architecture) for an overview of the adapter interface and how media sources work.
 
 ## See Also
 

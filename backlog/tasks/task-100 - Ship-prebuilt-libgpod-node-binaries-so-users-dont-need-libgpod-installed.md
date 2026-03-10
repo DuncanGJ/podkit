@@ -1,10 +1,10 @@
 ---
 id: TASK-100
 title: Ship prebuilt libgpod-node binaries so users don't need libgpod installed
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-10 15:42'
-updated_date: '2026-03-10 16:08'
+updated_date: '2026-03-10 20:36'
 labels:
   - dx
   - native

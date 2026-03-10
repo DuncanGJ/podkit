@@ -65,14 +65,18 @@ Each device section supports the following options:
 |--------|-------------|---------|
 | `volumeUuid` | Filesystem UUID for auto-detection | Required |
 | `volumeName` | Volume label (used in mount paths) | Required |
-| `quality` | Transcoding quality preset | Global setting |
+| `quality` | Audio transcoding quality preset | Global setting |
+| `videoQuality` | Video transcoding quality preset | `high` |
 | `artwork` | Whether to sync album artwork | `true` |
 
-Per-device settings override global settings. This lets you use lossless audio on a high-capacity Classic while using compressed audio on a space-constrained Nano.
+Per-device settings override global settings. This lets you use lossless audio on a high-capacity Classic while using compressed audio on a space-constrained Nano. See [Quality Settings](./quality) for a detailed guide.
+
+You can also configure per-device artist transforms to clean up messy artist lists. See [Artist Transforms](./artist-transforms).
 
 ## See Also
 
+- [Quality Settings](./quality) for per-device audio and video quality
+- [Artist Transforms](./artist-transforms) for cleaning up artist names
 - [Supported Devices](/devices/supported-devices/) for iPod model compatibility
 - [Adding a Device](./adding-devices/) for registering new devices
 - [Configuration](/user-guide/configuration/) for full config file reference
-- [Transcoding](/user-guide/transcoding/) for quality preset details

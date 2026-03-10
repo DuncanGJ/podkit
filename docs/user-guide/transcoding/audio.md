@@ -2,16 +2,12 @@
 title: Audio Transcoding
 description: Configure audio transcoding quality, codecs, and presets for syncing music to iPod.
 sidebar:
-  order: 1
+  order: 2
 ---
 
-podkit aims to get your music onto your iPod at the best possible quality. It only transcodes what it needs to — lossless files are converted to your chosen format, but lossy files that are already iPod-compatible (MP3, AAC) are copied as-is to avoid any generation loss. When lossy-to-lossy conversion is unavoidable (e.g. OGG or Opus sources), podkit warns you so there are no surprises.
+This guide covers audio quality presets, encoder options, and file size estimates. For an overview of how podkit decides what to transcode, see [Transcoding Methodology](/user-guide/transcoding).
 
-This guide covers quality settings, encoder options, and how podkit decides what to transcode.
-
-## Quick Reference
-
-### Quality Presets
+## Quality Presets
 
 | Preset | Type | Target | Description |
 |--------|------|--------|-------------|
@@ -26,14 +22,6 @@ This guide covers quality settings, encoder options, and how podkit decides what
 | `low-cbr` | CBR | 128 kbps | |
 
 **Default:** `high` (VBR ~256 kbps)
-
-### Source File Categories
-
-| Category | Formats | Behavior |
-|----------|---------|----------|
-| **Lossless** | FLAC, WAV, AIFF, ALAC | Transcode to target preset |
-| **Compatible Lossy** | MP3, M4A (AAC) | Copy as-is (no re-encoding) |
-| **Incompatible Lossy** | OGG, Opus | Transcode + lossy-to-lossy warning |
 
 ## Configuration
 
@@ -61,21 +49,7 @@ quality = "high"      # alac | max | max-cbr | high | high-cbr | medium | medium
 fallback = "max"      # Fallback for lossy sources when quality=alac
 ```
 
-## How Transcoding Works
-
-### Decision Logic
-
-| Source | Target: ALAC | Target: AAC preset |
-|--------|--------------|-------------------|
-| Lossless | Convert to ALAC | Transcode to AAC |
-| Compatible Lossy | **Copy as-is** | Copy as-is |
-| Incompatible Lossy | **Fallback** + warn | Transcode + warn |
-
-**Why copy compatible lossy?** Re-encoding MP3 to AAC only loses quality. Even "upconverting" 128kbps to 256kbps wastes space without improving audio.
-
-**Lossy-to-lossy warning:** During `--dry-run`, podkit flags incompatible lossy files (OGG, Opus) that require lossy-to-lossy conversion.
-
-### Example Scenarios
+## Example Scenarios
 
 **Scenario 1: Audiophile with mixed collection**
 
@@ -161,20 +135,6 @@ The native FFmpeg AAC encoder is very good and sufficient for most uses. macOS u
 ffmpeg -encoders 2>/dev/null | grep aac
 ```
 
-## Metadata and Artwork
-
-podkit preserves metadata through transcoding:
-
-- All standard tags (title, artist, album, etc.)
-- Album artwork (embedded in output file)
-- Track numbers, disc numbers, year, genre
-
-Artwork is preserved by default. To skip artwork transfer:
-
-```bash
-podkit sync --no-artwork
-```
-
 ## Troubleshooting
 
 ### Common Issues
@@ -201,8 +161,7 @@ podkit sync -vvv --dry-run
 
 ## See Also
 
+- [Transcoding Methodology](/user-guide/transcoding) - How podkit decides what to transcode
 - [Video Transcoding](/user-guide/transcoding/video) - Video transcoding settings and device profiles
 - [Quality Presets Reference](/reference/quality-presets) - Detailed preset specifications
 - [Configuration](/user-guide/configuration) - Config file options
-- [Directory Source](/user-guide/collection-sources/directory) - Local directory source configuration
-- [Subsonic Source](/user-guide/collection-sources/subsonic) - Subsonic server source configuration
