@@ -1,17 +1,31 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightLlmsTxt from 'starlight-llms-txt';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // https://astro.build/config
 export default defineConfig({
   site: 'https://jvgomg.github.io',
   base: '/podkit',
+  vite: {
+    resolve: {
+      // Allow MDX files in symlinked docs/ to resolve Starlight components
+      alias: {
+        '@astrojs/starlight/components': resolve(__dirname, 'node_modules/@astrojs/starlight/components'),
+      },
+    },
+  },
   integrations: [
     starlight({
+      plugins: [starlightLlmsTxt()],
       title: 'podkit',
       description: 'Sync your music collection to iPod devices',
-      social: {
-        github: 'https://github.com/jvgomg/podkit',
-      },
+      social: [
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/jvgomg/podkit' },
+      ],
       editLink: {
         baseUrl: 'https://github.com/jvgomg/podkit/edit/main/',
       },

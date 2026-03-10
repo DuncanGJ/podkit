@@ -1,10 +1,10 @@
 ---
 id: TASK-088
 title: Scaffold docs-site package with Astro + Starlight
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-10 10:26'
-updated_date: '2026-03-10 13:25'
+updated_date: '2026-03-10 13:58'
 labels:
   - docs-site
   - setup

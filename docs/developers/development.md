@@ -213,15 +213,22 @@ See [Testing](/developers/testing) for the full testing guide.
 # Run CLI in development mode
 bun run dev
 
-# Watch mode (rebuild on changes)
-bun run dev:watch
-
-# Lint
+# Lint (uses oxlint)
 bun run lint
+bun run lint:fix        # Auto-fix lint issues
 
-# Type check
+# Format (uses Prettier)
+bun run format          # Format all files
+bun run format:check    # Check formatting without writing
+
+# Type check all packages
 bun run typecheck
+
+# Clean all build artifacts and node_modules
+bun run clean
 ```
+
+Note: builds and tests are orchestrated with [Turborepo](https://turbo.build/repo) for caching and parallelism.
 
 ## Project Structure
 

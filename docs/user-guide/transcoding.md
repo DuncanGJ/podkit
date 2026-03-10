@@ -56,7 +56,7 @@ podkit sync --quality low
 ### Config File
 
 ```toml
-[transcode]
+# Top-level settings in config.toml
 quality = "high"      # alac | max | max-cbr | high | high-cbr | medium | medium-cbr | low | low-cbr
 fallback = "max"      # Fallback for lossy sources when quality=alac
 ```

@@ -144,8 +144,7 @@ podkit sync --quality medium
 ```
 
 ```toml
-# In config.toml
-[transcode]
+# In config.toml (top-level setting)
 quality = "high"
 ```
 

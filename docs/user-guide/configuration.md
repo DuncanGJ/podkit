@@ -123,26 +123,11 @@ quality = "medium"        # Lower quality for less storage
 artwork = false           # Skip artwork for faster sync
 ```
 
-### Per-Device Collections
-
-Assign specific collections to devices:
-
-```toml
-[devices.main-ipod]
-volumeUuid = "ABC-123"
-music = ["main", "podcasts"]    # Sync these collections
-
-[devices.gym-ipod]
-volumeUuid = "DEF-456"
-music = ["workout"]             # Only workout music
-```
-
 ## Quality Presets
 
-Configure transcoding quality:
+Configure transcoding quality as top-level settings:
 
 ```toml
-[transcode]
 quality = "high"          # alac | max | high | medium | low
 fallback = "max"          # Fallback for lossy sources when using ALAC
 ```
@@ -185,7 +170,6 @@ Set default values for CLI commands:
 device = "myipod"         # Default device name
 music = "main"            # Default music collection
 video = "movies"          # Default video collection
-quality = "high"          # Default quality preset
 ```
 
 Override defaults on the command line:
@@ -196,13 +180,27 @@ podkit sync --device nano --quality medium -c podcasts
 
 ## Transforms
 
-Configure metadata transforms applied during sync:
+Transforms modify track metadata during sync. They are configured globally and can be overridden per-device.
+
+### ftintitle
+
+Extracts featured artist information from the artist field and appends it to the title. This is useful when your music library stores "Artist feat. Other Artist" in the artist field but you want the iPod to show "Artist" as the artist and "Song (feat. Other Artist)" as the title.
 
 ```toml
 [transforms.ftintitle]
 enabled = true            # Move "feat." from artist to title
 drop = false              # If true, drop featuring info entirely
 format = "feat. {}"       # Format string for title
+ignore = ["Simon & Garfunkel"]  # Don't split these artist names
+```
+
+The `ignore` list prevents artist names containing ambiguous separators (`&`, `and`, `with`) from being incorrectly split.
+
+To override transforms for a specific device:
+
+```toml
+[devices.nano.transforms.ftintitle]
+enabled = false           # Disable for this device
 ```
 
 See [Transforms](/reference/transforms) for all available transforms.
@@ -215,7 +213,10 @@ Some settings can be set via environment variables:
 |----------|-------------|
 | `PODKIT_CONFIG` | Path to config file |
 | `PODKIT_QUALITY` | Default quality preset |
-| `PODKIT_MUSIC_{NAME}_PASSWORD` | Password for Subsonic collection |
+| `PODKIT_FALLBACK` | Default fallback preset |
+| `PODKIT_ARTWORK` | Default artwork setting |
+| `PODKIT_MUSIC_{NAME}_PASSWORD` | Password for Subsonic collection (NAME is uppercased, hyphens become underscores) |
+| `SUBSONIC_PASSWORD` | Fallback password for any Subsonic collection |
 
 ## Full Example
 
@@ -240,26 +241,22 @@ path = "/Volumes/Media/movies"
 [video.shows]
 path = "/Volumes/Media/tv-shows"
 
+# Global transcoding settings
+quality = "high"
+fallback = "max"
+
 # Devices
 [devices.classic]
 volumeUuid = "ABCD-1234"
 volumeName = "CLASSIC"
 quality = "high"
 artwork = true
-music = ["main", "podcasts"]
-video = ["movies", "shows"]
 
 [devices.nano]
 volumeUuid = "EFGH-5678"
 volumeName = "NANO"
 quality = "medium"
 artwork = false
-music = ["main"]
-
-# Transcoding
-[transcode]
-quality = "high"
-fallback = "max"
 
 # Transforms
 [transforms.ftintitle]

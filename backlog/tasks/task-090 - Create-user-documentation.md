@@ -1,9 +1,10 @@
 ---
 id: TASK-090
 title: Create user documentation
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-03-10 10:26'
+updated_date: '2026-03-10 13:58'
 labels:
   - docs-site
   - documentation

@@ -85,12 +85,23 @@ password = "your-password"
 path = "/path/to/download/cache"
 ```
 
+### Required Fields
+
+| Key | Description |
+|-----|-------------|
+| `type` | Must be `"subsonic"` |
+| `url` | The base URL of your Subsonic-compatible server |
+| `username` | Your Subsonic username |
+| `path` | A local directory where podkit caches downloaded audio files |
+
+The `path` directory is used as a local cache for audio files streamed from the server during sync. It does not need to be permanent storage, but keeping it between syncs avoids re-downloading unchanged files.
+
 ### Password Options
 
 The password can be provided in several ways (checked in this order):
 
 1. **Config file** - Add `password = "..."` to the collection config
-2. **Collection-specific env var** - Set `PODKIT_MUSIC_{NAME}_PASSWORD` where `{NAME}` is the collection name in uppercase
+2. **Collection-specific env var** - Set `PODKIT_MUSIC_{NAME}_PASSWORD` where `{NAME}` is the collection name in uppercase (hyphens become underscores, e.g. `my-server` → `PODKIT_MUSIC_MY_SERVER_PASSWORD`)
 3. **Fallback env var** - Set `SUBSONIC_PASSWORD` for any Subsonic collection
 
 **Example with environment variable:**

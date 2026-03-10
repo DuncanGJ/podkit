@@ -135,32 +135,39 @@ The `id` field has limitations:
 
 ### How libgpod-node Uses TrackHandle
 
-The `TrackHandle` abstraction wraps pointers safely:
+The `TrackHandle` abstraction wraps raw `Itdb_Track*` pointers safely:
 
 ```typescript
-// TrackHandle wraps a pointer internally
-const handle = db.addTrack('/path/to/music.mp3', metadata);
+import { Database } from '@podkit/libgpod-node';
+
+const db = Database.openSync('/Volumes/IPOD');
+
+// addTrack returns a TrackHandle
+const handle = db.addTrack({ title: 'Song', artist: 'Artist' });
 
 // All operations accept TrackHandle
-db.setTrackMetadata(handle, { title: 'New Title' });
-db.setTrackArtwork(handle, '/path/to/artwork.jpg');
+db.updateTrack(handle, { rating: 80 });
+db.copyTrackToDevice(handle, '/path/to/song.mp3');
 
-// After write, handle remains valid
-await db.write();
-const info = db.getTrackInfo(handle);  // Still works
+// After save, handle remains valid
+db.saveSync();
+const track = db.getTrack(handle);  // Still works
 ```
+
+Handles become invalid after `removeTrack()` or `close()`. Attempting to use an invalid handle throws a `LibgpodError`.
 
 ## Behavioral Deviations
 
-The libgpod-node bindings have enhanced behavior to handle edge cases:
+The libgpod-node bindings intentionally deviate from raw libgpod to prevent data corruption and assertion failures:
 
 | Operation | libgpod Issue | Our Fix |
 |-----------|---------------|---------|
 | `removeTrack()` | Doesn't remove from playlists | Remove from all playlists first |
 | `create()` | No master playlist | Create master playlist |
+| `initializeIpod()` | Requires mountpoint to exist | Creates directory with `g_mkdir_with_parents()` |
 | `clearTrackChapters()` | NULL chapterdata crashes | Create empty chapterdata |
 
-See `packages/libgpod-node/README.md` for the full list and rationale.
+See `packages/libgpod-node/README.md` for detailed rationale and code examples for each deviation.
 
 ## GLib Type Handling
 
@@ -187,9 +194,24 @@ When encountering libgpod CRITICAL assertions:
 3. **Understand the expectation** - What does libgpod expect vs. what we're providing?
 4. **Fix and document** - Apply the fix and document the deviation
 
+## Native Code Structure
+
+The C++ native code in `packages/libgpod-node/native/` is organized by concern:
+
+| File | Purpose |
+|------|---------|
+| `gpod_binding.cc` | N-API module entry, database open/create/init |
+| `database_wrapper.cc` | Database class wrapping `Itdb_iTunesDB` |
+| `track_operations.cc` | Track add/remove/update/chapters |
+| `playlist_operations.cc` | Playlist create/add/remove |
+| `artwork_operations.cc` | Artwork thumbnail management |
+| `gpod_converters.cc` | Type conversion between N-API and GLib |
+| `gpod_helpers.cc` | Utility functions |
+| `photo_database_wrapper.cc` | Photo database operations |
+
 ## See Also
 
 - [Architecture](/developers/architecture) - Overall system design
 - [iPod Internals](/devices/ipod-internals) - iTunesDB format details
-- `packages/libgpod-node/README.md` - Binding documentation
+- `packages/libgpod-node/README.md` - Full binding documentation with API reference
 - [libgpod API Documentation](http://www.gtkpod.org/libgpod/docs/)

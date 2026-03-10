@@ -78,7 +78,7 @@ bun run test:integration
 # Run E2E tests (with dummy iPod)
 bun run test:e2e
 
-# Run E2E tests with real iPod
+# Run E2E tests with real iPod (requires both env vars)
 IPOD_MOUNT=/Volumes/iPod bun run test:e2e:real
 
 # Run Docker-based E2E tests (Subsonic, etc.)

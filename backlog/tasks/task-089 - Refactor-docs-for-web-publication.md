@@ -1,10 +1,10 @@
 ---
 id: TASK-089
 title: Refactor docs/ for web publication
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-03-10 10:26'
-updated_date: '2026-03-10 13:43'
+updated_date: '2026-03-10 13:58'
 labels:
   - docs-site
   - documentation

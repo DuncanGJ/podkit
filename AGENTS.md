@@ -88,6 +88,7 @@ Read these documents based on what you're working on:
 | Development environment | [docs/developers/development.md](docs/developers/development.md) |
 | Testing strategy | [docs/developers/testing.md](docs/developers/testing.md) |
 | ADRs | [docs/developers/adr/](docs/developers/adr/) |
+| Contributing | [docs/developers/contributing.md](docs/developers/contributing.md) |
 | libgpod integration | [docs/developers/libgpod.md](docs/developers/libgpod.md) |
 | Transcoding (audio) | [docs/user-guide/transcoding.md](docs/user-guide/transcoding.md) |
 | Video sync | [docs/user-guide/video-sync.md](docs/user-guide/video-sync.md) |

@@ -1,0 +1,89 @@
+---
+title: podkit
+description: Scriptable CLI for iPod sync with automatic transcoding, full metadata preservation, and intelligent duplicate detection.
+template: splash
+hero:
+  title: Sync your music collection to iPod.
+  tagline: The way it should work.
+  actions:
+    - text: Get Started
+      link: /getting-started/installation
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/jvgomg/podkit
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Features
+
+<CardGrid>
+  <Card title="Fast Incremental Sync" icon="rocket">
+    Only syncs what's new. Smart duplicate detection across formats means no wasted time or storage.
+  </Card>
+  <Card title="Lossless Metadata & Artwork" icon="document">
+    All tags and album artwork preserved through transcoding. What you tagged is what you get on your iPod.
+  </Card>
+  <Card title="Scriptable & Automated" icon="setting">
+    CLI-first design — no GUI required. Works with cron jobs and shell scripts for fully automated sync workflows.
+  </Card>
+  <Card title="High-Quality Transcoding" icon="star">
+    FLAC to AAC via FFmpeg with configurable quality presets. Keep your lossless library, sync optimized files.
+  </Card>
+  <Card title="Classic iPod Support" icon="approve-check-circle">
+    iPod Classic, Video, Nano, Mini, and Shuffle — including modded iPods with iFlash SD card upgrades.
+  </Card>
+</CardGrid>
+
+## Quick Start
+
+```bash
+# Install podkit
+npm install -g podkit
+
+# Initialize configuration
+podkit init
+
+# Add your iPod
+podkit device add myipod
+
+# Preview what will be synced
+podkit sync --dry-run
+
+# Sync your music
+podkit sync
+```
+
+## Supported Devices
+
+podkit works with iPods that use USB Mass Storage mode with the iTunesDB database format:
+
+- **iPod Classic** — all generations
+- **iPod Video** — 5th and 5.5th generation
+- **iPod Nano** — 1st through 5th generation
+- **iPod Mini** — 1st and 2nd generation
+- **iPod Shuffle** — 1st and 2nd generation
+
+Modded iPods with iFlash SD card adapters are fully supported. See the [complete compatibility list](/devices/supported-devices).
+
+**Not supported:** iOS devices (iPod Touch, iPhone, iPad) use a different sync protocol.
+
+## Documentation
+
+<CardGrid>
+  <Card title="Getting Started" icon="open-book">
+    [Installation](/getting-started/installation), [Quick Start](/getting-started/quick-start), and [First Sync](/getting-started/first-sync) guides to get syncing in minutes.
+  </Card>
+  <Card title="User Guide" icon="pencil">
+    [Configuration](/user-guide/configuration), [music sources](/user-guide/music-sources), [transcoding](/user-guide/transcoding), and [video sync](/user-guide/video-sync).
+  </Card>
+  <Card title="Reference" icon="information">
+    [CLI commands](/reference/cli-commands), [config file](/reference/config-file), and [quality presets](/reference/quality-presets).
+  </Card>
+  <Card title="Developer Guide" icon="github">
+    [Architecture](/developers/architecture), [development setup](/developers/development), [testing](/developers/testing), and [ADRs](/developers/adr/).
+  </Card>
+</CardGrid>

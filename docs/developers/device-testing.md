@@ -54,28 +54,24 @@ bun run test:e2e:real
 
 Nothing beats a user report confirming "I synced my music library and it plays fine."
 
-## Writing E2E Tests for a Model
+## Writing Tests for a Model
 
-### Step 1: Create Model-Specific Test
-
-Create a test file in `packages/e2e-tests/src/models/`:
+Model-specific tests use `@podkit/gpod-testing` to create temporary iPod databases. Place these alongside other integration tests in the relevant package (typically `packages/libgpod-node` or `packages/podkit-core`).
 
 ```typescript
-// packages/e2e-tests/src/models/ipod-classic-160gb.e2e.test.ts
 import { describe, it, expect } from 'bun:test';
 import { withTestIpod } from '@podkit/gpod-testing';
 
-describe('iPod Classic 160GB (MC293)', () => {
+describe('iPod Video 60GB (MA147)', () => {
   it('initializes with correct model', async () => {
-    await withTestIpod({ model: 'MC293' }, async (ipod) => {
+    await withTestIpod(async (ipod) => {
       const info = await ipod.info();
-      expect(info.device.generation).toBe('classic_3');
-      expect(info.device.modelName).toContain('Classic');
-    });
+      expect(info.trackCount).toBe(0);
+    }, { model: 'MA147' });
   });
 
   it('syncs music tracks', async () => {
-    await withTestIpod({ model: 'MC293' }, async (ipod) => {
+    await withTestIpod(async (ipod) => {
       await ipod.addTrack({
         title: 'Test Song',
         artist: 'Test Artist',
@@ -84,35 +80,14 @@ describe('iPod Classic 160GB (MC293)', () => {
 
       const info = await ipod.info();
       expect(info.trackCount).toBe(1);
-    });
-  });
-
-  it('supports artwork', async () => {
-    await withTestIpod({ model: 'MC293' }, async (ipod) => {
-      const caps = await ipod.getDeviceCapabilities();
-      expect(caps.supportsArtwork).toBe(true);
-    });
+    }, { model: 'MA147' });
   });
 });
 ```
 
-### Step 2: Test Key Capabilities
+> **Note:** iPod Classic 6th gen+ models (MB565, MC297) require a FirewireID that libgpod does not auto-generate, so they cannot be used with `createTestIpod()`. Use iPod Video models (MA147, MA002) for test environments instead. See `packages/gpod-testing/README.md` for supported models.
 
-```typescript
-describe('Model Capabilities', () => {
-  it('reports correct capabilities', async () => {
-    await withTestIpod({ model: 'MODEL_NUMBER' }, async (ipod) => {
-      const caps = await ipod.getDeviceCapabilities();
-
-      // Adjust expectations per model
-      expect(caps.supportsArtwork).toBe(true);  // false for Shuffle
-      expect(caps.supportsVideo).toBe(true);    // false for non-video
-    });
-  });
-});
-```
-
-### Step 3: Update Supported Devices
+### Update Supported Devices
 
 After adding tests, update the documentation table:
 
@@ -130,15 +105,23 @@ After adding tests, update the documentation table:
 
 ### Running Tests
 
+From the repository root:
+
 ```bash
 export IPOD_MOUNT=/Volumes/IPOD
-cd packages/e2e-tests
 bun run test:e2e:real
+```
+
+Or from the e2e-tests package directly:
+
+```bash
+cd packages/e2e-tests
+IPOD_TARGET=real IPOD_MOUNT=/Volumes/IPOD bun test
 ```
 
 ### What to Verify
 
-1. **Detection**: `podkit device add` finds the iPod
+1. **Registration**: `podkit device add myipod /Volumes/IPOD` registers the device
 2. **Info**: `podkit device info` shows correct model/generation
 3. **Sync**: `podkit sync` transfers files successfully
 4. **Playback**: Manual verification that content plays
