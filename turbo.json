@@ -4,8 +4,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["src/**", "package.json", "tsconfig.json"],
-      "outputs": ["dist/**"],
-      "passThroughEnv": ["SKIP_NATIVE_BUILD"]
+      "outputs": ["dist/**"]
     },
     "test": {
       "dependsOn": ["build"],

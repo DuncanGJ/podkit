@@ -22,21 +22,15 @@ jobs:
             echo "Not a Version Packages PR - skipping"
           fi
 
-  # Build native prebuilds for all platforms
-  prebuilds:
+  # Build, compile, and smoke test CLI binaries for all platforms
+  build:
     needs: check-pr
     if: needs.check-pr.outputs.is_version_pr == 'true'
-    uses: ./.github/workflows/prebuild.yml
-
-  # Compile and smoke test CLI binaries for each platform
-  compile:
-    needs: [check-pr, prebuilds]
-    if: needs.check-pr.outputs.is_version_pr == 'true' && needs.prebuilds.result == 'success'
-    uses: ./.github/workflows/compile.yml
+    uses: ./.github/workflows/build-platform.yml
 
   # Summary job for branch protection rules
   release-ci-passed:
-    needs: [check-pr, compile]
+    needs: [check-pr, build]
     if: always()
     runs-on: ubuntu-latest
     name: Release CI Status
@@ -47,8 +41,8 @@ jobs:
             echo "Not a version PR - skipping"
             exit 0
           fi
-          if [[ "${{ needs.compile.result }}" != "success" ]]; then
-            echo "Compile jobs failed or were cancelled"
+          if [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "Build jobs failed or were cancelled"
             exit 1
           fi
           echo "All release CI checks passed"

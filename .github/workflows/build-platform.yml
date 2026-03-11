@@ -1,0 +1,216 @@
+name: Build Platform Binaries
+
+on:
+  workflow_call:
+    inputs:
+      upload-artifacts:
+        description: "Create tarballs and upload as artifacts for release"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+            platform: darwin
+          - os: macos-15-intel
+            arch: x64
+            platform: darwin
+          - os: ubuntu-24.04
+            arch: x64
+            platform: linux
+          - os: ubuntu-24.04-arm
+            arch: arm64
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.platform }}-${{ matrix.arch }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ---- Prebuild: native .napi.node binary ----
+
+      - name: Cache prebuild
+        id: prebuild-cache
+        uses: actions/cache@v4
+        with:
+          path: packages/libgpod-node/prebuilds/
+          key: prebuild-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('packages/libgpod-node/native/**', 'packages/libgpod-node/binding.gyp', 'tools/prebuild/**') }}
+
+      - name: Set environment
+        if: steps.prebuild-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "STATIC_DEPS_DIR=${GITHUB_WORKSPACE}/static-deps" >> "$GITHUB_ENV"
+          echo "WORK_DIR=${RUNNER_TEMP}/prebuild-work" >> "$GITHUB_ENV"
+
+      - name: Cache static dependencies
+        if: steps.prebuild-cache.outputs.cache-hit != 'true'
+        id: static-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STATIC_DEPS_DIR }}
+          key: static-deps-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('tools/prebuild/build-static-deps.sh') }}
+
+      # Install build toolchain (only when building prebuilds from scratch)
+
+      - name: Install macOS build deps
+        if: steps.prebuild-cache.outputs.cache-hit != 'true' && matrix.platform == 'darwin' && steps.static-cache.outputs.cache-hit != 'true'
+        run: |
+          brew install --quiet libplist gdk-pixbuf intltool autoconf automake libtool \
+            gtk-doc pkg-config gettext libpng jpeg-turbo libtiff meson ninja 2>/dev/null
+          sudo cpan -T XML::Parser
+
+      - name: Install Linux build deps
+        if: steps.prebuild-cache.outputs.cache-hit != 'true' && matrix.platform == 'linux' && steps.static-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential pkg-config python3-pip \
+            libglib2.0-dev libgdk-pixbuf-2.0-dev \
+            libplist-dev libffi-dev libsqlite3-dev \
+            libpng-dev libjpeg-dev libtiff-dev libxml2-dev \
+            intltool autoconf automake libtool gtk-doc-tools \
+            meson ninja-build curl
+
+      - name: Build static dependencies
+        if: steps.prebuild-cache.outputs.cache-hit != 'true' && steps.static-cache.outputs.cache-hit != 'true'
+        run: bash tools/prebuild/build-static-deps.sh
+
+      # Install only headers when static deps are cached but prebuild needs building
+
+      - name: Install macOS prebuild deps
+        if: steps.prebuild-cache.outputs.cache-hit != 'true' && matrix.platform == 'darwin' && steps.static-cache.outputs.cache-hit == 'true'
+        run: brew install --quiet libplist gdk-pixbuf pkg-config gettext libpng jpeg-turbo libtiff 2>/dev/null
+
+      - name: Install Linux prebuild deps
+        if: steps.prebuild-cache.outputs.cache-hit != 'true' && matrix.platform == 'linux' && steps.static-cache.outputs.cache-hit == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential pkg-config \
+            libglib2.0-dev libgdk-pixbuf-2.0-dev \
+            libplist-dev libffi-dev \
+            libpng-dev libjpeg-dev libtiff-dev
+
+      - uses: actions/setup-node@v4
+        if: steps.prebuild-cache.outputs.cache-hit != 'true'
+        with:
+          node-version: 20
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies (with scripts for prebuild)
+        if: steps.prebuild-cache.outputs.cache-hit != 'true'
+        run: bun install
+
+      - name: Create prebuild
+        if: steps.prebuild-cache.outputs.cache-hit != 'true'
+        working-directory: packages/libgpod-node
+        run: npx prebuildify --napi --strip
+
+      - name: Verify static linking (macOS)
+        if: steps.prebuild-cache.outputs.cache-hit != 'true' && matrix.platform == 'darwin'
+        working-directory: packages/libgpod-node
+        run: |
+          echo "Dynamic dependencies:"
+          PREBUILD=$(find prebuilds -name "*.node" | head -1)
+          otool -L "$PREBUILD"
+          if otool -L "$PREBUILD" | tail -n +2 | grep -E 'libgpod|libglib|libgobject|libgdk_pixbuf'; then
+            echo "ERROR: Found unexpected dynamic dependencies"
+            exit 1
+          fi
+
+      - name: Verify static linking (Linux)
+        if: steps.prebuild-cache.outputs.cache-hit != 'true' && matrix.platform == 'linux'
+        working-directory: packages/libgpod-node
+        run: |
+          echo "Dynamic dependencies:"
+          PREBUILD=$(find prebuilds -name "*.node" | head -1)
+          ldd "$PREBUILD"
+          if ldd "$PREBUILD" | grep -E 'libgpod|libgdk_pixbuf'; then
+            echo "ERROR: Found unexpected dynamic dependencies"
+            exit 1
+          fi
+
+      - name: List prebuilds
+        run: find packages/libgpod-node/prebuilds -type f -name "*.node" | sort
+
+      # ---- Compile: TypeScript build + standalone CLI binary ----
+
+      - name: Install dependencies
+        if: steps.prebuild-cache.outputs.cache-hit == 'true'
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Build packages
+        run: bun run build
+
+      - name: Compile CLI binary
+        run: bun run compile
+
+      # ---- Smoke tests ----
+
+      - name: Smoke test - version
+        run: |
+          VERSION=$(packages/podkit-cli/bin/podkit --version)
+          echo "Version: $VERSION"
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: --version produced no output"
+            exit 1
+          fi
+
+      - name: Smoke test - help
+        run: packages/podkit-cli/bin/podkit --help
+
+      - name: Smoke test - dynamic deps (macOS)
+        if: matrix.platform == 'darwin'
+        run: |
+          echo "Dynamic dependencies:"
+          otool -L packages/podkit-cli/bin/podkit
+          if otool -L packages/podkit-cli/bin/podkit | tail -n +2 | grep -E 'libgpod|libglib|libgobject|libgdk_pixbuf'; then
+            echo "ERROR: Found unexpected dynamic dependencies"
+            exit 1
+          fi
+
+      - name: Smoke test - dynamic deps (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          echo "Dynamic dependencies:"
+          ldd packages/podkit-cli/bin/podkit || true
+          if ldd packages/podkit-cli/bin/podkit 2>/dev/null | grep -E 'libgpod|libgdk_pixbuf'; then
+            echo "ERROR: Found unexpected dynamic dependencies"
+            exit 1
+          fi
+
+      - name: Smoke test - dummy iPod device info
+        run: |
+          mkdir -p /tmp/test-ipod/iPod_Control/iTunes
+          OUTPUT=$(packages/podkit-cli/bin/podkit device info --device /tmp/test-ipod 2>&1) || true
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -qi "native module\|cannot find\|segfault\|SIGSEGV"; then
+            echo "ERROR: Native addon failed to load"
+            exit 1
+          fi
+
+      # ---- Upload (release only) ----
+
+      - name: Create tarball
+        if: inputs.upload-artifacts
+        run: |
+          cd packages/podkit-cli/bin
+          tar czf "${GITHUB_WORKSPACE}/podkit-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz" podkit
+
+      - name: Upload tarball
+        if: inputs.upload-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: podkit-${{ matrix.platform }}-${{ matrix.arch }}
+          path: podkit-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+          retention-days: 30

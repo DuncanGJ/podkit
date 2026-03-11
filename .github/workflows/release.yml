@@ -82,24 +82,21 @@ jobs:
             echo "Pending changesets found — version PR will be created/updated"
           fi
 
-  # Step 2: Build native prebuilds (only when releasing)
-  prebuilds:
+  # Step 2: Build native prebuilds + compile CLI binaries for each platform
+  # Prebuild cache is shared with verify-release.yml — on typical version
+  # merges (no native code changes), prebuilds hit cache and only TypeScript
+  # build + Bun compile runs.
+  build:
     needs: changesets
     if: needs.changesets.outputs.should_release == 'true'
-    uses: ./.github/workflows/prebuild.yml
-
-  # Step 3: Compile CLI binaries for each platform
-  compile:
-    needs: prebuilds
-    if: needs.prebuilds.result == 'success'
-    uses: ./.github/workflows/compile.yml
+    uses: ./.github/workflows/build-platform.yml
     with:
       upload-artifacts: true
 
-  # Step 4: Create GitHub Release with all platform tarballs
+  # Step 3: Create GitHub Release with all platform tarballs
   release:
-    needs: [changesets, compile]
-    if: needs.compile.result == 'success'
+    needs: [changesets, build]
+    if: needs.build.result == 'success'
     runs-on: ubuntu-latest
     name: Create GitHub Release
     outputs:
