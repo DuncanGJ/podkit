@@ -18,7 +18,7 @@
     "binding.gyp"
   ],
   "scripts": {
-    "build": "bun run build:native && bun run build:ts",
+    "build": "[ \"$SKIP_NATIVE_BUILD\" = \"1\" ] && bun run build:ts || (bun run build:native && bun run build:ts)",
     "build:native": "node-gyp rebuild",
     "build:ts": "bun build src/index.ts --outdir dist --target node && bun run build:types",
     "build:types": "tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
