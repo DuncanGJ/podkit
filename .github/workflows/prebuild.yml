@@ -22,6 +22,9 @@ jobs:
           - os: ubuntu-24.04    # Linux x64
             arch: x64
             platform: linux
+          - os: ubuntu-24.04-arm64  # Linux arm64
+            arch: arm64
+            platform: linux
 
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.platform }}-${{ matrix.arch }}
