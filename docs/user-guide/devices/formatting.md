@@ -6,7 +6,7 @@ sidebar:
 ---
 
 :::caution
-Device formatting is **not yet implemented** in podkit. This page describes what the feature will do and provides current workarounds.
+Device formatting is **not yet implemented** in podkit. This page describes what the feature will do and provides current workarounds. Vote and comment on the [discussion](https://github.com/jvgomg/podkit/discussions/10) to help us prioritise.
 :::
 
 ## What Formatting Would Do

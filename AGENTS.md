@@ -104,6 +104,22 @@ Read these documents based on what you're working on:
 | Troubleshooting | [docs/troubleshooting/](docs/troubleshooting/) |
 | Transforms | [docs/user-guide/transforms.md](docs/user-guide/transforms.md) |
 | Package READMEs | `packages/*/README.md` |
+| Feature requests | [agents/feature-requests.md](agents/feature-requests.md) |
+| About the project | [docs/about.md](docs/about.md) |
+| Roadmap | [docs/roadmap.md](docs/roadmap.md) |
+| Feedback & feature requests (user-facing) | [docs/feedback.md](docs/feedback.md) |
+
+## Feature Requests & GitHub Discussions
+
+Feature requests are managed through GitHub Discussions (Ideas category), with links in the documentation and backlog tasks. **See [agents/feature-requests.md](agents/feature-requests.md) for the complete guide** covering:
+
+- Creating, updating, and closing discussions via the GitHub API
+- The current discussions registry (all feature discussions with numbers and URLs)
+- Which doc files reference which discussions and how to update them
+- Workflows for moving features between roadmap tiers
+- How discussions, docs, and backlog tasks stay in sync
+
+When working on anything related to feature requests, planned features, or the roadmap, read that file first.
 
 ## Task Management (Backlog.md)
 

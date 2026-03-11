@@ -40,7 +40,7 @@ All videos are transcoded to iPod-compatible M4V (H.264 video, AAC audio). Files
 | **Video Podcasts** | Not yet | Planned for a future release |
 
 :::note[Want music video or video podcast support?]
-If these content types are important to you, [open an issue on GitHub](https://github.com/jvgomg/podkit/issues) to help us prioritise.
+These content types are on the [roadmap](/roadmap/). Vote and comment on the discussions to help us prioritise: [Music Videos](https://github.com/jvgomg/podkit/discussions/4), [Video Podcasts](https://github.com/jvgomg/podkit/discussions/5).
 :::
 
 ## Content Type Detection

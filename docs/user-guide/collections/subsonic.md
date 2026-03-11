@@ -48,7 +48,7 @@ podkit sync -c navidrome
 > **Security note:** Storing passwords in config files is convenient but less secure than environment variables.
 
 :::note[Want more secure options?]
-If you'd like support for keychain/secret manager integration or other secure password storage methods, [open an issue on GitHub](https://github.com/jvgomg/podkit/issues) to let us know.
+Keychain and secret manager integration is on the [roadmap](/roadmap/). Vote and comment on the [discussion](https://github.com/jvgomg/podkit/discussions/11) to help us prioritise.
 :::
 
 ## How It Works

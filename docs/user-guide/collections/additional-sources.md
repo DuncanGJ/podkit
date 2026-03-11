@@ -11,15 +11,15 @@ podkit currently supports [directory](/user-guide/collections/directory) and [Su
 
 ### Plex
 
-Support for syncing music from [Plex](https://www.plex.tv/) media servers is planned. This would allow you to sync your Plex music library directly to your iPod without needing local files.
+Support for syncing music from [Plex](https://www.plex.tv/) media servers is planned. This would allow you to sync your Plex music library directly to your iPod without needing local files. Vote or comment on the [discussion](https://github.com/jvgomg/podkit/discussions/6).
 
 ### Jellyfin
 
-Support for [Jellyfin](https://jellyfin.org/) media servers is also planned. Like the Subsonic source, this would stream and cache tracks from your Jellyfin server for syncing.
+Support for [Jellyfin](https://jellyfin.org/) media servers is also planned. Like the Subsonic source, this would stream and cache tracks from your Jellyfin server for syncing. Vote or comment on the [discussion](https://github.com/jvgomg/podkit/discussions/7).
 
 ## Request a Source
 
-If there's a music source you'd like to see supported, [open an issue on GitHub](https://github.com/jvgomg/podkit/issues) describing the source and your use case.
+If there's a music source you'd like to see supported, [start a discussion on GitHub](https://github.com/jvgomg/podkit/discussions/new?category=ideas) describing the source and your use case. You can also vote on planned sources: [Plex](https://github.com/jvgomg/podkit/discussions/6), [Jellyfin](https://github.com/jvgomg/podkit/discussions/7).
 
 ## Build Your Own
 

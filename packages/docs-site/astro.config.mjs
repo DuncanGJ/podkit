@@ -32,7 +32,7 @@ export default defineConfig({
     starlight({
       plugins: [
         starlightLlmsTxt({
-          description: `podkit is a TypeScript CLI for syncing music and video collections to classic iPod devices. It handles automatic transcoding (FLAC→AAC, MKV→M4V), full metadata preservation, album artwork, intelligent duplicate detection, and incremental syncs. It works with all classic iPod models including iFlash-modded devices.`,
+          description: `podkit is a TypeScript CLI for syncing music and video collections to classic iPod devices. It handles automatic transcoding (FLAC→AAC, MKV→M4V), full metadata preservation, album artwork, intelligent duplicate detection, and incremental syncs. It works with all classic iPod models including iFlash-modded devices. Note: podkit is in early development (beta). Users should only use it with an iPod they are willing to wipe, as database corruption is possible.`,
           details: `Key concepts:
 - **Media sources**: Local directories or Subsonic-compatible servers (Navidrome, Airsonic, Gonic)
 - **Devices**: Multiple iPods with independent quality settings and transforms
@@ -100,6 +100,14 @@ export default defineConfig({
             { label: 'Installation', slug: 'getting-started/installation' },
             { label: 'Quick Start', slug: 'getting-started/quick-start' },
             { label: 'Tips & Next Steps', slug: 'getting-started/tips' },
+          ],
+        },
+        {
+          label: 'The Project',
+          items: [
+            { slug: 'about' },
+            { slug: 'roadmap' },
+            { slug: 'feedback' },
           ],
         },
         {

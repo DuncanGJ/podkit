@@ -47,8 +47,8 @@ podkit matches tracks by **artist + album + title**. This means:
 | **Audiobooks** | Not yet | Planned for a future release |
 | **Music Videos** | Not yet | Planned for a future release |
 
-:::note[Want podcast or audiobook support?]
-If these content types are important to you, [open an issue on GitHub](https://github.com/jvgomg/podkit/issues) to help us prioritise.
+:::note[Want podcast, audiobook, or music video support?]
+These content types are on the [roadmap](/roadmap/). Vote and comment on the discussions to help us prioritise: [Podcasts](https://github.com/jvgomg/podkit/discussions/2), [Audiobooks](https://github.com/jvgomg/podkit/discussions/3), [Music Videos](https://github.com/jvgomg/podkit/discussions/4).
 :::
 
 ## Syncing Commands

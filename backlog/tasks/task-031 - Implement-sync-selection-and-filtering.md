@@ -4,7 +4,7 @@ title: Implement sync selection and filtering
 status: To Do
 assignee: []
 created_date: '2026-02-22 21:54'
-updated_date: '2026-02-23 01:23'
+updated_date: '2026-03-11 10:09'
 labels:
   - feature
   - ux
@@ -12,6 +12,7 @@ dependencies: []
 references:
   - docs/adr/ADR-004-collection-sources.md
   - TASK-013
+  - 'https://github.com/jvgomg/podkit/discussions/16'
 priority: medium
 ---
 
