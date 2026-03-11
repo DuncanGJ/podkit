@@ -158,6 +158,9 @@ jobs:
     if: needs.compile.result == 'success'
     runs-on: ubuntu-latest
     name: Create GitHub Release
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v4
@@ -245,3 +248,45 @@ jobs:
             --notes-file release-notes.md \
             release-assets/podkit-*.tar.gz \
             release-assets/SHA256SUMS.txt
+
+  # Step 5: Update the Homebrew formula in the tap repository
+  update-homebrew:
+    needs: release
+    if: needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    name: Update Homebrew Formula
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download checksums from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.release.outputs.tag }}"
+          mkdir -p checksums
+          gh release download "$TAG" --pattern "SHA256SUMS.txt" --dir checksums
+
+      - name: Checkout homebrew-podkit
+        uses: actions/checkout@v4
+        with:
+          repository: jvgomg/homebrew-podkit
+          path: homebrew-tap
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+
+      - name: Update formula
+        run: |
+          VERSION="${{ needs.release.outputs.version }}"
+          ./tools/update-homebrew-formula.sh "$VERSION" homebrew-tap/Formula/podkit.rb checksums/SHA256SUMS.txt
+
+      - name: Commit and push
+        working-directory: homebrew-tap
+        run: |
+          VERSION="${{ needs.release.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/podkit.rb
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "Update podkit to $VERSION"
+          git push
