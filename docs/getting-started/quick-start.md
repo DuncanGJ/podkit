@@ -9,7 +9,7 @@ Get your music on your iPod in 5 minutes. This guide walks you through each step
 
 ## Prerequisites
 
-- [podkit installed](/getting-started/installation) with FFmpeg
+- **podkit installed** — the quickest way is `brew install jvgomg/podkit/podkit` (see [Installation](/getting-started/installation) for other methods)
 - A supported iPod connected to your computer
 - Music files on your computer (or a Subsonic-compatible server)
 
