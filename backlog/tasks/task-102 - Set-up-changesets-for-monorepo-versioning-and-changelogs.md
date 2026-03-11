@@ -1,9 +1,10 @@
 ---
 id: TASK-102
 title: Set up changesets for monorepo versioning and changelogs
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-11 14:15'
+updated_date: '2026-03-11 14:37'
 labels:
   - dx
   - packaging
@@ -57,10 +58,16 @@ podkit is a monorepo with independently versionable packages (`@podkit/core`, `@
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 changesets CLI installed as dev dependency and `.changeset/config.json` created with independent versioning
-- [ ] #2 Running `bunx changeset` interactively creates a changeset file in `.changeset/`
-- [ ] #3 Running `bunx changeset version` bumps package versions in package.json and generates CHANGELOG.md entries
-- [ ] #4 When a changeset bumps `@podkit/core`, the CLI package also gets a patch bump as a dependent
-- [ ] #5 Changelog entries include links to GitHub PRs and contributors via `@changesets/changelog-github`
-- [ ] #6 Root package.json has `changeset` and `version` convenience scripts
+- [x] #1 changesets CLI installed as dev dependency and `.changeset/config.json` created with independent versioning
+- [x] #2 Running `bunx changeset` interactively creates a changeset file in `.changeset/`
+- [x] #3 Running `bunx changeset version` bumps package versions in package.json and generates CHANGELOG.md entries
+- [x] #4 When a changeset bumps `@podkit/core`, the CLI package also gets a patch bump as a dependent
+- [x] #5 Changelog entries include links to GitHub PRs and contributors via `@changesets/changelog-github`
+- [x] #6 Root package.json has `changeset` and `version` convenience scripts
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation: Installed @changesets/cli and @changesets/changelog-github. Config uses independent versioning, public access, changelog-github with repo jvgomg/podkit. @podkit/gpod-testing in ignore list + marked private (per Sonnet review). Root scripts: `changeset` and `version`. Verified with test changeset: core minor bump correctly triggered CLI patch bump. All test artifacts cleaned up. Commit: 0dca910
+<!-- SECTION:NOTES:END -->

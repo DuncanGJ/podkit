@@ -1,9 +1,10 @@
 ---
 id: TASK-109
 title: Update AGENTS.md with changesets and release workflow guidance
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-11 14:18'
+updated_date: '2026-03-11 14:48'
 labels:
   - dx
   - docs
@@ -91,11 +92,17 @@ If there are instructions about PRs or commits, note that changesets should be i
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 AGENTS.md has a 'Release Workflow' section explaining changesets, versioning, and the release pipeline
-- [ ] #2 When-to-add-changeset guidance distinguishes user-facing changes from internal changes
-- [ ] #3 How-to-add-changeset instructions include the command and content guidelines
-- [ ] #4 Release flow is documented end-to-end (changeset → version PR → release → Homebrew update)
-- [ ] #5 Version bump rules (patch/minor/major) are documented with examples
-- [ ] #6 Commands section includes changeset and compile scripts
-- [ ] #7 An agent reading AGENTS.md for the first time can correctly add a changeset without additional context
+- [x] #1 AGENTS.md has a 'Release Workflow' section explaining changesets, versioning, and the release pipeline
+- [x] #2 When-to-add-changeset guidance distinguishes user-facing changes from internal changes
+- [x] #3 How-to-add-changeset instructions include the command and content guidelines
+- [x] #4 Release flow is documented end-to-end (changeset → version PR → release → Homebrew update)
+- [x] #5 Version bump rules (patch/minor/major) are documented with examples
+- [x] #6 Commands section includes changeset and compile scripts
+- [x] #7 An agent reading AGENTS.md for the first time can correctly add a changeset without additional context
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation: Added Release Workflow section to AGENTS.md between Code Conventions and Entry Points. Covers: when to add changesets (published vs private packages), how to create them, content guidelines with examples, version bump rules, and 6-step release flow with workflow file references. Updated Commands section with changeset/compile scripts. Sonnet review confirmed clarity and no duplication. Commit: 03958d9
+<!-- SECTION:NOTES:END -->

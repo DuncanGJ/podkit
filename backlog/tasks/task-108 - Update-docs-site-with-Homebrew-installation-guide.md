@@ -1,10 +1,10 @@
 ---
 id: TASK-108
 title: Update docs site with Homebrew installation guide
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-11 14:18'
-updated_date: '2026-03-11 14:21'
+updated_date: '2026-03-11 14:53'
 labels:
   - docs
 milestone: Homebrew Distribution
@@ -85,13 +85,19 @@ Search docs for mentions of building from source, npm install, or manual setup t
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Installation page exists with Homebrew as the primary install method for macOS and Linux
-- [ ] #2 Both install forms are documented: `brew tap jvgomg/podkit && brew install podkit` and shorthand `brew install jvgomg/podkit/podkit`
-- [ ] #3 Manual binary download instructions link to GitHub Releases as a fallback
-- [ ] #4 FFmpeg prerequisite is documented (and noted as automatic via Homebrew dependency)
-- [ ] #5 Quick start guide assumes Homebrew installation, not building from source
-- [ ] #6 Landing page includes a visible install snippet
-- [ ] #7 Changelog/releases page exists linking to GitHub Releases
-- [ ] #8 All docs have valid Starlight frontmatter (title, description, sidebar order)
-- [ ] #9 No broken links or references to outdated install methods in user-facing docs
+- [x] #1 Installation page exists with Homebrew as the primary install method for macOS and Linux
+- [x] #2 Both install forms are documented: `brew tap jvgomg/podkit && brew install podkit` and shorthand `brew install jvgomg/podkit/podkit`
+- [x] #3 Manual binary download instructions link to GitHub Releases as a fallback
+- [x] #4 FFmpeg prerequisite is documented (and noted as automatic via Homebrew dependency)
+- [x] #5 Quick start guide assumes Homebrew installation, not building from source
+- [x] #6 Landing page includes a visible install snippet
+- [x] #7 Changelog/releases page exists linking to GitHub Releases
+- [x] #8 All docs have valid Starlight frontmatter (title, description, sidebar order)
+- [x] #9 No broken links or references to outdated install methods in user-facing docs
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation: Rewrote installation.mdx with Homebrew primary + manual download fallback. Updated quick-start.md and index.mdx to reference Homebrew. Created docs/reference/changelog.md linking to GitHub Releases with versioning explanation. Moved Homebrew to shipped on roadmap. Docs site builds with 44 pages. Commit: f523c43
+<!-- SECTION:NOTES:END -->

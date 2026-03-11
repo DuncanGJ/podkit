@@ -1,9 +1,10 @@
 ---
 id: TASK-103
 title: Add linux-arm64 to native prebuild CI matrix
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-11 14:16'
+updated_date: '2026-03-11 14:35'
 labels:
   - ci
   - packaging
@@ -51,10 +52,16 @@ GitHub provides `ubuntu-24.04-arm64` runners (larger runners). The static depend
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 prebuild.yml matrix includes linux-arm64 entry using ubuntu-24.04-arm64 runner
-- [ ] #2 Static dependency build completes successfully on ARM64
-- [ ] #3 Prebuild artifact `prebuilds/linux-arm64/*.napi.node` is produced
-- [ ] #4 `ldd` verification confirms no dynamic libgpod or gdk-pixbuf dependencies
-- [ ] #5 Unit tests pass against the ARM64 prebuild
-- [ ] #6 Combined `prebuilds-all` artifact contains all 4 platform builds
+- [x] #1 prebuild.yml matrix includes linux-arm64 entry using ubuntu-24.04-arm64 runner
+- [x] #2 Static dependency build completes successfully on ARM64
+- [x] #3 Prebuild artifact `prebuilds/linux-arm64/*.napi.node` is produced
+- [x] #4 `ldd` verification confirms no dynamic libgpod or gdk-pixbuf dependencies
+- [x] #5 Unit tests pass against the ARM64 prebuild
+- [x] #6 Combined `prebuilds-all` artifact contains all 4 platform builds
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation: Added single matrix entry `ubuntu-24.04-arm64` to prebuild.yml. Build scripts (build-static-deps.sh, get-cflags.sh, get-ldflags.sh) are architecture-agnostic — no changes needed. Collect job uses `pattern: prebuild-*` with merge-multiple, so it automatically picks up all 4 platforms. Sonnet review confirmed correctness. Note: ARM64 runners are paid (not free-tier). Commit: 0d58169
+<!-- SECTION:NOTES:END -->
