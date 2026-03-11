@@ -1,10 +1,10 @@
 ---
 id: TASK-084
 title: Improve UX for device compatibility and capability communication
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-10 10:08'
-updated_date: '2026-03-10 10:19'
+updated_date: '2026-03-11 22:26'
 labels:
   - ux
   - cli
@@ -204,10 +204,36 @@ const UNSUPPORTED_GENERATIONS: IpodGeneration[] = [
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Unsupported devices (Touch, iPhone, iPad, Shuffle 3rd/4th, Nano 6th+) are detected and show helpful error messages
-- [ ] #2 Unknown model detection triggers a warning with instructions to fix SysInfo
-- [ ] #3 Sync operations warn when content types are unsupported by the target device
-- [ ] #4 `podkit device info` shows clear capability indicators (supported/not supported)
-- [ ] #5 All error messages include links to SUPPORTED-DEVICES.md documentation
-- [ ] #6 JSON output includes structured capability and validation information
+- [x] #1 Unsupported devices (Touch, iPhone, iPad, Shuffle 3rd/4th, Nano 6th+) are detected and show helpful error messages
+- [x] #2 Unknown model detection triggers a warning with instructions to fix SysInfo
+- [x] #3 Sync operations warn when content types are unsupported by the target device
+- [x] #4 `podkit device info` shows clear capability indicators (supported/not supported)
+- [x] #5 All error messages include links to SUPPORTED-DEVICES.md documentation
+- [x] #6 JSON output includes structured capability and validation information
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+## Summary
+
+Implemented device validation and capability communication across podkit-core and podkit-cli.
+
+### New Files
+- `packages/podkit-core/src/ipod/device-validation.ts` — Core validation module with unsupported device detection, unknown model warnings, capability summaries, and sync-specific warnings
+- `packages/podkit-core/src/ipod/device-validation.test.ts` — 28 unit tests covering all validation scenarios
+
+### Modified Files
+- `packages/podkit-core/src/ipod/index.ts` — Export new validation module
+- `packages/podkit-core/src/index.ts` — Export validation types and functions from @podkit/core
+- `packages/podkit-cli/src/commands/device.ts` — Enhanced `device info` with capability indicators and validation messages; `device add` blocks unsupported devices and shows capabilities during confirmation
+- `packages/podkit-cli/src/commands/sync.ts` — Pre-flight device validation blocks unsupported devices and warns about limited capabilities before sync
+
+### Key Behaviors
+- **Unsupported devices** (iOS, buttonless Shuffles, Nano 6th) are blocked with specific error messages explaining why and linking to docs
+- **Unknown models** trigger a warning with SysInfo fix instructions
+- **Capability indicators** show `+ Music`, `- Video (not supported on Nano 2nd Generation)` in `device info`
+- **Sync pre-flight** checks block unsupported devices and warn about video/artwork limitations
+- **JSON output** includes structured `capabilities` and `validation` fields
+- **All messages** include link to https://jvgomg.github.io/podkit/devices/supported-devices
+<!-- SECTION:FINAL_SUMMARY:END -->

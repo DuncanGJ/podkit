@@ -45,7 +45,12 @@ import {
   formatCsv,
 } from './display-utils.js';
 import { OutputContext, formatBytes, formatNumber } from '../output/index.js';
-import { formatGeneration } from '@podkit/core';
+import {
+  formatGeneration,
+  validateDevice,
+  formatValidationMessages,
+} from '@podkit/core';
+import type { DeviceValidationResult } from '@podkit/core';
 
 // =============================================================================
 // Shared utilities
@@ -222,6 +227,25 @@ export interface DeviceInfoOutput {
       number: string | null;
       generation: string;
       capacity: number;
+    };
+    capabilities?: {
+      music: boolean;
+      artwork: boolean;
+      video: boolean;
+      podcast: boolean;
+    };
+    validation?: {
+      supported: boolean;
+      issues: Array<{
+        type: string;
+        message: string;
+        suggestion?: string;
+        reason?: string;
+      }>;
+      warnings: Array<{
+        type: string;
+        message: string;
+      }>;
     };
     storage?: {
       used: number;
@@ -593,6 +617,34 @@ const addSubcommand = new Command('add')
       if (options.videoQuality) deviceConfig.videoQuality = options.videoQuality as any;
       if (options.artwork !== undefined) deviceConfig.artwork = options.artwork;
 
+      // Validate device if database is available
+      let addValidation: DeviceValidationResult | undefined;
+      try {
+        const ipodForValidation = await IpodDatabase.open(explicitPath);
+        try {
+          addValidation = validateDevice(ipodForValidation.device, explicitPath);
+        } finally {
+          ipodForValidation.close();
+        }
+      } catch {
+        // Database may not be readable yet (e.g., just initialized)
+      }
+
+      if (addValidation && !addValidation.supported) {
+        const messages = formatValidationMessages(addValidation);
+        out.result<DeviceAddOutput>(
+          { success: false, error: messages[0] },
+          () => {
+            out.newline();
+            for (const msg of messages) {
+              out.print(msg);
+            }
+          }
+        );
+        process.exitCode = 1;
+        return;
+      }
+
       // Interactive confirmation (skip if auto-confirm or JSON mode)
       if (!autoConfirm && out.isText) {
         out.newline();
@@ -600,6 +652,39 @@ const addSubcommand = new Command('add')
         out.print(`  Path:        ${explicitPath}`);
         out.print(`  Model:       ${modelName}`);
         out.print(`  Tracks:      ${formatNumber(trackCount)}`);
+
+        // Show validation warnings during add
+        if (addValidation) {
+          if (addValidation.issues.length > 0) {
+            out.newline();
+            for (const issue of addValidation.issues) {
+              out.warn(issue.message);
+              if (issue.suggestion) {
+                out.print(`  ${issue.suggestion}`);
+              }
+            }
+          }
+
+          // Show capability summary
+          if (addValidation.capabilities) {
+            out.print('  Capabilities:');
+            const caps = addValidation.capabilities;
+            const capEntries: Array<[string, boolean]> = [
+              ['Music', caps.music],
+              ['Artwork', caps.artwork],
+              ['Video', caps.video],
+              ['Podcasts', caps.podcast],
+            ];
+            for (const [capName, supported] of capEntries) {
+              if (supported) {
+                out.print(`    + ${capName}`);
+              } else {
+                out.print(`    - ${capName}`);
+              }
+            }
+          }
+        }
+
         out.newline();
 
         const shouldSave = await confirm(`Add this iPod as "${name}"? [Y/n] `);
@@ -784,6 +869,36 @@ const addSubcommand = new Command('add')
     if (options.videoQuality) deviceConfig.videoQuality = options.videoQuality as any;
     if (options.artwork !== undefined) deviceConfig.artwork = options.artwork;
 
+    // Validate detected device
+    let autoDetectValidation: DeviceValidationResult | undefined;
+    if (ipod.mountPoint) {
+      try {
+        const db = await IpodDatabase.open(ipod.mountPoint);
+        try {
+          autoDetectValidation = validateDevice(db.device, ipod.mountPoint);
+        } finally {
+          db.close();
+        }
+      } catch {
+        // Couldn't validate, continue anyway
+      }
+    }
+
+    if (autoDetectValidation && !autoDetectValidation.supported) {
+      const messages = formatValidationMessages(autoDetectValidation);
+      out.result<DeviceAddOutput>(
+        { success: false, error: messages[0] },
+        () => {
+          out.newline();
+          for (const msg of messages) {
+            out.print(msg);
+          }
+        }
+      );
+      process.exitCode = 1;
+      return;
+    }
+
     // Interactive mode (skip if auto-confirm or JSON mode)
     if (!autoConfirm && out.isText) {
       out.newline();
@@ -798,6 +913,39 @@ const addSubcommand = new Command('add')
         out.print(`  Mount point: ${ipod.mountPoint}`);
       }
       out.print(`  Device:      /dev/${ipod.identifier}`);
+
+      // Show validation warnings during add
+      if (autoDetectValidation) {
+        if (autoDetectValidation.issues.length > 0) {
+          out.newline();
+          for (const issue of autoDetectValidation.issues) {
+            out.warn(issue.message);
+            if (issue.suggestion) {
+              out.print(`  ${issue.suggestion}`);
+            }
+          }
+        }
+
+        // Show capability summary
+        if (autoDetectValidation.capabilities) {
+          out.print('  Capabilities:');
+          const caps = autoDetectValidation.capabilities;
+          const capEntries: Array<[string, boolean]> = [
+            ['Music', caps.music],
+            ['Artwork', caps.artwork],
+            ['Video', caps.video],
+            ['Podcasts', caps.podcast],
+          ];
+          for (const [capName, supported] of capEntries) {
+            if (supported) {
+              out.print(`    + ${capName}`);
+            } else {
+              out.print(`    - ${capName}`);
+            }
+          }
+        }
+      }
+
       out.newline();
 
       const shouldSave = await confirm(`Add this iPod as "${name}"? [Y/n] `);
@@ -978,6 +1126,8 @@ const infoSubcommand = new Command('info')
               const musicCount = tracks.filter((t) => core.isMusicMediaType(t.mediaType)).length;
               const videoCount = tracks.filter((t) => core.isVideoMediaType(t.mediaType)).length;
 
+              const deviceValidation = validateDevice(info.device, resolveResult.path);
+
               liveStatus = {
                 mounted: true,
                 mountPoint: resolveResult.path,
@@ -986,6 +1136,12 @@ const infoSubcommand = new Command('info')
                   number: info.device.modelNumber,
                   generation: info.device.generation,
                   capacity: info.device.capacity,
+                },
+                capabilities: deviceValidation.capabilities,
+                validation: {
+                  supported: deviceValidation.supported,
+                  issues: deviceValidation.issues,
+                  warnings: deviceValidation.warnings,
                 },
                 musicCount,
                 videoCount,
@@ -1052,6 +1208,40 @@ const infoSubcommand = new Command('info')
             const capacityStr = liveStatus.model.capacity > 0 ? ` (${liveStatus.model.capacity}GB)` : '';
             const genStr = formatGeneration(liveStatus.model.generation);
             out.print(`  Model:         ${liveStatus.model.name}${capacityStr} - ${genStr}`);
+          }
+
+          // Show validation issues/warnings
+          if (liveStatus.validation) {
+            for (const issue of liveStatus.validation.issues) {
+              if (issue.type === 'unsupported_device') {
+                out.print(`  ** ${issue.message}`);
+              } else {
+                out.warn(issue.message);
+              }
+              if (issue.suggestion) {
+                out.print(`     ${issue.suggestion}`);
+              }
+            }
+          }
+
+          // Show capabilities
+          if (liveStatus.capabilities && liveStatus.model) {
+            out.print('  Capabilities:');
+            const caps = liveStatus.capabilities;
+            const gen = formatGeneration(liveStatus.model.generation);
+            const capEntries: Array<[string, boolean]> = [
+              ['Music', caps.music],
+              ['Artwork', caps.artwork],
+              ['Video', caps.video],
+              ['Podcasts', caps.podcast],
+            ];
+            for (const [name, supported] of capEntries) {
+              if (supported) {
+                out.print(`    + ${name}`);
+              } else {
+                out.print(`    - ${name} (not supported on ${gen})`);
+              }
+            }
           }
 
           if (liveStatus.storage) {

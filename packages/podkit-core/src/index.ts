@@ -207,6 +207,22 @@ export {
 } from './ipod/generation.js';
 export type { IpodGenerationMetadata } from './ipod/generation.js';
 
+// Device validation
+export {
+  validateDevice,
+  isUnsupportedGeneration,
+  formatValidationMessages,
+  formatCapabilities,
+  buildSyncWarnings,
+} from './ipod/device-validation.js';
+export type {
+  DeviceValidationResult,
+  DeviceIssue,
+  DeviceWarning,
+  DeviceCapabilitySummary,
+  UnsupportedReason,
+} from './ipod/device-validation.js';
+
 // Transforms
 export type {
   TransformableTrack,

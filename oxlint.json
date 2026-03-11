@@ -31,6 +31,12 @@
       "rules": {
         "no-console": "off"
       }
+    },
+    {
+      "files": ["**/scripts/*.cjs", "**/scripts/*.mjs", "**/scripts/*.js"],
+      "rules": {
+        "no-console": "off"
+      }
     }
   ],
   "ignorePatterns": ["node_modules", "dist", "*.d.ts", "backlog", "docs"]

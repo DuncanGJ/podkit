@@ -3,7 +3,7 @@
  * Check if a prebuild exists for the current platform.
  * Exits 0 if found (skip native build), 1 if not found (need to build).
  */
-const { existsSync, readdirSync } = require('fs');
+const { readdirSync } = require('fs');
 const { platform, arch } = require('os');
 const { join } = require('path');
 

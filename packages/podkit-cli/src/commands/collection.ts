@@ -734,7 +734,7 @@ const defaultSubcommand = new Command('default')
   .argument('[name]', 'collection name (omit to show current default, use --clear to unset)')
   .option('--clear', 'clear the default collection for this type')
   .action(async (type: string, name: string | undefined, options: { clear?: boolean }) => {
-    const { globalOpts, config, configResult } = getContext();
+    const { globalOpts, config } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
 
     // Validate type

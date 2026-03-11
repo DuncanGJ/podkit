@@ -81,3 +81,19 @@ export {
   supportsVideo,
 } from './generation.js';
 export type { IpodGenerationMetadata } from './generation.js';
+
+// Device validation
+export {
+  validateDevice,
+  isUnsupportedGeneration,
+  formatValidationMessages,
+  formatCapabilities,
+  buildSyncWarnings,
+} from './device-validation.js';
+export type {
+  DeviceValidationResult,
+  DeviceIssue,
+  DeviceWarning,
+  DeviceCapabilitySummary,
+  UnsupportedReason,
+} from './device-validation.js';

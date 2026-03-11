@@ -1453,6 +1453,37 @@ export const syncCommand = new Command('sync')
 
     dbSpinner.stop('iPod database opened');
 
+    // ----- Pre-flight device validation -----
+    const ipodDeviceInfo = ipod.getInfo().device;
+    if (ipodDeviceInfo) {
+      const deviceValidation = core.validateDevice(ipodDeviceInfo, devicePath);
+
+      // Block sync for unsupported devices
+      if (!deviceValidation.supported) {
+        const messages = core.formatValidationMessages(deviceValidation);
+        out.result(
+          { success: false, dryRun, device: devicePath, error: messages[0] },
+          () => {
+            out.newline();
+            for (const msg of messages) {
+              out.print(msg);
+            }
+          }
+        );
+        ipod.close();
+        process.exitCode = 1;
+        return;
+      }
+
+      // Show warnings for unknown model
+      for (const issue of deviceValidation.issues) {
+        out.warn(issue.message);
+        if (issue.suggestion) {
+          out.print(`  ${issue.suggestion}`);
+        }
+      }
+    }
+
     // Track overall results
     let totalCompleted = 0;
     let totalFailed = 0;
@@ -1503,12 +1534,12 @@ export const syncCommand = new Command('sync')
         const supportsVideo = ipodInfo.device?.supportsVideo ?? false;
 
         if (!supportsVideo) {
-          if (dryRun) {
-            out.newline();
-            out.print('Note: This iPod does not support video playback.');
+          const explicitVideo = syncType === 'video';
+          out.newline();
+          if (explicitVideo) {
+            out.warn('This iPod does not support video playback. No video files will be synced.');
           } else {
-            out.newline();
-            out.print('Skipping video sync: This iPod does not support video playback.');
+            out.print('Skipping video: device does not support video playback.');
           }
         } else {
           for (const collection of videoCollections) {
