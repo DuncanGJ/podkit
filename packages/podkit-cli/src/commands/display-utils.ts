@@ -328,3 +328,191 @@ export function formatCsv(tracks: DisplayTrack[], fields: FieldName[]): string {
 
   return lines.join('\n');
 }
+
+// =============================================================================
+// Content Stats (summary view)
+// =============================================================================
+
+export interface ContentStats {
+  tracks: number;
+  albums: number;
+  artists: number;
+  fileTypes: Record<string, number>;
+}
+
+/**
+ * Compute aggregate statistics from a list of display tracks.
+ */
+export function computeStats(tracks: DisplayTrack[]): ContentStats {
+  const albums = new Set<string>();
+  const artists = new Set<string>();
+  const fileTypes: Record<string, number> = {};
+
+  for (const track of tracks) {
+    const album = track.album || 'Unknown Album';
+    const artist = track.artist || 'Unknown Artist';
+    albums.add(album);
+    artists.add(artist);
+
+    if (track.format) {
+      fileTypes[track.format] = (fileTypes[track.format] || 0) + 1;
+    }
+  }
+
+  return {
+    tracks: tracks.length,
+    albums: albums.size,
+    artists: artists.size,
+    fileTypes,
+  };
+}
+
+/**
+ * Format stats as human-readable text.
+ * @param stats - computed stats
+ * @param heading - heading line (e.g., "Music on TERAPOD:")
+ */
+export function formatStatsText(stats: ContentStats, heading: string): string {
+  const lines: string[] = [heading, ''];
+
+  const trackLabel = formatNumber(stats.tracks);
+  const albumLabel = formatNumber(stats.albums);
+  const artistLabel = formatNumber(stats.artists);
+
+  lines.push(`  Tracks:  ${trackLabel}`);
+  lines.push(`  Albums:  ${albumLabel}`);
+  lines.push(`  Artists: ${artistLabel}`);
+
+  const typeEntries = Object.entries(stats.fileTypes).sort((a, b) => b[1] - a[1]);
+  if (typeEntries.length > 0) {
+    lines.push('');
+    lines.push('  File Types:');
+    const maxTypeLen = Math.max(...typeEntries.map(([t]) => t.length));
+    for (const [type, count] of typeEntries) {
+      lines.push(`    ${type.padEnd(maxTypeLen)}  ${formatNumber(count)}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+// =============================================================================
+// Album aggregation
+// =============================================================================
+
+export interface AlbumEntry {
+  album: string;
+  artist: string;
+  tracks: number;
+}
+
+/**
+ * Aggregate tracks by album.
+ */
+export function aggregateAlbums(tracks: DisplayTrack[]): AlbumEntry[] {
+  const map = new Map<string, { artist: string; count: number }>();
+
+  for (const track of tracks) {
+    const album = track.album || 'Unknown Album';
+    const artist = track.albumArtist || track.artist || 'Unknown Artist';
+    const key = `${album}\0${artist}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      map.set(key, { artist, count: 1 });
+    }
+  }
+
+  const entries: AlbumEntry[] = [];
+  for (const [key, val] of map) {
+    const album = key.split('\0')[0] ?? '';
+    entries.push({ album, artist: val.artist, tracks: val.count });
+  }
+
+  return entries.sort((a, b) => a.album.localeCompare(b.album));
+}
+
+/**
+ * Format album list as an ASCII table.
+ */
+export function formatAlbumsTable(albums: AlbumEntry[], heading: string): string {
+  if (albums.length === 0) {
+    return 'No albums found.';
+  }
+
+  const albumWidth = Math.min(35, Math.max(5, ...albums.map((a) => a.album.length)));
+  const artistWidth = Math.min(25, Math.max(6, ...albums.map((a) => a.artist.length)));
+
+  const lines: string[] = [heading, ''];
+  lines.push(
+    `  ${'ALBUM'.padEnd(albumWidth)}  ${'ARTIST'.padEnd(artistWidth)}  TRACKS`
+  );
+
+  for (const entry of albums) {
+    const album = truncate(entry.album, albumWidth).padEnd(albumWidth);
+    const artist = truncate(entry.artist, artistWidth).padEnd(artistWidth);
+    lines.push(`  ${album}  ${artist}  ${entry.tracks}`);
+  }
+
+  return lines.join('\n');
+}
+
+// =============================================================================
+// Artist aggregation
+// =============================================================================
+
+export interface ArtistEntry {
+  artist: string;
+  albums: number;
+  tracks: number;
+}
+
+/**
+ * Aggregate tracks by artist.
+ */
+export function aggregateArtists(tracks: DisplayTrack[]): ArtistEntry[] {
+  const map = new Map<string, { albums: Set<string>; count: number }>();
+
+  for (const track of tracks) {
+    const artist = track.albumArtist || track.artist || 'Unknown Artist';
+    const album = track.album || 'Unknown Album';
+    const existing = map.get(artist);
+    if (existing) {
+      existing.albums.add(album);
+      existing.count++;
+    } else {
+      map.set(artist, { albums: new Set([album]), count: 1 });
+    }
+  }
+
+  const entries: ArtistEntry[] = [];
+  for (const [artist, val] of map) {
+    entries.push({ artist, albums: val.albums.size, tracks: val.count });
+  }
+
+  return entries.sort((a, b) => a.artist.localeCompare(b.artist));
+}
+
+/**
+ * Format artist list as an ASCII table.
+ */
+export function formatArtistsTable(artists: ArtistEntry[], heading: string): string {
+  if (artists.length === 0) {
+    return 'No artists found.';
+  }
+
+  const artistWidth = Math.min(30, Math.max(6, ...artists.map((a) => a.artist.length)));
+
+  const lines: string[] = [heading, ''];
+  lines.push(
+    `  ${'ARTIST'.padEnd(artistWidth)}  ${'ALBUMS'.padEnd(6)}  TRACKS`
+  );
+
+  for (const entry of artists) {
+    const artist = truncate(entry.artist, artistWidth).padEnd(artistWidth);
+    lines.push(`  ${artist}  ${String(entry.albums).padEnd(6)}  ${entry.tracks}`);
+  }
+
+  return lines.join('\n');
+}

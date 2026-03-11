@@ -9,6 +9,12 @@ import {
   formatJson,
   formatCsv,
   escapeCsv,
+  computeStats,
+  formatStatsText,
+  aggregateAlbums,
+  formatAlbumsTable,
+  aggregateArtists,
+  formatArtistsTable,
   DEFAULT_FIELDS,
   DEFAULT_COLUMN_WIDTHS,
   AVAILABLE_FIELDS,
@@ -643,5 +649,191 @@ describe('formatCsv', () => {
     const lines = result.split('\n');
 
     expect(lines[0]).toBe('Album Artist,Track');
+  });
+});
+
+// =============================================================================
+// computeStats tests
+// =============================================================================
+
+describe('computeStats', () => {
+  it('returns zeroes for empty tracks', () => {
+    const stats = computeStats([]);
+    expect(stats.tracks).toBe(0);
+    expect(stats.albums).toBe(0);
+    expect(stats.artists).toBe(0);
+    expect(Object.keys(stats.fileTypes)).toHaveLength(0);
+  });
+
+  it('counts tracks, unique albums, and unique artists', () => {
+    const tracks = [
+      createTrack({ title: 'Song 1', artist: 'Artist A', album: 'Album X' }),
+      createTrack({ title: 'Song 2', artist: 'Artist A', album: 'Album X' }),
+      createTrack({ title: 'Song 3', artist: 'Artist B', album: 'Album Y' }),
+    ];
+    const stats = computeStats(tracks);
+    expect(stats.tracks).toBe(3);
+    expect(stats.albums).toBe(2);
+    expect(stats.artists).toBe(2);
+  });
+
+  it('counts file types', () => {
+    const tracks = [
+      createTrack({ format: 'FLAC' }),
+      createTrack({ format: 'FLAC' }),
+      createTrack({ format: 'MP3' }),
+      createTrack({ format: undefined }),
+    ];
+    const stats = computeStats(tracks);
+    expect(stats.fileTypes).toEqual({ FLAC: 2, MP3: 1 });
+  });
+});
+
+// =============================================================================
+// formatStatsText tests
+// =============================================================================
+
+describe('formatStatsText', () => {
+  it('includes heading and counts', () => {
+    const stats = { tracks: 1247, albums: 98, artists: 45, fileTypes: { FLAC: 892, MP3: 280 } };
+    const result = formatStatsText(stats, 'Music on TERAPOD:');
+
+    expect(result).toContain('Music on TERAPOD:');
+    expect(result).toContain('Tracks:');
+    expect(result).toContain('1,247');
+    expect(result).toContain('Albums:');
+    expect(result).toContain('Artists:');
+    expect(result).toContain('File Types:');
+    expect(result).toContain('FLAC');
+    expect(result).toContain('MP3');
+  });
+
+  it('omits file types section when empty', () => {
+    const stats = { tracks: 5, albums: 2, artists: 1, fileTypes: {} };
+    const result = formatStatsText(stats, 'Music:');
+
+    expect(result).not.toContain('File Types:');
+  });
+});
+
+// =============================================================================
+// aggregateAlbums tests
+// =============================================================================
+
+describe('aggregateAlbums', () => {
+  it('returns empty array for no tracks', () => {
+    expect(aggregateAlbums([])).toEqual([]);
+  });
+
+  it('aggregates tracks by album', () => {
+    const tracks = [
+      createTrack({ album: 'Abbey Road', artist: 'The Beatles', albumArtist: 'The Beatles' }),
+      createTrack({ album: 'Abbey Road', artist: 'The Beatles', albumArtist: 'The Beatles' }),
+      createTrack({ album: 'Dark Side', artist: 'Pink Floyd', albumArtist: 'Pink Floyd' }),
+    ];
+    const albums = aggregateAlbums(tracks);
+
+    expect(albums).toHaveLength(2);
+    const abbeyRoad = albums.find((a) => a.album === 'Abbey Road');
+    expect(abbeyRoad).toBeDefined();
+    expect(abbeyRoad!.tracks).toBe(2);
+    expect(abbeyRoad!.artist).toBe('The Beatles');
+  });
+
+  it('uses albumArtist over artist', () => {
+    const tracks = [
+      createTrack({ album: 'Compilation', artist: 'Track Artist', albumArtist: 'Various Artists' }),
+    ];
+    const albums = aggregateAlbums(tracks);
+    expect(albums[0]!.artist).toBe('Various Artists');
+  });
+
+  it('sorts alphabetically by album name', () => {
+    const tracks = [
+      createTrack({ album: 'Zebra' }),
+      createTrack({ album: 'Alpha' }),
+      createTrack({ album: 'Middle' }),
+    ];
+    const albums = aggregateAlbums(tracks);
+    expect(albums.map((a) => a.album)).toEqual(['Alpha', 'Middle', 'Zebra']);
+  });
+});
+
+// =============================================================================
+// formatAlbumsTable tests
+// =============================================================================
+
+describe('formatAlbumsTable', () => {
+  it('returns "No albums found." for empty array', () => {
+    expect(formatAlbumsTable([], 'Music:')).toBe('No albums found.');
+  });
+
+  it('includes heading and column headers', () => {
+    const albums = [{ album: 'Test Album', artist: 'Test Artist', tracks: 10 }];
+    const result = formatAlbumsTable(albums, 'Music on iPod:');
+
+    expect(result).toContain('Music on iPod:');
+    expect(result).toContain('ALBUM');
+    expect(result).toContain('ARTIST');
+    expect(result).toContain('TRACKS');
+    expect(result).toContain('Test Album');
+    expect(result).toContain('10');
+  });
+});
+
+// =============================================================================
+// aggregateArtists tests
+// =============================================================================
+
+describe('aggregateArtists', () => {
+  it('returns empty array for no tracks', () => {
+    expect(aggregateArtists([])).toEqual([]);
+  });
+
+  it('aggregates tracks by artist with album counts', () => {
+    const tracks = [
+      createTrack({ artist: 'Beatles', albumArtist: 'Beatles', album: 'Abbey Road' }),
+      createTrack({ artist: 'Beatles', albumArtist: 'Beatles', album: 'Abbey Road' }),
+      createTrack({ artist: 'Beatles', albumArtist: 'Beatles', album: 'Let It Be' }),
+      createTrack({ artist: 'Floyd', albumArtist: 'Floyd', album: 'The Wall' }),
+    ];
+    const artists = aggregateArtists(tracks);
+
+    expect(artists).toHaveLength(2);
+    const beatles = artists.find((a) => a.artist === 'Beatles');
+    expect(beatles).toBeDefined();
+    expect(beatles!.albums).toBe(2);
+    expect(beatles!.tracks).toBe(3);
+  });
+
+  it('sorts alphabetically by artist name', () => {
+    const tracks = [
+      createTrack({ albumArtist: 'Zeppelin' }),
+      createTrack({ albumArtist: 'ABBA' }),
+    ];
+    const artists = aggregateArtists(tracks);
+    expect(artists.map((a) => a.artist)).toEqual(['ABBA', 'Zeppelin']);
+  });
+});
+
+// =============================================================================
+// formatArtistsTable tests
+// =============================================================================
+
+describe('formatArtistsTable', () => {
+  it('returns "No artists found." for empty array', () => {
+    expect(formatArtistsTable([], 'Music:')).toBe('No artists found.');
+  });
+
+  it('includes heading and column headers', () => {
+    const artists = [{ artist: 'Test Artist', albums: 3, tracks: 25 }];
+    const result = formatArtistsTable(artists, 'Music on iPod:');
+
+    expect(result).toContain('Music on iPod:');
+    expect(result).toContain('ARTIST');
+    expect(result).toContain('ALBUMS');
+    expect(result).toContain('TRACKS');
+    expect(result).toContain('Test Artist');
+    expect(result).toContain('25');
   });
 });

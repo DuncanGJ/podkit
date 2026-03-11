@@ -90,7 +90,7 @@ describe('collection command', () => {
     it('has music subcommand', () => {
       const musicCmd = collectionCommand.commands.find((cmd) => cmd.name() === 'music');
       expect(musicCmd).toBeDefined();
-      expect(musicCmd?.description()).toContain('tracks');
+      expect(musicCmd?.description()).toContain('music');
     });
 
     it('music subcommand has optional name argument', () => {

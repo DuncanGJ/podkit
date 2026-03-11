@@ -41,8 +41,14 @@ import {
   DEFAULT_FIELDS,
   parseFields,
   formatTable,
-  formatJson,
   formatCsv,
+  computeStats,
+  formatStatsText,
+  aggregateAlbums,
+  formatAlbumsTable,
+  aggregateArtists,
+  formatArtistsTable,
+  escapeCsv,
 } from './display-utils.js';
 import { OutputContext, formatBytes, formatNumber } from '../output/index.js';
 import {
@@ -341,6 +347,94 @@ export { AVAILABLE_FIELDS, DEFAULT_FIELDS } from './display-utils.js';
 // =============================================================================
 // Device-specific format helpers
 // =============================================================================
+
+/**
+ * Helper to escape a single CSV field value.
+ */
+function escapeCsvField(value: string): string {
+  return escapeCsv(value);
+}
+
+/**
+ * Map an IPodTrack to a full JSON object with all metadata fields.
+ */
+function ipodTrackToFullJson(t: {
+  title: string;
+  artist: string;
+  album: string;
+  albumArtist?: string;
+  genre?: string;
+  composer?: string;
+  comment?: string;
+  grouping?: string;
+  trackNumber?: number;
+  totalTracks?: number;
+  discNumber?: number;
+  totalDiscs?: number;
+  year?: number;
+  bpm?: number;
+  compilation: boolean;
+  duration: number;
+  bitrate: number;
+  sampleRate: number;
+  size: number;
+  filetype?: string;
+  mediaType: number;
+  filePath: string;
+  timeAdded: number;
+  timeModified: number;
+  timePlayed: number;
+  playCount: number;
+  skipCount: number;
+  rating: number;
+  hasArtwork: boolean;
+  hasFile: boolean;
+  tvShow?: string;
+  tvEpisode?: string;
+  sortTvShow?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  movieFlag?: boolean;
+}): Record<string, unknown> {
+  return {
+    title: t.title,
+    artist: t.artist,
+    album: t.album,
+    albumArtist: t.albumArtist || null,
+    genre: t.genre || null,
+    composer: t.composer || null,
+    comment: t.comment || null,
+    grouping: t.grouping || null,
+    trackNumber: t.trackNumber || null,
+    totalTracks: t.totalTracks || null,
+    discNumber: t.discNumber || null,
+    totalDiscs: t.totalDiscs || null,
+    year: t.year || null,
+    bpm: t.bpm || null,
+    compilation: t.compilation,
+    duration: t.duration,
+    bitrate: t.bitrate,
+    sampleRate: t.sampleRate,
+    size: t.size,
+    filetype: t.filetype || null,
+    mediaType: t.mediaType,
+    filePath: t.filePath,
+    timeAdded: t.timeAdded,
+    timeModified: t.timeModified,
+    timePlayed: t.timePlayed,
+    playCount: t.playCount,
+    skipCount: t.skipCount,
+    rating: t.rating,
+    hasArtwork: t.hasArtwork,
+    hasFile: t.hasFile,
+    tvShow: t.tvShow || null,
+    tvEpisode: t.tvEpisode || null,
+    sortTvShow: t.sortTvShow || null,
+    seasonNumber: t.seasonNumber || null,
+    episodeNumber: t.episodeNumber || null,
+    movieFlag: t.movieFlag || null,
+  };
+}
 
 function parseFormat(filetype: string | undefined): string {
   if (!filetype) return '';
@@ -1298,18 +1392,25 @@ const infoSubcommand = new Command('info')
 interface MusicVideoOptions {
   format?: string;
   fields?: string;
+  tracks?: boolean;
+  albums?: boolean;
+  artists?: boolean;
 }
 
 const musicSubcommand = new Command('music')
-  .description('list music tracks on device')
+  .description('list music on device (shows stats by default)')
   .argument('[name]', 'device name (uses default if omitted)')
+  .option('--tracks', 'list all tracks')
+  .option('--albums', 'list albums with track counts')
+  .option('--artists', 'list artists with album/track counts')
   .option('--format <fmt>', 'output format: table, json, csv', 'table')
-  .option('--fields <list>', 'fields to show (comma-separated)')
+  .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
   .action(async (name: string | undefined, options: MusicVideoOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
     const fields = parseFields(options.fields);
+    const mode = options.tracks ? 'tracks' : options.albums ? 'albums' : options.artists ? 'artists' : 'stats';
 
     const outputError = (error: string) => {
       if (format === 'json') {
@@ -1359,6 +1460,8 @@ const musicSubcommand = new Command('music')
       try {
         const allTracks = ipod.getTracks();
         const musicTracks = allTracks.filter((t) => core.isMusicMediaType(t.mediaType));
+        const deviceName = resolvedDevice?.name?.toUpperCase() || 'iPod';
+        const heading = `Music on ${deviceName}:`;
 
         const displayTracks: DisplayTrack[] = musicTracks.map((t) => ({
           title: t.title || 'Unknown Title',
@@ -1376,21 +1479,50 @@ const musicSubcommand = new Command('music')
           bitrate: t.bitrate > 0 ? t.bitrate : undefined,
         }));
 
-        let output: string;
-        switch (format) {
-          case 'json':
-            output = formatJson(displayTracks, fields);
-            break;
-          case 'csv':
-            output = formatCsv(displayTracks, fields);
-            break;
-          case 'table':
-          default:
-            output = formatTable(displayTracks, fields);
-            break;
+        if (mode === 'stats') {
+          const stats = computeStats(displayTracks);
+          if (format === 'json') {
+            out.stdout(JSON.stringify(stats, null, 2));
+          } else {
+            out.stdout(formatStatsText(stats, heading));
+          }
+        } else if (mode === 'albums') {
+          const albums = aggregateAlbums(displayTracks);
+          if (format === 'json') {
+            out.stdout(JSON.stringify(albums, null, 2));
+          } else if (format === 'csv') {
+            const lines = ['Album,Artist,Tracks'];
+            for (const a of albums) {
+              lines.push(`${escapeCsvField(a.album)},${escapeCsvField(a.artist)},${a.tracks}`);
+            }
+            out.stdout(lines.join('\n'));
+          } else {
+            out.stdout(formatAlbumsTable(albums, heading));
+          }
+        } else if (mode === 'artists') {
+          const artists = aggregateArtists(displayTracks);
+          if (format === 'json') {
+            out.stdout(JSON.stringify(artists, null, 2));
+          } else if (format === 'csv') {
+            const lines = ['Artist,Albums,Tracks'];
+            for (const a of artists) {
+              lines.push(`${escapeCsvField(a.artist)},${a.albums},${a.tracks}`);
+            }
+            out.stdout(lines.join('\n'));
+          } else {
+            out.stdout(formatArtistsTable(artists, heading));
+          }
+        } else {
+          // tracks mode
+          if (format === 'json') {
+            const fullTracks = musicTracks.map(ipodTrackToFullJson);
+            out.stdout(JSON.stringify(fullTracks, null, 2));
+          } else if (format === 'csv') {
+            out.stdout(formatCsv(displayTracks, fields));
+          } else {
+            out.stdout(formatTable(displayTracks, fields));
+          }
         }
-
-        out.stdout(output);
       } finally {
         ipod.close();
       }
@@ -1405,15 +1537,19 @@ const musicSubcommand = new Command('music')
 // =============================================================================
 
 const videoSubcommand = new Command('video')
-  .description('list video content on device')
+  .description('list video content on device (shows stats by default)')
   .argument('[name]', 'device name (uses default if omitted)')
+  .option('--tracks', 'list all tracks')
+  .option('--albums', 'list albums with track counts')
+  .option('--artists', 'list artists with album/track counts')
   .option('--format <fmt>', 'output format: table, json, csv', 'table')
-  .option('--fields <list>', 'fields to show (comma-separated)')
+  .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
   .action(async (name: string | undefined, options: MusicVideoOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
     const fields = parseFields(options.fields);
+    const mode = options.tracks ? 'tracks' : options.albums ? 'albums' : options.artists ? 'artists' : 'stats';
 
     const outputError = (error: string) => {
       if (format === 'json') {
@@ -1463,6 +1599,8 @@ const videoSubcommand = new Command('video')
       try {
         const allTracks = ipod.getTracks();
         const videoTracks = allTracks.filter((t) => core.isVideoMediaType(t.mediaType));
+        const deviceName = resolvedDevice?.name?.toUpperCase() || 'iPod';
+        const heading = `Video on ${deviceName}:`;
 
         const displayTracks: DisplayTrack[] = videoTracks.map((t) => ({
           title: t.title || 'Unknown Title',
@@ -1480,21 +1618,50 @@ const videoSubcommand = new Command('video')
           bitrate: t.bitrate > 0 ? t.bitrate : undefined,
         }));
 
-        let output: string;
-        switch (format) {
-          case 'json':
-            output = formatJson(displayTracks, fields);
-            break;
-          case 'csv':
-            output = formatCsv(displayTracks, fields);
-            break;
-          case 'table':
-          default:
-            output = formatTable(displayTracks, fields);
-            break;
+        if (mode === 'stats') {
+          const stats = computeStats(displayTracks);
+          if (format === 'json') {
+            out.stdout(JSON.stringify(stats, null, 2));
+          } else {
+            out.stdout(formatStatsText(stats, heading));
+          }
+        } else if (mode === 'albums') {
+          const albums = aggregateAlbums(displayTracks);
+          if (format === 'json') {
+            out.stdout(JSON.stringify(albums, null, 2));
+          } else if (format === 'csv') {
+            const lines = ['Album,Artist,Tracks'];
+            for (const a of albums) {
+              lines.push(`${escapeCsvField(a.album)},${escapeCsvField(a.artist)},${a.tracks}`);
+            }
+            out.stdout(lines.join('\n'));
+          } else {
+            out.stdout(formatAlbumsTable(albums, heading));
+          }
+        } else if (mode === 'artists') {
+          const artists = aggregateArtists(displayTracks);
+          if (format === 'json') {
+            out.stdout(JSON.stringify(artists, null, 2));
+          } else if (format === 'csv') {
+            const lines = ['Artist,Albums,Tracks'];
+            for (const a of artists) {
+              lines.push(`${escapeCsvField(a.artist)},${a.albums},${a.tracks}`);
+            }
+            out.stdout(lines.join('\n'));
+          } else {
+            out.stdout(formatArtistsTable(artists, heading));
+          }
+        } else {
+          // tracks mode
+          if (format === 'json') {
+            const fullTracks = videoTracks.map(ipodTrackToFullJson);
+            out.stdout(JSON.stringify(fullTracks, null, 2));
+          } else if (format === 'csv') {
+            out.stdout(formatCsv(displayTracks, fields));
+          } else {
+            out.stdout(formatTable(displayTracks, fields));
+          }
         }
-
-        out.stdout(output);
       } finally {
         ipod.close();
       }

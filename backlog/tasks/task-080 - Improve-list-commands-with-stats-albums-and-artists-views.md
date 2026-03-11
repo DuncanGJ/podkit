@@ -1,10 +1,10 @@
 ---
 id: TASK-080
 title: 'Improve list commands with stats, albums, and artists views'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-09 21:54'
-updated_date: '2026-03-10 11:16'
+updated_date: '2026-03-11 22:50'
 labels:
   - cli
   - ux
@@ -152,15 +152,51 @@ Artists on TERAPOD:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Default output shows summary stats: track/album/artist counts and file type breakdown
-- [ ] #2 --tracks flag lists all tracks (preserves current behavior)
-- [ ] #3 --albums flag lists albums with track counts
-- [ ] #4 --artists flag lists artists with album/track counts
-- [ ] #5 podkit device music [name] supports all modes
-- [ ] #6 podkit device video [name] supports all modes
-- [ ] #7 podkit collection music [name] command exists with same modes (NEW)
-- [ ] #8 podkit collection video [name] command exists with same modes (NEW)
-- [ ] #9 Consistent output format across device and collection commands
-- [ ] #10 Works with --json flag for programmatic access
-- [ ] #11 --json output includes ALL metadata fields listed in the iPod Track Metadata Fields table
+- [x] #1 Default output shows summary stats: track/album/artist counts and file type breakdown
+- [x] #2 --tracks flag lists all tracks (preserves current behavior)
+- [x] #3 --albums flag lists albums with track counts
+- [x] #4 --artists flag lists artists with album/track counts
+- [x] #5 podkit device music [name] supports all modes
+- [x] #6 podkit device video [name] supports all modes
+- [x] #7 podkit collection music [name] command exists with same modes (NEW)
+- [x] #8 podkit collection video [name] command exists with same modes (NEW)
+- [x] #9 Consistent output format across device and collection commands
+- [x] #10 Works with --json flag for programmatic access
+- [x] #11 --json output includes ALL metadata fields listed in the iPod Track Metadata Fields table
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+## Summary
+
+Implemented stats, albums, and artists views for all content listing commands (`device music`, `device video`, `collection music`, `collection video`).
+
+### Changes
+
+**`packages/podkit-cli/src/commands/display-utils.ts`**
+- Added `computeStats()` - aggregates track/album/artist counts and file type breakdown
+- Added `formatStatsText()` - renders stats as human-readable text with heading
+- Added `aggregateAlbums()` / `formatAlbumsTable()` - groups tracks by album
+- Added `aggregateArtists()` / `formatArtistsTable()` - groups tracks by artist
+- Exported `AlbumEntry`, `ArtistEntry`, `ContentStats` interfaces
+
+**`packages/podkit-cli/src/commands/device.ts`**
+- Updated `device music` and `device video` to show stats by default
+- Added `--tracks`, `--albums`, `--artists` flags
+- Added `ipodTrackToFullJson()` helper for complete iPod metadata in JSON output
+- `--tracks --json` on device commands now includes ALL iPod metadata fields (AC #11)
+
+**`packages/podkit-cli/src/commands/collection.ts`**
+- Updated `collection music` and `collection video` with same flags and behavior
+- Consistent heading format across all commands
+
+**`packages/podkit-cli/src/commands/display-utils.test.ts`**
+- Added 20 tests covering `computeStats`, `formatStatsText`, `aggregateAlbums`, `formatAlbumsTable`, `aggregateArtists`, `formatArtistsTable`
+
+**`packages/podkit-cli/src/commands/collection.test.ts`**
+- Fixed test assertion for updated music subcommand description
+
+**`docs/reference/cli-commands.md`**
+- Updated docs for all 4 commands with new flags and examples
+<!-- SECTION:FINAL_SUMMARY:END -->

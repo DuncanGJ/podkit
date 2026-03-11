@@ -268,7 +268,7 @@ podkit device info classic
 
 ### `podkit device music`
 
-List music tracks on an iPod.
+Show music on an iPod. By default, displays summary stats (track/album/artist counts and file type breakdown).
 
 ```bash
 podkit device music [name] [options]
@@ -276,23 +276,34 @@ podkit device music [name] [options]
 
 | Option | Description |
 |--------|-------------|
+| `--tracks` | List all tracks (detailed view) |
+| `--albums` | List albums with track counts |
+| `--artists` | List artists with album/track counts |
 | `--format <fmt>` | Output format: `table`, `json`, `csv` (default: `table`) |
-| `--fields <list>` | Comma-separated fields to show (see [Display Fields](#display-fields)) |
+| `--fields <list>` | Comma-separated fields to show with `--tracks` (see [Display Fields](#display-fields)) |
 
 ```bash
-# List music on default device
+# Show music stats (default)
 podkit device music
 
+# List all tracks
+podkit device music --tracks
+
+# Browse by album or artist
+podkit device music --albums
+podkit device music --artists
+
 # Export as JSON
-podkit device music --format json
+podkit device music --json
+podkit device music --tracks --json
 
 # Show specific fields
-podkit device music --fields title,artist,album,genre,year
+podkit device music --tracks --fields title,artist,album,genre,year
 ```
 
 ### `podkit device video`
 
-List video content on an iPod.
+Show video content on an iPod. By default, displays summary stats.
 
 ```bash
 podkit device video [name] [options]
@@ -300,8 +311,11 @@ podkit device video [name] [options]
 
 | Option | Description |
 |--------|-------------|
+| `--tracks` | List all tracks (detailed view) |
+| `--albums` | List albums with track counts |
+| `--artists` | List artists with album/track counts |
 | `--format <fmt>` | Output format: `table`, `json`, `csv` (default: `table`) |
-| `--fields <list>` | Comma-separated fields to show (see [Display Fields](#display-fields)) |
+| `--fields <list>` | Comma-separated fields to show with `--tracks` (see [Display Fields](#display-fields)) |
 
 ### `podkit device clear`
 
@@ -496,7 +510,7 @@ podkit collection info <name>
 
 ### `podkit collection music`
 
-List tracks in a music collection (scans the source directory or Subsonic server).
+Show music in a collection. By default, displays summary stats (track/album/artist counts and file type breakdown). Scans the source directory or Subsonic server.
 
 ```bash
 podkit collection music [name] [options]
@@ -504,12 +518,15 @@ podkit collection music [name] [options]
 
 | Option | Description |
 |--------|-------------|
+| `--tracks` | List all tracks (detailed view) |
+| `--albums` | List albums with track counts |
+| `--artists` | List artists with album/track counts |
 | `--format <fmt>` | Output format: `table`, `json`, `csv` (default: `table`) |
-| `--fields <list>` | Comma-separated fields to show (see [Display Fields](#display-fields)) |
+| `--fields <list>` | Comma-separated fields to show with `--tracks` (see [Display Fields](#display-fields)) |
 
 ### `podkit collection video`
 
-List videos in a video collection.
+Show videos in a collection. By default, displays summary stats.
 
 ```bash
 podkit collection video [name] [options]
@@ -517,8 +534,11 @@ podkit collection video [name] [options]
 
 | Option | Description |
 |--------|-------------|
+| `--tracks` | List all tracks (detailed view) |
+| `--albums` | List albums with track counts |
+| `--artists` | List artists with album/track counts |
 | `--format <fmt>` | Output format: `table`, `json`, `csv` (default: `table`) |
-| `--fields <list>` | Comma-separated fields to show (see [Display Fields](#display-fields)) |
+| `--fields <list>` | Comma-separated fields to show with `--tracks` (see [Display Fields](#display-fields)) |
 
 ## `podkit eject`
 

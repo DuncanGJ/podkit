@@ -38,6 +38,13 @@ import {
   formatTable,
   formatJson,
   formatCsv,
+  computeStats,
+  formatStatsText,
+  aggregateAlbums,
+  formatAlbumsTable,
+  aggregateArtists,
+  formatArtistsTable,
+  escapeCsv,
 } from './display-utils.js';
 import type { CollectionTrack, CollectionVideo } from '@podkit/core';
 import { createMusicAdapter } from '../utils/source-adapter.js';
@@ -542,18 +549,25 @@ const infoSubcommand = new Command('info')
 interface ContentListOptions {
   format?: string;
   fields?: string;
+  tracks?: boolean;
+  albums?: boolean;
+  artists?: boolean;
 }
 
 const musicSubcommand = new Command('music')
-  .description('list tracks in a music collection')
+  .description('list music in a collection (shows stats by default)')
   .argument('[name]', 'collection name (uses default if omitted)')
+  .option('--tracks', 'list all tracks')
+  .option('--albums', 'list albums with track counts')
+  .option('--artists', 'list artists with album/track counts')
   .option('--format <fmt>', 'output format: table, json, csv', 'table')
-  .option('--fields <list>', 'fields to show (comma-separated)')
+  .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
   .action(async (name: string | undefined, options: ContentListOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
     const fields = parseFields(options.fields);
+    const mode = options.tracks ? 'tracks' : options.albums ? 'albums' : options.artists ? 'artists' : 'stats';
 
     const outputError = (error: string) => {
       if (format === 'json') {
@@ -595,6 +609,8 @@ const musicSubcommand = new Command('music')
       const tracks = await adapter.getTracks();
       spinner.stop();
 
+      const heading = `Music in collection '${resolved.name}':`;
+
       const displayTracks: DisplayTrack[] = tracks.map((t: CollectionTrack) => ({
         title: t.title || 'Unknown Title',
         artist: t.artist || 'Unknown Artist',
@@ -611,21 +627,56 @@ const musicSubcommand = new Command('music')
         bitrate: t.bitrate && t.bitrate > 0 ? t.bitrate : undefined,
       }));
 
-      let output: string;
-      switch (format) {
-        case 'json':
-          output = formatJson(displayTracks, fields);
-          break;
-        case 'csv':
-          output = formatCsv(displayTracks, fields);
-          break;
-        case 'table':
-        default:
-          output = formatTable(displayTracks, fields);
-          break;
+      if (mode === 'stats') {
+        const stats = computeStats(displayTracks);
+        if (format === 'json') {
+          out.stdout(JSON.stringify(stats, null, 2));
+        } else {
+          out.stdout(formatStatsText(stats, heading));
+        }
+      } else if (mode === 'albums') {
+        const albums = aggregateAlbums(displayTracks);
+        if (format === 'json') {
+          out.stdout(JSON.stringify(albums, null, 2));
+        } else if (format === 'csv') {
+          const lines = ['Album,Artist,Tracks'];
+          for (const a of albums) {
+            lines.push(`${escapeCsv(a.album)},${escapeCsv(a.artist)},${a.tracks}`);
+          }
+          out.stdout(lines.join('\n'));
+        } else {
+          out.stdout(formatAlbumsTable(albums, heading));
+        }
+      } else if (mode === 'artists') {
+        const artists = aggregateArtists(displayTracks);
+        if (format === 'json') {
+          out.stdout(JSON.stringify(artists, null, 2));
+        } else if (format === 'csv') {
+          const lines = ['Artist,Albums,Tracks'];
+          for (const a of artists) {
+            lines.push(`${escapeCsv(a.artist)},${a.albums},${a.tracks}`);
+          }
+          out.stdout(lines.join('\n'));
+        } else {
+          out.stdout(formatArtistsTable(artists, heading));
+        }
+      } else {
+        // tracks mode
+        let output: string;
+        switch (format) {
+          case 'json':
+            output = formatJson(displayTracks, fields);
+            break;
+          case 'csv':
+            output = formatCsv(displayTracks, fields);
+            break;
+          case 'table':
+          default:
+            output = formatTable(displayTracks, fields);
+            break;
+        }
+        out.stdout(output);
       }
-
-      out.stdout(output);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       outputError(message);
@@ -637,15 +688,19 @@ const musicSubcommand = new Command('music')
 // =============================================================================
 
 const videoSubcommand = new Command('video')
-  .description('list videos in a video collection')
+  .description('list videos in a collection (shows stats by default)')
   .argument('[name]', 'collection name (uses default if omitted)')
+  .option('--tracks', 'list all tracks')
+  .option('--albums', 'list albums with track counts')
+  .option('--artists', 'list artists with album/track counts')
   .option('--format <fmt>', 'output format: table, json, csv', 'table')
-  .option('--fields <list>', 'fields to show (comma-separated)')
+  .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
   .action(async (name: string | undefined, options: ContentListOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
     const fields = parseFields(options.fields);
+    const mode = options.tracks ? 'tracks' : options.albums ? 'albums' : options.artists ? 'artists' : 'stats';
 
     const outputError = (error: string) => {
       if (format === 'json') {
@@ -684,6 +739,8 @@ const videoSubcommand = new Command('video')
       const videos = await adapter.getVideos();
       spinner.stop();
 
+      const heading = `Video in collection '${resolved.name}':`;
+
       const displayTracks: DisplayTrack[] = videos.map((v: CollectionVideo) => ({
         title: v.title || 'Unknown Title',
         artist: v.seriesTitle || '', // Use series title for TV shows
@@ -695,21 +752,56 @@ const videoSubcommand = new Command('video')
         bitrate: undefined,
       }));
 
-      let output: string;
-      switch (format) {
-        case 'json':
-          output = formatJson(displayTracks, fields);
-          break;
-        case 'csv':
-          output = formatCsv(displayTracks, fields);
-          break;
-        case 'table':
-        default:
-          output = formatTable(displayTracks, fields);
-          break;
+      if (mode === 'stats') {
+        const stats = computeStats(displayTracks);
+        if (format === 'json') {
+          out.stdout(JSON.stringify(stats, null, 2));
+        } else {
+          out.stdout(formatStatsText(stats, heading));
+        }
+      } else if (mode === 'albums') {
+        const albums = aggregateAlbums(displayTracks);
+        if (format === 'json') {
+          out.stdout(JSON.stringify(albums, null, 2));
+        } else if (format === 'csv') {
+          const lines = ['Album,Artist,Tracks'];
+          for (const a of albums) {
+            lines.push(`${escapeCsv(a.album)},${escapeCsv(a.artist)},${a.tracks}`);
+          }
+          out.stdout(lines.join('\n'));
+        } else {
+          out.stdout(formatAlbumsTable(albums, heading));
+        }
+      } else if (mode === 'artists') {
+        const artists = aggregateArtists(displayTracks);
+        if (format === 'json') {
+          out.stdout(JSON.stringify(artists, null, 2));
+        } else if (format === 'csv') {
+          const lines = ['Artist,Albums,Tracks'];
+          for (const a of artists) {
+            lines.push(`${escapeCsv(a.artist)},${a.albums},${a.tracks}`);
+          }
+          out.stdout(lines.join('\n'));
+        } else {
+          out.stdout(formatArtistsTable(artists, heading));
+        }
+      } else {
+        // tracks mode
+        let output: string;
+        switch (format) {
+          case 'json':
+            output = formatJson(displayTracks, fields);
+            break;
+          case 'csv':
+            output = formatCsv(displayTracks, fields);
+            break;
+          case 'table':
+          default:
+            output = formatTable(displayTracks, fields);
+            break;
+        }
+        out.stdout(output);
       }
-
-      out.stdout(output);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       outputError(message);
