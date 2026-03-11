@@ -99,8 +99,10 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Build packages
-        run: bun run build
+      - name: Build packages (skip native rebuild — using prebuilds)
+        run: |
+          cd packages/libgpod-node && bun run build:ts && cd ../..
+          bun run build --filter='!@podkit/libgpod-node'
 
       - name: Compile CLI binary
         run: bun run compile
