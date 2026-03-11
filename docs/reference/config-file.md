@@ -106,7 +106,7 @@ path = "/cache/path"
 | `password` | string | no | - | Subsonic password (can also use env var) |
 | `path` | string | yes | - | Local cache path for downloaded files |
 
-The password can be provided via the config file, or through environment variables (see [Environment Variables](#environment-variables)).
+The password can be provided via the config file, or through environment variables (see [Environment Variables](/reference/environment-variables)).
 
 ## Video Collections
 

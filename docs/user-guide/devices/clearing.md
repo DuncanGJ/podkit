@@ -65,9 +65,9 @@ podkit device clear --confirm
 | **Preserves database settings** | Yes | No |
 | **Use when** | Removing content | Database is corrupted or you want a fresh start |
 
-If you just want to remove tracks and re-sync, use `clear`. If the iPod database is in a bad state, use [reset](./resetting/) instead.
+If you just want to remove tracks and re-sync, use `clear`. If the iPod database is in a bad state, use [reset](/user-guide/devices/resetting) instead.
 
 ## See Also
 
-- [Resetting a Device](./resetting/) for recreating the database
-- [Managing Devices](./) for device configuration
+- [Resetting a Device](/user-guide/devices/resetting) for recreating the database
+- [Managing Devices](/user-guide/devices) for device configuration

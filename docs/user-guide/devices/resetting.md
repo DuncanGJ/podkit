@@ -42,7 +42,7 @@ After a reset, the iPod is in a clean state ready for a fresh sync.
 | **Fixes corruption** | Yes | No |
 | **Use when** | Database is broken or you want a clean slate | Just removing content |
 
-Use [clear](./clearing/) if you only need to remove tracks. Use reset if the database itself is the problem.
+Use [clear](/user-guide/devices/clearing) if you only need to remove tracks. Use reset if the database itself is the problem.
 
 ## Initializing Blank or Corrupted iPods
 
@@ -56,6 +56,6 @@ This creates the required iPod directory structure and a fresh iTunesDB. Use thi
 
 ## See Also
 
-- [Clearing Content](./clearing/) for removing tracks without resetting the database
-- [Formatting a Device](./formatting/) for full filesystem formatting
-- [Managing Devices](./) for device configuration
+- [Clearing Content](/user-guide/devices/clearing) for removing tracks without resetting the database
+- [Formatting a Device](/user-guide/devices/formatting) for full filesystem formatting
+- [Managing Devices](/user-guide/devices) for device configuration

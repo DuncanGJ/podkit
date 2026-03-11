@@ -93,5 +93,5 @@ This removes the device entry from your config file. It does not modify anything
 ## See Also
 
 - [Supported Devices](/devices/supported-devices/) for iPod model compatibility
-- [Managing Devices](./) for working with multiple devices
-- [Mounting and Ejecting](./mounting-ejecting/) for connecting devices
+- [Managing Devices](/user-guide/devices) for working with multiple devices
+- [Mounting and Ejecting](/user-guide/devices/mounting-ejecting) for connecting devices

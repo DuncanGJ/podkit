@@ -43,7 +43,7 @@ Found something broken? [Open an issue on GitHub](https://github.com/jvgomg/podk
 
 Stuck on something or not sure how to set things up?
 
-- Check the [Troubleshooting](/troubleshooting/) docs
+- Check the [Troubleshooting](/troubleshooting/common-issues) docs
 - Ask in [GitHub Discussions (Q&A)](https://github.com/jvgomg/podkit/discussions/categories/q-a) — no question is too basic
 
 ## Show and Tell

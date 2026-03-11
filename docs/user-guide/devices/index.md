@@ -81,14 +81,14 @@ Each device section supports the following options:
 | `videoQuality` | Video-specific quality override | Global setting |
 | `artwork` | Whether to sync album artwork | `true` |
 
-Per-device settings override global settings. This lets you use lossless audio on a high-capacity Classic while using compressed audio on a space-constrained Nano. See [Quality Settings](./quality) for a detailed guide.
+Per-device settings override global settings. This lets you use lossless audio on a high-capacity Classic while using compressed audio on a space-constrained Nano. See [Quality Settings](/user-guide/devices/quality) for a detailed guide.
 
-You can also configure per-device artist transforms to clean up messy artist lists. See [Artist Transforms](./artist-transforms).
+You can also configure per-device artist transforms to clean up messy artist lists. See [Artist Transforms](/user-guide/devices/artist-transforms).
 
 ## See Also
 
-- [Quality Settings](./quality) for per-device audio and video quality
-- [Artist Transforms](./artist-transforms) for cleaning up artist names
+- [Quality Settings](/user-guide/devices/quality) for per-device audio and video quality
+- [Artist Transforms](/user-guide/devices/artist-transforms) for cleaning up artist names
 - [Supported Devices](/devices/supported-devices/) for iPod model compatibility
-- [Adding a Device](./adding-devices/) for registering new devices
+- [Adding a Device](/user-guide/devices/adding-devices) for registering new devices
 - [Configuration](/user-guide/configuration/) for full config file reference

@@ -16,5 +16,8 @@
     "preview": "astro preview",
     "astro": "astro"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "starlight-links-validator": "^0.19.2"
+  }
 }

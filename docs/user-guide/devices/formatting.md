@@ -18,7 +18,7 @@ A full format would erase the iPod filesystem entirely and recreate it from scra
 - Setting up the iPod directory structure
 - Initializing a new iTunesDB
 
-This goes beyond [resetting](./resetting/), which only recreates the database while leaving the filesystem intact.
+This goes beyond [resetting](/user-guide/devices/resetting), which only recreates the database while leaving the filesystem intact.
 
 ## Current Workarounds
 
@@ -44,8 +44,8 @@ For advanced users or iFlash-modified iPods:
 
 | Situation | Solution |
 |-----------|----------|
-| Corrupted database | [`podkit device reset`](./resetting/) |
-| Bad tracks, want a fresh sync | [`podkit device clear`](./clearing/) |
+| Corrupted database | [`podkit device reset`](/user-guide/devices/resetting) |
+| Bad tracks, want a fresh sync | [`podkit device clear`](/user-guide/devices/clearing) |
 | Filesystem errors or bad sectors | Format (use workaround above) |
 | Changing filesystem type (HFS+ to FAT32) | Format (use workaround above) |
 | iFlash adapter swap or storage upgrade | Format (use workaround above) |
@@ -54,7 +54,7 @@ In most cases, `podkit device reset` is sufficient. Full formatting is only nece
 
 ## See Also
 
-- [Resetting a Device](./resetting/) for recreating just the database
-- [Clearing Content](./clearing/) for removing tracks
-- [Managing Devices](./) for device configuration
+- [Resetting a Device](/user-guide/devices/resetting) for recreating just the database
+- [Clearing Content](/user-guide/devices/clearing) for removing tracks
+- [Managing Devices](/user-guide/devices) for device configuration
 - [macOS Mounting Troubleshooting](/troubleshooting/macos-mounting/) for mount issues after formatting

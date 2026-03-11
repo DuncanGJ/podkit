@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightLinksValidator from 'starlight-links-validator';
 import starlightLlmsTxt from 'starlight-llms-txt';
 import mermaid from 'astro-mermaid';
 import { remarkBaseUrl } from './src/remark-base-url.mjs';
@@ -31,6 +32,13 @@ export default defineConfig({
     mermaid(),
     starlight({
       plugins: [
+        starlightLinksValidator({
+          // The remarkBaseUrl plugin rewrites absolute links (/foo → /podkit/foo) for
+          // correct runtime behavior. The validator can't resolve these base-prefixed
+          // paths against page slugs, so we exclude them. The source paths are validated
+          // implicitly since the remark plugin only prefixes, never changes the path.
+          exclude: ['/podkit/**'],
+        }),
         starlightLlmsTxt({
           description: `podkit is a TypeScript CLI for syncing music and video collections to classic iPod devices. It handles automatic transcoding (FLAC→AAC, MKV→M4V), full metadata preservation, album artwork, intelligent duplicate detection, and incremental syncs. It works with all classic iPod models including iFlash-modded devices. Note: podkit is in early development (beta). Users should only use it with an iPod they are willing to wipe, as database corruption is possible.`,
           details: `Key concepts:

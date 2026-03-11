@@ -64,6 +64,6 @@ This feature is on the [roadmap](/roadmap/). Vote and comment on the [discussion
 
 ## See Also
 
-- [Managing Devices](./) for device configuration
+- [Managing Devices](/user-guide/devices) for device configuration
 - [macOS Mounting Troubleshooting](/troubleshooting/macos-mounting/) for iFlash and mount issues
-- [Adding a Device](./adding-devices/) for registering devices
+- [Adding a Device](/user-guide/devices/adding-devices) for registering devices
