@@ -1337,7 +1337,7 @@ device = "terapod"
       const result = loadConfig(globalOpts);
       expect(result.config).toEqual(DEFAULT_CONFIG);
       expect(result.configFileExists).toBe(false);
-      expect(result.configPath).toBeUndefined();
+      expect(result.configPath).toBe(path.join(tempDir, 'nonexistent.toml'));
     });
 
     it('loads config from custom path', () => {

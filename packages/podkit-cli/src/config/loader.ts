@@ -777,7 +777,7 @@ export function loadConfig(
   const configsToMerge: PartialConfig[] = [];
 
   // Determine which config file to load
-  const configPath = globalOpts.config ?? DEFAULT_CONFIG_PATH;
+  const configPath = globalOpts.config ?? process.env.PODKIT_CONFIG ?? DEFAULT_CONFIG_PATH;
   const configFileExists = fs.existsSync(configPath);
 
   // Load config file (if it exists)
@@ -801,7 +801,7 @@ export function loadConfig(
 
   return {
     config,
-    configPath: configFileExists ? configPath : undefined,
+    configPath: configFileExists ? configPath : (globalOpts.config ?? process.env.PODKIT_CONFIG),
     configFileExists,
   };
 }
