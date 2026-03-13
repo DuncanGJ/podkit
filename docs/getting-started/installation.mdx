@@ -12,17 +12,8 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 Homebrew is the easiest way to install podkit. It installs podkit and its only runtime dependency (FFmpeg) in a single command.
 
 <Tabs>
-  <TabItem label="One-liner">
-    ```bash
-    brew install jvgomg/podkit/podkit
-    ```
-  </TabItem>
-  <TabItem label="Two-step">
-    ```bash
-    brew tap jvgomg/podkit
-    brew install podkit
-    ```
-  </TabItem>
+  <TabItem label="One-liner">```bash brew install jvgomg/podkit/podkit ```</TabItem>
+  <TabItem label="Two-step">```bash brew tap jvgomg/podkit brew install podkit ```</TabItem>
 </Tabs>
 
 Verify the installation:
@@ -68,28 +59,16 @@ If you don't use Homebrew, you can download a prebuilt binary from [GitHub Relea
 Manual installs do not include FFmpeg. You need to install it separately for transcoding to work.
 
 <Tabs>
-  <TabItem label="macOS">
-    ```bash
-    brew install ffmpeg
-    ```
-  </TabItem>
+  <TabItem label="macOS">```bash brew install ffmpeg ```</TabItem>
   <TabItem label="Ubuntu / Debian">
-    ```bash
-    sudo apt update && sudo apt install -y ffmpeg
-    ```
+    ```bash sudo apt update && sudo apt install -y ffmpeg ```
   </TabItem>
   <TabItem label="Fedora">
-    ```bash
-    sudo dnf install -y \
-        https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
-    sudo dnf install -y ffmpeg
-    ```
+    ```bash sudo dnf install -y \
+    https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+    sudo dnf install -y ffmpeg ```
   </TabItem>
-  <TabItem label="Arch">
-    ```bash
-    sudo pacman -S ffmpeg
-    ```
-  </TabItem>
+  <TabItem label="Arch">```bash sudo pacman -S ffmpeg ```</TabItem>
 </Tabs>
 
 Check that FFmpeg has AAC encoder support:

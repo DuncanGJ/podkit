@@ -9,7 +9,13 @@
 import { describe, expect, it, afterEach, beforeAll } from 'bun:test';
 import * as fs from 'node:fs';
 import { withTestIpod, TestModels, isGpodToolAvailable } from '@podkit/gpod-testing';
-import { IpodDatabase, MediaType, isMusicMediaType, isVideoMediaType, validateDevice } from '@podkit/core';
+import {
+  IpodDatabase,
+  MediaType,
+  isMusicMediaType,
+  isVideoMediaType,
+  validateDevice,
+} from '@podkit/core';
 import { setContext, clearContext } from '../context.js';
 import type { PodkitConfig, GlobalOptions, LoadConfigResult } from '../config/index.js';
 import { DEFAULT_TRANSFORMS_CONFIG } from '../config/index.js';

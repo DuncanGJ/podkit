@@ -445,9 +445,7 @@ export function formatAlbumsTable(albums: AlbumEntry[], heading: string): string
   const artistWidth = Math.min(25, Math.max(6, ...albums.map((a) => a.artist.length)));
 
   const lines: string[] = [heading, ''];
-  lines.push(
-    `  ${'ALBUM'.padEnd(albumWidth)}  ${'ARTIST'.padEnd(artistWidth)}  TRACKS`
-  );
+  lines.push(`  ${'ALBUM'.padEnd(albumWidth)}  ${'ARTIST'.padEnd(artistWidth)}  TRACKS`);
 
   for (const entry of albums) {
     const album = truncate(entry.album, albumWidth).padEnd(albumWidth);
@@ -505,9 +503,7 @@ export function formatArtistsTable(artists: ArtistEntry[], heading: string): str
   const artistWidth = Math.min(30, Math.max(6, ...artists.map((a) => a.artist.length)));
 
   const lines: string[] = [heading, ''];
-  lines.push(
-    `  ${'ARTIST'.padEnd(artistWidth)}  ${'ALBUMS'.padEnd(6)}  TRACKS`
-  );
+  lines.push(`  ${'ARTIST'.padEnd(artistWidth)}  ${'ALBUMS'.padEnd(6)}  TRACKS`);
 
   for (const entry of artists) {
     const artist = truncate(entry.artist, artistWidth).padEnd(artistWidth);

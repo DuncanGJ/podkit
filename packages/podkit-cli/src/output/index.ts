@@ -24,7 +24,13 @@
  */
 
 // Types
-export type { OutputMode, OutputOptions, OutputContextConfig, SpinnerControl, TableOptions } from './types.js';
+export type {
+  OutputMode,
+  OutputOptions,
+  OutputContextConfig,
+  SpinnerControl,
+  TableOptions,
+} from './types.js';
 export { nullSpinner } from './types.js';
 
 // Main context class
@@ -49,8 +55,4 @@ export {
   buildTransformPreview,
 } from './formatters.js';
 
-export type {
-  DeviceHeaderInfo,
-  CollectedError,
-  TransformPreviewEntry,
-} from './formatters.js';
+export type { DeviceHeaderInfo, CollectedError, TransformPreviewEntry } from './formatters.js';

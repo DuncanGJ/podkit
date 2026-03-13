@@ -112,11 +112,7 @@ export default defineConfig({
         },
         {
           label: 'The Project',
-          items: [
-            { slug: 'about' },
-            { slug: 'roadmap' },
-            { slug: 'feedback' },
-          ],
+          items: [{ slug: 'about' }, { slug: 'roadmap' }, { slug: 'feedback' }],
         },
         {
           label: 'User Guide',

@@ -229,9 +229,8 @@ export function updateDevice(
   const nextSectionMatch = afterSection.match(
     new RegExp(`\\n\\[(?!devices\\.${escapeRegExp(name)}\\.)`)
   );
-  const sectionEnd = nextSectionMatch?.index !== undefined
-    ? sectionStart + nextSectionMatch.index
-    : content.length;
+  const sectionEnd =
+    nextSectionMatch?.index !== undefined ? sectionStart + nextSectionMatch.index : content.length;
 
   let sectionContent = content.slice(sectionStart, sectionEnd);
 

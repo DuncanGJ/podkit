@@ -807,10 +807,7 @@ describe('aggregateArtists', () => {
   });
 
   it('sorts alphabetically by artist name', () => {
-    const tracks = [
-      createTrack({ albumArtist: 'Zeppelin' }),
-      createTrack({ albumArtist: 'ABBA' }),
-    ];
+    const tracks = [createTrack({ albumArtist: 'Zeppelin' }), createTrack({ albumArtist: 'ABBA' })];
     const artists = aggregateArtists(tracks);
     expect(artists.map((a) => a.artist)).toEqual(['ABBA', 'Zeppelin']);
   });

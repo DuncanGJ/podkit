@@ -47,7 +47,7 @@ jobs:
         with:
           version: bun run version
           publish: echo "publish-placeholder"
-          title: "Version Packages"
+          title: 'Version Packages'
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 

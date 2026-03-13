@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       upload-artifacts:
-        description: "Create tarballs and upload as artifacts for release"
+        description: 'Create tarballs and upload as artifacts for release'
         required: false
         default: false
         type: boolean

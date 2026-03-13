@@ -54,9 +54,8 @@ export const mountCommand = new Command('mount')
 
     // If explicit device identifier provided, we don't need a named device
     if (!deviceResult.success && !explicitDisk) {
-      out.result<MountOutput>(
-        { success: false, error: deviceResult.error },
-        () => out.error(deviceResult.error)
+      out.result<MountOutput>({ success: false, error: deviceResult.error }, () =>
+        out.error(deviceResult.error)
       );
       process.exitCode = 1;
       return;
@@ -180,7 +179,12 @@ export const mountCommand = new Command('mount')
 
     if (dryRun) {
       out.result<MountOutput>(
-        { success: true, device: deviceId, mountPoint: result.mountPoint, dryRunCommand: result.dryRunCommand },
+        {
+          success: true,
+          device: deviceId,
+          mountPoint: result.mountPoint,
+          dryRunCommand: result.dryRunCommand,
+        },
         () => {
           out.print('Dry run - command that would be executed:');
           out.print(`  ${result.dryRunCommand}`);
@@ -194,7 +198,13 @@ export const mountCommand = new Command('mount')
 
     if (result.requiresSudo) {
       out.result<MountOutput>(
-        { success: false, device: deviceId, error: 'Mount requires elevated privileges', requiresSudo: true, dryRunCommand: result.dryRunCommand },
+        {
+          success: false,
+          device: deviceId,
+          error: 'Mount requires elevated privileges',
+          requiresSudo: true,
+          dryRunCommand: result.dryRunCommand,
+        },
         () => {
           out.error('Mount requires elevated privileges.');
           out.newline();
@@ -218,16 +228,13 @@ export const mountCommand = new Command('mount')
         }
       );
     } else {
-      out.result<MountOutput>(
-        { success: false, device: deviceId, error: result.error },
-        () => {
-          out.error('Failed to mount iPod.');
-          out.newline();
-          if (result.error) {
-            out.error(result.error);
-          }
+      out.result<MountOutput>({ success: false, device: deviceId, error: result.error }, () => {
+        out.error('Failed to mount iPod.');
+        out.newline();
+        if (result.error) {
+          out.error(result.error);
         }
-      );
+      });
       process.exitCode = 1;
     }
   });

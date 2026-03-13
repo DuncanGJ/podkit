@@ -11,7 +11,7 @@ const dir = join(__dirname, '..', 'prebuilds', `${platform()}-${arch()}`);
 
 try {
   const files = readdirSync(dir);
-  if (files.some(f => f.endsWith('.node'))) {
+  if (files.some((f) => f.endsWith('.node'))) {
     console.log(`Prebuild found for ${platform()}-${arch()}, skipping native build`);
     process.exit(0);
   }
