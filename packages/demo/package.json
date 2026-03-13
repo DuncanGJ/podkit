@@ -1,0 +1,17 @@
+{
+  "name": "@podkit/demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run build.ts",
+    "record": "bash run.sh",
+    "clean": "rm -rf bin demo.gif"
+  },
+  "dependencies": {
+    "@podkit/core": "workspace:*",
+    "podkit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

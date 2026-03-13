@@ -11,7 +11,7 @@
  * ```
  */
 import { Command } from 'commander';
-import { existsSync } from 'node:fs';
+import { existsSync } from '../utils/fs.js';
 import { getContext } from '../context.js';
 import {
   resolveDevicePath,
@@ -48,9 +48,8 @@ export const ejectCommand = new Command('eject')
     const deviceResult = resolveEffectiveDevice(cliDeviceArg, name, config);
 
     if (!deviceResult.success) {
-      out.result<EjectOutput>(
-        { success: false, error: deviceResult.error },
-        () => out.error(deviceResult.error)
+      out.result<EjectOutput>({ success: false, error: deviceResult.error }, () =>
+        out.error(deviceResult.error)
       );
       process.exitCode = 1;
       return;
@@ -132,9 +131,8 @@ export const ejectCommand = new Command('eject')
     const result = await manager.eject(devicePath, { force });
 
     if (result.success) {
-      out.result<EjectOutput>(
-        { success: true, device: devicePath, forced: result.forced },
-        () => out.success('iPod ejected successfully. Safe to disconnect.')
+      out.result<EjectOutput>({ success: true, device: devicePath, forced: result.forced }, () =>
+        out.success('iPod ejected successfully. Safe to disconnect.')
       );
     } else {
       out.result<EjectOutput>(

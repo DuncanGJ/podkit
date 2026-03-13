@@ -37,6 +37,12 @@
       "rules": {
         "no-console": "off"
       }
+    },
+    {
+      "files": ["**/demo/build.ts", "**/demo/src/**/*.ts"],
+      "rules": {
+        "no-console": "off"
+      }
     }
   ],
   "ignorePatterns": ["node_modules", "dist", "*.d.ts", "backlog", "docs"]

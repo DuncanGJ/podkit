@@ -6,6 +6,11 @@
       "inputs": ["src/**", "package.json", "tsconfig.json"],
       "outputs": ["dist/**"]
     },
+    "@podkit/demo#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "build.ts", "package.json", "tsconfig.json"],
+      "outputs": ["bin/**"]
+    },
     "test": {
       "dependsOn": ["build"],
       "inputs": ["src/**", "test/**", "*.test.ts"],
@@ -30,6 +35,10 @@
       "dependsOn": ["^build"],
       "inputs": ["src/**", "package.json"],
       "outputs": ["bin/**"]
+    },
+    "record": {
+      "dependsOn": ["build"],
+      "cache": false
     },
     "clean": {
       "cache": false

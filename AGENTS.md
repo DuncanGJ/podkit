@@ -11,6 +11,7 @@ Instructions for AI agents (Claude Code, Cursor, etc.) working in this repositor
 **Monorepo structure:**
 ```
 packages/
+├── demo/            # Animated GIF demo (VHS + mocked CLI build)
 ├── e2e-tests/       # End-to-end CLI tests (dummy + real iPod)
 ├── gpod-testing/    # Test utilities for iPod environments (no hardware needed)
 ├── libgpod-node/    # Native Node.js bindings for libgpod (C library)
@@ -108,6 +109,7 @@ Read these documents based on what you're working on:
 | iPod internals | [docs/devices/ipod-internals.md](docs/devices/ipod-internals.md) |
 | Troubleshooting | [docs/troubleshooting/](docs/troubleshooting/) |
 | Transforms | [docs/user-guide/transforms.md](docs/user-guide/transforms.md) |
+| Demo GIF package | [packages/demo/README.md](packages/demo/README.md) |
 | Package READMEs | `packages/*/README.md` |
 | Feature requests | [agents/feature-requests.md](agents/feature-requests.md) |
 | About the project | [docs/about.md](docs/about.md) |
@@ -382,6 +384,23 @@ When encountering libgpod CRITICAL assertions or unexpected behavior:
 3. **Understand the expectation** - What does libgpod expect vs. what we're providing?
 4. **Fix and document** - Apply the fix and document the deviation
 
+## Demo GIF
+
+The `packages/demo/` package produces an animated GIF for the README using [VHS](https://github.com/charmbracelet/vhs). It compiles a standalone CLI binary with mocked `@podkit/core` and `packages/podkit-cli/src/utils/fs.ts` swapped at build time via Bun plugins.
+
+```bash
+bun run demo    # Build demo binary + record GIF
+```
+
+**Impact on CLI and core changes:**
+
+- The demo binary compiles `packages/podkit-cli/src/main.ts` directly. CLI changes (new commands, changed flags, altered output) may break the demo build or recording.
+- `src/mock-core.ts` must match the `@podkit/core` public API — adding/removing exports requires updating the mock.
+- New filesystem usage in CLI commands should go through `packages/podkit-cli/src/utils/fs.ts` (not `node:fs` directly) so the demo's mock can intercept it.
+- Run `bun run demo` after CLI or core changes to verify the demo still works.
+
+See [packages/demo/README.md](packages/demo/README.md) for full details.
+
 ## Code Conventions
 
 - TypeScript strict mode
@@ -403,7 +422,7 @@ This project uses [changesets](https://github.com/changesets/changesets) for ver
 - Test-only changes
 - Documentation-only changes
 - CI/CD changes, dev tooling
-- Changes to private packages (`@podkit/gpod-testing`, `@podkit/e2e-tests`, `@podkit/docs-site`)
+- Changes to private packages (`@podkit/gpod-testing`, `@podkit/e2e-tests`, `@podkit/demo`, `@podkit/docs-site`)
 
 ### How to Add a Changeset
 
@@ -455,3 +474,5 @@ Key files to understand:
 | Test utilities | `packages/gpod-testing/src/index.ts` |
 | E2E test helpers | `packages/e2e-tests/src/helpers/index.ts` |
 | gpod-tool CLI | `tools/gpod-tool/gpod-tool.c` |
+| Demo build | `packages/demo/build.ts` |
+| Demo tape | `packages/demo/demo.tape` |

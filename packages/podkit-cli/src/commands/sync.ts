@@ -23,7 +23,7 @@
  * podkit sync --quality medium           # Use medium quality preset
  * ```
  */
-import { existsSync, statfsSync } from 'node:fs';
+import { existsSync, statfsSync } from '../utils/fs.js';
 import { Command } from 'commander';
 import { getContext } from '../context.js';
 import type {
@@ -795,7 +795,9 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
     out.newline();
     out.print(`Source: ${sourcePath}`);
     out.print(`Device: ${devicePath}`);
-    const qualityDisplay = lossyQuality ? `${effectiveQuality} (lossy: ${lossyQuality})` : effectiveQuality;
+    const qualityDisplay = lossyQuality
+      ? `${effectiveQuality} (lossy: ${lossyQuality})`
+      : effectiveQuality;
     out.print(`Quality: ${qualityDisplay}`);
     const transformsDisplay = formatTransformsConfig(effectiveTransforms);
     if (transformsDisplay) {
@@ -884,7 +886,11 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
         ...diff.toUpdate.filter((u) => u.reason === 'transform-apply').map((u) => u.source),
       ];
       if (tracksToTransform.length > 0) {
-        const preview = buildTransformPreview(tracksToTransform, effectiveTransforms, core.applyTransforms);
+        const preview = buildTransformPreview(
+          tracksToTransform,
+          effectiveTransforms,
+          core.applyTransforms
+        );
         if (preview.length > 0) {
           out.print('Artist transforms:');
           for (const entry of preview) {
@@ -987,8 +993,17 @@ interface VideoSyncResult {
  * Sync a single video collection (handles both dry-run and execution)
  */
 async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoSyncResult> {
-  const { out, collection, sourcePath, devicePath, dryRun, removeOrphans, effectiveVideoQuality, ipod, core } =
-    ctx;
+  const {
+    out,
+    collection,
+    sourcePath,
+    devicePath,
+    dryRun,
+    removeOrphans,
+    effectiveVideoQuality,
+    ipod,
+    core,
+  } = ctx;
 
   const collectionLabel = formatCollectionLabel(collection.name, sourcePath, out.isVerbose);
 
@@ -1033,9 +1048,7 @@ async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoSyncResu
   // Get iPod video tracks
   const allTracks = ipod.getTracks();
   const ipodVideos: IPodVideo[] = allTracks
-    .filter(
-      (t) => (t.mediaType & MediaType.Movie) !== 0 || (t.mediaType & MediaType.TVShow) !== 0
-    )
+    .filter((t) => (t.mediaType & MediaType.Movie) !== 0 || (t.mediaType & MediaType.TVShow) !== 0)
     .map((t) => {
       const isMovie = (t.mediaType & MediaType.Movie) !== 0;
       return {
@@ -1193,7 +1206,10 @@ export const syncCommand = new Command('sync')
     '--audio-quality <preset>',
     'audio transcoding quality (overrides --quality): lossless, max, max-cbr, high, high-cbr, medium, medium-cbr, low, low-cbr'
   )
-  .option('--video-quality <preset>', 'video transcoding quality (overrides --quality): max, high, medium, low')
+  .option(
+    '--video-quality <preset>',
+    'video transcoding quality (overrides --quality): max, high, medium, low'
+  )
   .option(
     '--lossy-quality <preset>',
     'quality for lossy sources when audio quality is lossless (default: max)'
@@ -1384,7 +1400,12 @@ export const syncCommand = new Command('sync')
 
     if (!existsSync(devicePath)) {
       out.result(
-        { success: false, dryRun, device: devicePath, error: `Device path not found: ${devicePath}` },
+        {
+          success: false,
+          dryRun,
+          device: devicePath,
+          error: `Device path not found: ${devicePath}`,
+        },
         () => {
           out.error(`iPod not found at: ${devicePath}`);
           out.error('');
@@ -1461,15 +1482,12 @@ export const syncCommand = new Command('sync')
       // Block sync for unsupported devices
       if (!deviceValidation.supported) {
         const messages = core.formatValidationMessages(deviceValidation);
-        out.result(
-          { success: false, dryRun, device: devicePath, error: messages[0] },
-          () => {
-            out.newline();
-            for (const msg of messages) {
-              out.print(msg);
-            }
+        out.result({ success: false, dryRun, device: devicePath, error: messages[0] }, () => {
+          out.newline();
+          for (const msg of messages) {
+            out.print(msg);
           }
-        );
+        });
         ipod.close();
         process.exitCode = 1;
         return;

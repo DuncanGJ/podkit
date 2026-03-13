@@ -19,10 +19,16 @@
  * ```
  */
 import { Command } from 'commander';
-import { existsSync, statfsSync } from 'node:fs';
+import { existsSync, statfsSync } from '../utils/fs.js';
 import * as readline from 'node:readline';
 import { getContext } from '../context.js';
-import { addDevice, updateDevice, removeDevice, setDefaultDevice, DEFAULT_CONFIG_PATH } from '../config/index.js';
+import {
+  addDevice,
+  updateDevice,
+  removeDevice,
+  setDefaultDevice,
+  DEFAULT_CONFIG_PATH,
+} from '../config/index.js';
 import { QUALITY_PRESETS, VIDEO_QUALITY_PRESETS } from '../config/index.js';
 import {
   resolveDevicePath,
@@ -51,11 +57,8 @@ import {
   escapeCsv,
 } from './display-utils.js';
 import { OutputContext, formatBytes, formatNumber } from '../output/index.js';
-import {
-  formatGeneration,
-  validateDevice,
-  formatValidationMessages,
-} from '@podkit/core';
+import { formatGeneration, validateDevice, formatValidationMessages } from '@podkit/core';
+import type { DeviceAssessment, IFlashEvidence } from '@podkit/core';
 import type { DeviceValidationResult } from '@podkit/core';
 
 // =============================================================================
@@ -465,9 +468,8 @@ const listSubcommand = new Command('list')
     const deviceNames = Object.keys(devices);
 
     if (deviceNames.length === 0) {
-      out.result<DeviceListOutput>(
-        { success: true, devices: [], defaultDevice: undefined },
-        () => out.print("No devices configured. Run 'podkit device add <name>' to add one.")
+      out.result<DeviceListOutput>({ success: true, devices: [], defaultDevice: undefined }, () =>
+        out.print("No devices configured. Run 'podkit device add <name>' to add one.")
       );
       return;
     }
@@ -486,53 +488,85 @@ const listSubcommand = new Command('list')
       };
     });
 
-    out.result<DeviceListOutput>(
-      { success: true, devices: deviceList, defaultDevice },
-      () => {
-        out.print('Configured devices:');
-        out.newline();
+    out.result<DeviceListOutput>({ success: true, devices: deviceList, defaultDevice }, () => {
+      out.print('Configured devices:');
+      out.newline();
 
-        const headers = ['NAME', 'VOLUME', 'QUALITY', 'AUDIO', 'VIDEO', 'ARTWORK'];
-        const widths = [
-          Math.max(6, ...deviceNames.map((n) => n.length + 2)),
-          Math.max(8, ...deviceNames.map((n) => (devices[n]?.volumeName || '').length)),
-          8,
-          8,
-          6,
-          7,
-        ];
+      const headers = ['NAME', 'VOLUME', 'QUALITY', 'AUDIO', 'VIDEO', 'ARTWORK'];
+      const widths = [
+        Math.max(6, ...deviceNames.map((n) => n.length + 2)),
+        Math.max(8, ...deviceNames.map((n) => (devices[n]?.volumeName || '').length)),
+        8,
+        8,
+        6,
+        7,
+      ];
 
-        out.print('  ' + formatRow(headers, widths));
+      out.print('  ' + formatRow(headers, widths));
 
-        for (const name of deviceNames) {
-          const device = devices[name]!;
-          const isDefault = name === defaultDevice;
-          const prefix = isDefault ? '* ' : '  ';
+      for (const name of deviceNames) {
+        const device = devices[name]!;
+        const isDefault = name === defaultDevice;
+        const prefix = isDefault ? '* ' : '  ';
 
-          const row = formatRow(
-            [
-              name,
-              device.volumeName || '-',
-              device.quality || '-',
-              device.audioQuality || '-',
-              device.videoQuality || '-',
-              device.artwork === true ? 'yes' : device.artwork === false ? 'no' : '-',
-            ],
-            widths
-          );
+        const row = formatRow(
+          [
+            name,
+            device.volumeName || '-',
+            device.quality || '-',
+            device.audioQuality || '-',
+            device.videoQuality || '-',
+            device.artwork === true ? 'yes' : device.artwork === false ? 'no' : '-',
+          ],
+          widths
+        );
 
-          out.print(prefix + row);
-        }
-
-        out.newline();
-        out.print('* = default device');
+        out.print(prefix + row);
       }
-    );
+
+      out.newline();
+      out.print('* = default device');
+    });
   });
 
 // =============================================================================
 // Add subcommand
 // =============================================================================
+
+/**
+ * Render text in bold using ANSI escape codes when stdout is a TTY.
+ * Falls back to plain text when output is piped or redirected.
+ */
+function bold(text: string): string {
+  return process.stdout.isTTY ? `\x1b[1m${text}\x1b[0m` : text;
+}
+
+/**
+ * Format the iFlash evidence list into a sentence suitable for display.
+ * e.g. "2048-byte block size; Capacity exceeds iPod Classic maximum"
+ */
+function formatIFlashEvidence(evidence: IFlashEvidence[]): string {
+  return evidence.map((e) => e.signal).join('; ');
+}
+
+/**
+ * Build a multi-line explanation of why macOS cannot mount an iFlash device,
+ * including all detected signals with their details.
+ */
+function formatIFlashMountExplanation(assessment: DeviceAssessment): string[] {
+  const lines: string[] = [];
+  lines.push('macOS cannot automatically mount this device.');
+  lines.push('');
+  lines.push('iFlash confirmed by:');
+  for (const e of assessment.iFlash.evidence) {
+    lines.push(`  • ${e.signal}: ${e.value}`);
+    lines.push(`    ${e.detail}`);
+  }
+  lines.push('');
+  lines.push('macOS refuses to mount large FAT32 volumes through its normal mechanisms.');
+  lines.push('Elevated privileges are required to mount this device directly.');
+  return lines;
+}
 
 interface AddOptions {
   yes?: boolean;
@@ -547,8 +581,14 @@ const addSubcommand = new Command('add')
   .argument('<name>', 'name for this device configuration')
   .argument('[path]', 'explicit path to iPod mount point')
   .option('-y, --yes', 'skip confirmation prompts')
-  .option('--quality <preset>', 'transcoding quality preset: lossless, max, high, medium, low (and CBR variants)')
-  .option('--audio-quality <preset>', 'audio quality (overrides --quality): lossless, max, max-cbr, high, high-cbr, medium, medium-cbr, low, low-cbr')
+  .option(
+    '--quality <preset>',
+    'transcoding quality preset: lossless, max, high, medium, low (and CBR variants)'
+  )
+  .option(
+    '--audio-quality <preset>',
+    'audio quality (overrides --quality): lossless, max, max-cbr, high, high-cbr, medium, medium-cbr, low, low-cbr'
+  )
   .option('--video-quality <preset>', 'video quality (overrides --quality): max, high, medium, low')
   .option('--artwork', 'sync artwork to this device')
   .option('--no-artwork', 'do not sync artwork to this device')
@@ -581,13 +621,19 @@ const addSubcommand = new Command('add')
       process.exitCode = 1;
       return;
     }
-    if (options.audioQuality !== undefined && !QUALITY_PRESETS.includes(options.audioQuality as any)) {
+    if (
+      options.audioQuality !== undefined &&
+      !QUALITY_PRESETS.includes(options.audioQuality as any)
+    ) {
       const error = `Invalid audio quality preset "${options.audioQuality}". Valid values: ${QUALITY_PRESETS.join(', ')}`;
       out.result<DeviceAddOutput>({ success: false, error }, () => out.error(error));
       process.exitCode = 1;
       return;
     }
-    if (options.videoQuality !== undefined && !VIDEO_QUALITY_PRESETS.includes(options.videoQuality as any)) {
+    if (
+      options.videoQuality !== undefined &&
+      !VIDEO_QUALITY_PRESETS.includes(options.videoQuality as any)
+    ) {
       const error = `Invalid video quality preset "${options.videoQuality}". Valid values: ${VIDEO_QUALITY_PRESETS.join(', ')}`;
       out.result<DeviceAddOutput>({ success: false, error }, () => out.error(error));
       process.exitCode = 1;
@@ -633,7 +679,8 @@ const addSubcommand = new Command('add')
         out.print('');
         out.print('This iPod needs to be initialized (no iTunesDB found).');
 
-        const shouldInit = autoConfirm || out.isJson || (await confirm('Initialize iPod database now? [Y/n] '));
+        const shouldInit =
+          autoConfirm || out.isJson || (await confirm('Initialize iPod database now? [Y/n] '));
 
         if (!shouldInit) {
           out.print('Cancelled. iPod not initialized.');
@@ -726,15 +773,12 @@ const addSubcommand = new Command('add')
 
       if (addValidation && !addValidation.supported) {
         const messages = formatValidationMessages(addValidation);
-        out.result<DeviceAddOutput>(
-          { success: false, error: messages[0] },
-          () => {
-            out.newline();
-            for (const msg of messages) {
-              out.print(msg);
-            }
+        out.result<DeviceAddOutput>({ success: false, error: messages[0] }, () => {
+          out.newline();
+          for (const msg of messages) {
+            out.print(msg);
           }
-        );
+        });
         process.exitCode = 1;
         return;
       }
@@ -816,7 +860,11 @@ const addSubcommand = new Command('add')
         },
         () => {
           out.newline();
-          out.print(result.created ? `Created config file: ${result.configPath}` : `Updated config file: ${result.configPath}`);
+          out.print(
+            result.created
+              ? `Created config file: ${result.configPath}`
+              : `Updated config file: ${result.configPath}`
+          );
           out.newline();
           out.print(`Device "${name}" added to config.`);
           if (isFirstDevice) {
@@ -852,18 +900,14 @@ const addSubcommand = new Command('add')
     const ipods = await manager.findIpodDevices();
 
     if (ipods.length === 0) {
-      out.result<DeviceAddOutput>(
-        { success: false, error: 'No iPod devices found' },
-        () => {
-          out.error('No iPod devices found.');
-          out.newline();
-          out.error('Make sure your iPod is connected and mounted.');
-          out.error('If using an iFlash adapter, the iPod may need to be mounted manually first.');
-          out.newline();
-          out.error('Or specify a path explicitly:');
-          out.error('  podkit device add <name> /path/to/ipod');
-        }
-      );
+      out.result<DeviceAddOutput>({ success: false, error: 'No iPod devices found' }, () => {
+        out.error('No iPod devices found.');
+        out.newline();
+        out.error('Make sure your iPod is connected.');
+        out.newline();
+        out.error('Or specify a path explicitly:');
+        out.error(`  podkit device add ${name} /path/to/ipod`);
+      });
       process.exitCode = 1;
       return;
     }
@@ -871,12 +915,16 @@ const addSubcommand = new Command('add')
     // Multiple iPods found - error with guidance
     if (ipods.length > 1) {
       out.result<DeviceAddOutput>(
-        { success: false, error: `Multiple iPod devices found (${ipods.length}). Specify a path explicitly.` },
+        {
+          success: false,
+          error: `Multiple iPod devices found (${ipods.length}). Specify a path explicitly.`,
+        },
         () => {
           out.error(`Found ${ipods.length} iPod devices. Specify which one to add:`);
           out.newline();
           for (const ipod of ipods) {
-            out.error(`  podkit device add ${name} ${ipod.mountPoint}`);
+            const path = ipod.mountPoint ?? ipod.identifier;
+            out.error(`  podkit device add ${name} ${path}`);
             out.error(`    ${ipod.volumeName || '(unnamed)'} - ${formatBytes(ipod.size)}`);
             out.newline();
           }
@@ -886,7 +934,60 @@ const addSubcommand = new Command('add')
       return;
     }
 
-    const ipod = ipods[0]!;
+    let ipod = ipods[0]!;
+
+    // Handle unmounted device: assess, attempt mount, guide user if sudo required
+    if (!ipod.isMounted) {
+      const assessment = await manager.assessDevice(ipod.identifier);
+
+      out.newline();
+      out.print(`Found iPod: ${ipod.volumeName} (${formatBytes(ipod.size)}) — not mounted`);
+      if (assessment?.usb?.modelName) {
+        out.print(`  Model:   ${assessment.usb.modelName}`);
+      } else if (assessment?.usb?.productId) {
+        out.print(`  Model:   iPod (USB ${assessment.usb.productId})`);
+      }
+      if (assessment?.iFlash.confirmed) {
+        out.print(
+          `  Storage: iFlash confirmed — ${formatIFlashEvidence(assessment.iFlash.evidence)}`
+        );
+      }
+      out.newline();
+      out.print('Attempting to mount...');
+
+      const mountResult = await manager.mount(ipod.identifier);
+
+      if (mountResult.success && mountResult.mountPoint) {
+        out.print(`Mounted at ${mountResult.mountPoint}.`);
+        // Re-fetch device info so subsequent code has the mount point
+        const updated = await manager.findByVolumeUuid(ipod.volumeUuid);
+        if (updated?.isMounted) ipod = updated;
+      } else if (mountResult.requiresSudo) {
+        const explanationLines = assessment?.iFlash.confirmed
+          ? formatIFlashMountExplanation(assessment)
+          : ['Mounting requires elevated privileges.'];
+
+        out.result<DeviceAddOutput>(
+          { success: false, error: 'Elevated privileges required to mount device' },
+          () => {
+            for (const line of explanationLines) {
+              out.error(line);
+            }
+            out.newline();
+            out.error(`Run:  ${bold('sudo')} podkit device add ${name}`);
+          }
+        );
+        process.exitCode = 1;
+        return;
+      } else {
+        out.result<DeviceAddOutput>(
+          { success: false, error: mountResult.error ?? 'Failed to mount device' },
+          () => out.error(`Failed to mount: ${mountResult.error}`)
+        );
+        process.exitCode = 1;
+        return;
+      }
+    }
 
     // Check if the iPod has a database
     let trackCount = 0;
@@ -900,7 +1001,8 @@ const addSubcommand = new Command('add')
         out.newline();
         out.print('This iPod needs to be initialized (no iTunesDB found).');
 
-        const shouldInit = autoConfirm || out.isJson || (await confirm('Initialize iPod database now? [Y/n] '));
+        const shouldInit =
+          autoConfirm || out.isJson || (await confirm('Initialize iPod database now? [Y/n] '));
 
         if (!shouldInit) {
           out.print('Cancelled. iPod not initialized.');
@@ -980,15 +1082,12 @@ const addSubcommand = new Command('add')
 
     if (autoDetectValidation && !autoDetectValidation.supported) {
       const messages = formatValidationMessages(autoDetectValidation);
-      out.result<DeviceAddOutput>(
-        { success: false, error: messages[0] },
-        () => {
-          out.newline();
-          for (const msg of messages) {
-            out.print(msg);
-          }
+      out.result<DeviceAddOutput>({ success: false, error: messages[0] }, () => {
+        out.newline();
+        for (const msg of messages) {
+          out.print(msg);
         }
-      );
+      });
       process.exitCode = 1;
       return;
     }
@@ -1054,9 +1153,8 @@ const addSubcommand = new Command('add')
     const result = addDevice(name, deviceConfig, { configPath });
 
     if (!result.success) {
-      out.result<DeviceAddOutput>(
-        { success: false, device: deviceInfo, error: result.error },
-        () => out.error(`Failed to save config: ${result.error}`)
+      out.result<DeviceAddOutput>({ success: false, device: deviceInfo, error: result.error }, () =>
+        out.error(`Failed to save config: ${result.error}`)
       );
       process.exitCode = 1;
       return;
@@ -1077,7 +1175,11 @@ const addSubcommand = new Command('add')
       },
       () => {
         out.newline();
-        out.print(result.created ? `Created config file: ${result.configPath}` : `Updated config file: ${result.configPath}`);
+        out.print(
+          result.created
+            ? `Created config file: ${result.configPath}`
+            : `Updated config file: ${result.configPath}`
+        );
         out.newline();
         out.print(`Device "${name}" added to config.`);
         if (isFirstDevice) {
@@ -1142,9 +1244,8 @@ const removeSubcommand = new Command('remove')
     const result = removeDevice(name, { configPath });
 
     if (!result.success) {
-      out.result<DeviceRemoveOutput>(
-        { success: false, error: result.error },
-        () => out.error(`Failed to remove device: ${result.error}`)
+      out.result<DeviceRemoveOutput>({ success: false, error: result.error }, () =>
+        out.error(`Failed to remove device: ${result.error}`)
       );
       process.exitCode = 1;
       return;
@@ -1154,15 +1255,12 @@ const removeSubcommand = new Command('remove')
       setDefaultDevice('', { configPath });
     }
 
-    out.result<DeviceRemoveOutput>(
-      { success: true, device: name, wasDefault },
-      () => {
-        out.print(`Device "${name}" removed from config.`);
-        if (wasDefault) {
-          out.print('Cleared default device setting.');
-        }
+    out.result<DeviceRemoveOutput>({ success: true, device: name, wasDefault }, () => {
+      out.print(`Device "${name}" removed from config.`);
+      if (wasDefault) {
+        out.print('Cleared default device setting.');
       }
-    );
+    });
   });
 
 // =============================================================================
@@ -1178,9 +1276,8 @@ const infoSubcommand = new Command('info')
 
     const resolved = resolveDeviceArg(name);
     if ('error' in resolved) {
-      out.result<DeviceInfoOutput>(
-        { success: false, error: resolved.error },
-        () => out.error(resolved.error)
+      out.result<DeviceInfoOutput>({ success: false, error: resolved.error }, () =>
+        out.error(resolved.error)
       );
       process.exitCode = 1;
       return;
@@ -1299,7 +1396,8 @@ const infoSubcommand = new Command('info')
           }
 
           if (liveStatus.model) {
-            const capacityStr = liveStatus.model.capacity > 0 ? ` (${liveStatus.model.capacity}GB)` : '';
+            const capacityStr =
+              liveStatus.model.capacity > 0 ? ` (${liveStatus.model.capacity}GB)` : '';
             const genStr = formatGeneration(liveStatus.model.generation);
             out.print(`  Model:         ${liveStatus.model.name}${capacityStr} - ${genStr}`);
           }
@@ -1341,7 +1439,9 @@ const infoSubcommand = new Command('info')
           if (liveStatus.storage) {
             const usedStr = formatBytes(liveStatus.storage.used);
             const totalStr = formatBytes(liveStatus.storage.total);
-            out.print(`  Storage:       ${usedStr} used / ${totalStr} total (${liveStatus.storage.percentUsed}%)`);
+            out.print(
+              `  Storage:       ${usedStr} used / ${totalStr} total (${liveStatus.storage.percentUsed}%)`
+            );
           }
 
           if (liveStatus.musicCount !== undefined) {
@@ -1360,7 +1460,9 @@ const infoSubcommand = new Command('info')
           if (device.videoQuality) {
             out.print(`  Video Quality: ${device.videoQuality}`);
           }
-          out.print(`  Artwork:       ${device.artwork === true ? 'yes' : device.artwork === false ? 'no' : '(not set)'}`);
+          out.print(
+            `  Artwork:       ${device.artwork === true ? 'yes' : device.artwork === false ? 'no' : '(not set)'}`
+          );
 
           if (device.transforms) {
             out.print('  Transforms:');
@@ -1410,7 +1512,13 @@ const musicSubcommand = new Command('music')
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
     const fields = parseFields(options.fields);
-    const mode = options.tracks ? 'tracks' : options.albums ? 'albums' : options.artists ? 'artists' : 'stats';
+    const mode = options.tracks
+      ? 'tracks'
+      : options.albums
+        ? 'albums'
+        : options.artists
+          ? 'artists'
+          : 'stats';
 
     const outputError = (error: string) => {
       if (format === 'json') {
@@ -1549,7 +1657,13 @@ const videoSubcommand = new Command('video')
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
     const fields = parseFields(options.fields);
-    const mode = options.tracks ? 'tracks' : options.albums ? 'albums' : options.artists ? 'artists' : 'stats';
+    const mode = options.tracks
+      ? 'tracks'
+      : options.albums
+        ? 'albums'
+        : options.artists
+          ? 'artists'
+          : 'stats';
 
     const outputError = (error: string) => {
       if (format === 'json') {
@@ -1686,16 +1800,19 @@ const clearSubcommand = new Command('clear')
   .argument('[name]', 'device name (uses default if omitted)')
   .option('--confirm', 'skip confirmation prompt (for scripts)')
   .option('--dry-run', 'show what would be removed without removing')
-  .option('--type <type>', 'content type to clear: "music", "video", or "all" (default: all)', 'all')
+  .option(
+    '--type <type>',
+    'content type to clear: "music", "video", or "all" (default: all)',
+    'all'
+  )
   .action(async (name: string | undefined, options: ClearOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
 
     const resolved = resolveDeviceArg(name);
     if ('error' in resolved) {
-      out.result<DeviceClearOutput>(
-        { success: false, error: resolved.error },
-        () => out.error(resolved.error)
+      out.result<DeviceClearOutput>({ success: false, error: resolved.error }, () =>
+        out.error(resolved.error)
       );
       process.exitCode = 1;
       return;
@@ -1769,7 +1886,10 @@ const clearSubcommand = new Command('clear')
       const message = err instanceof Error ? err.message : String(err);
 
       out.result<DeviceClearOutput>(
-        { success: false, error: isIpodError ? `Not an iPod or database corrupted: ${message}` : message },
+        {
+          success: false,
+          error: isIpodError ? `Not an iPod or database corrupted: ${message}` : message,
+        },
         () => {
           out.error(`Cannot read iPod database at: ${devicePath}`);
           out.newline();
@@ -1790,10 +1910,7 @@ const clearSubcommand = new Command('clear')
     const contentType = options.type ?? 'all';
     if (!['music', 'video', 'all'].includes(contentType)) {
       const errorMsg = `Invalid type "${contentType}". Must be "music", "video", or "all".`;
-      out.result<DeviceClearOutput>(
-        { success: false, error: errorMsg },
-        () => out.error(errorMsg)
-      );
+      out.result<DeviceClearOutput>({ success: false, error: errorMsg }, () => out.error(errorMsg));
       process.exitCode = 1;
       ipod.close();
       return;
@@ -1830,9 +1947,18 @@ const clearSubcommand = new Command('clear')
 
       if (options.dryRun) {
         out.result<DeviceClearOutput>(
-          { success: true, contentType, tracksRemoved: targetCount, totalTracks: targetCount, totalSize: targetSize, dryRun: true },
+          {
+            success: true,
+            contentType,
+            tracksRemoved: targetCount,
+            totalTracks: targetCount,
+            totalSize: targetSize,
+            dryRun: true,
+          },
           () => {
-            out.print(`Found ${formatNumber(targetCount)} ${contentLabel} (${formatBytes(targetSize)})`);
+            out.print(
+              `Found ${formatNumber(targetCount)} ${contentLabel} (${formatBytes(targetSize)})`
+            );
             out.newline();
             out.print(`Dry run: would remove ${contentLabel} and files.`);
           }
@@ -1841,7 +1967,9 @@ const clearSubcommand = new Command('clear')
       }
 
       if (!options.confirm && out.isText) {
-        out.print(`Found ${formatNumber(targetCount)} ${contentLabel} (${formatBytes(targetSize)})`);
+        out.print(
+          `Found ${formatNumber(targetCount)} ${contentLabel} (${formatBytes(targetSize)})`
+        );
         out.newline();
         if (contentType === 'all') {
           out.print('This will remove ALL content from the iPod. Files will be deleted.');
@@ -1851,7 +1979,8 @@ const clearSubcommand = new Command('clear')
         out.print('This action cannot be undone.');
         out.newline();
 
-        const confirmPrompt = contentType === 'all' ? 'Delete all content?' : `Delete all ${contentLabel}?`;
+        const confirmPrompt =
+          contentType === 'all' ? 'Delete all content?' : `Delete all ${contentLabel}?`;
         const confirmed = await confirmNo(confirmPrompt);
         if (!confirmed) {
           out.result<DeviceClearOutput>(
@@ -1887,9 +2016,13 @@ const clearSubcommand = new Command('clear')
           tracksRemoved: result.removedCount,
           totalTracks: targetCount,
           totalSize: targetSize,
-          fileDeleteErrors: result.fileDeleteErrors.length > 0 ? result.fileDeleteErrors : undefined,
+          fileDeleteErrors:
+            result.fileDeleteErrors.length > 0 ? result.fileDeleteErrors : undefined,
         },
-        () => out.print(`Removed ${formatNumber(result.removedCount)} ${contentLabel}, freed ${formatBytes(targetSize)}.`)
+        () =>
+          out.print(
+            `Removed ${formatNumber(result.removedCount)} ${contentLabel}, freed ${formatBytes(targetSize)}.`
+          )
       );
     } finally {
       ipod.close();
@@ -1919,9 +2052,8 @@ const resetSubcommand = new Command('reset')
 
     const resolved = resolveDeviceArg(name);
     if ('error' in resolved) {
-      out.result<DeviceResetOutput>(
-        { success: false, error: resolved.error },
-        () => out.error(resolved.error)
+      out.result<DeviceResetOutput>({ success: false, error: resolved.error }, () =>
+        out.error(resolved.error)
       );
       process.exitCode = 1;
       return;
@@ -2103,9 +2235,8 @@ const ejectSubcommand = new Command('eject')
 
     const resolved = resolveDeviceArg(name);
     if ('error' in resolved) {
-      out.result<DeviceEjectOutput>(
-        { success: false, error: resolved.error },
-        () => out.error(resolved.error)
+      out.result<DeviceEjectOutput>({ success: false, error: resolved.error }, () =>
+        out.error(resolved.error)
       );
       process.exitCode = 1;
       return;
@@ -2231,9 +2362,8 @@ const mountSubcommand = new Command('mount')
 
     const resolved = resolveDeviceArg(name);
     if ('error' in resolved && !explicitDisk) {
-      out.result<DeviceMountOutput>(
-        { success: false, error: resolved.error },
-        () => out.error(resolved.error)
+      out.result<DeviceMountOutput>({ success: false, error: resolved.error }, () =>
+        out.error(resolved.error)
       );
       process.exitCode = 1;
       return;
@@ -2356,7 +2486,12 @@ const mountSubcommand = new Command('mount')
 
     if (dryRun) {
       out.result<DeviceMountOutput>(
-        { success: true, device: deviceId, mountPoint: result.mountPoint, dryRunCommand: result.dryRunCommand },
+        {
+          success: true,
+          device: deviceId,
+          mountPoint: result.mountPoint,
+          dryRunCommand: result.dryRunCommand,
+        },
         () => {
           out.print('Dry run - command that would be executed:');
           out.print(`  ${result.dryRunCommand}`);
@@ -2370,7 +2505,13 @@ const mountSubcommand = new Command('mount')
 
     if (result.requiresSudo) {
       out.result<DeviceMountOutput>(
-        { success: false, device: deviceId, error: 'Mount requires elevated privileges', requiresSudo: true, dryRunCommand: result.dryRunCommand },
+        {
+          success: false,
+          device: deviceId,
+          error: 'Mount requires elevated privileges',
+          requiresSudo: true,
+          dryRunCommand: result.dryRunCommand,
+        },
         () => {
           out.error('Mount requires elevated privileges.');
           out.newline();
@@ -2429,9 +2570,8 @@ const initSubcommand = new Command('init')
 
     const resolved = resolveDeviceArg(name);
     if ('error' in resolved) {
-      out.result<DeviceInitOutput>(
-        { success: false, error: resolved.error },
-        () => out.error(resolved.error)
+      out.result<DeviceInitOutput>({ success: false, error: resolved.error }, () =>
+        out.error(resolved.error)
       );
       process.exitCode = 1;
       return;
@@ -2569,8 +2709,14 @@ interface SetOptions {
 const setSubcommand = new Command('set')
   .description('update device settings (quality, artwork)')
   .argument('<name>', 'device name')
-  .option('--quality <preset>', 'transcoding quality preset: lossless, max, high, medium, low (and CBR variants)')
-  .option('--audio-quality <preset>', 'audio quality (overrides --quality): lossless, max, max-cbr, high, high-cbr, medium, medium-cbr, low, low-cbr')
+  .option(
+    '--quality <preset>',
+    'transcoding quality preset: lossless, max, high, medium, low (and CBR variants)'
+  )
+  .option(
+    '--audio-quality <preset>',
+    'audio quality (overrides --quality): lossless, max, max-cbr, high, high-cbr, medium, medium-cbr, low, low-cbr'
+  )
   .option('--video-quality <preset>', 'video quality (overrides --quality): max, high, medium, low')
   .option('--artwork', 'sync artwork to this device')
   .option('--no-artwork', 'do not sync artwork to this device')
@@ -2603,13 +2749,19 @@ const setSubcommand = new Command('set')
       process.exitCode = 1;
       return;
     }
-    if (options.audioQuality !== undefined && !QUALITY_PRESETS.includes(options.audioQuality as any)) {
+    if (
+      options.audioQuality !== undefined &&
+      !QUALITY_PRESETS.includes(options.audioQuality as any)
+    ) {
       const error = `Invalid audio quality preset "${options.audioQuality}". Valid values: ${QUALITY_PRESETS.join(', ')}`;
       out.result<DeviceSetOutput>({ success: false, error }, () => out.error(error));
       process.exitCode = 1;
       return;
     }
-    if (options.videoQuality !== undefined && !VIDEO_QUALITY_PRESETS.includes(options.videoQuality as any)) {
+    if (
+      options.videoQuality !== undefined &&
+      !VIDEO_QUALITY_PRESETS.includes(options.videoQuality as any)
+    ) {
       const error = `Invalid video quality preset "${options.videoQuality}". Valid values: ${VIDEO_QUALITY_PRESETS.join(', ')}`;
       out.result<DeviceSetOutput>({ success: false, error }, () => out.error(error));
       process.exitCode = 1;
@@ -2644,7 +2796,8 @@ const setSubcommand = new Command('set')
     }
 
     if (Object.keys(updates).length === 0) {
-      const error = 'No settings to update. Specify at least one option (--quality, --audio-quality, --video-quality, --artwork, or --clear-* variants).';
+      const error =
+        'No settings to update. Specify at least one option (--quality, --audio-quality, --video-quality, --artwork, or --clear-* variants).';
       out.result<DeviceSetOutput>({ success: false, error }, () => out.error(error));
       process.exitCode = 1;
       return;
@@ -2654,31 +2807,27 @@ const setSubcommand = new Command('set')
     const result = updateDevice(name, updates, { configPath });
 
     if (!result.success) {
-      out.result<DeviceSetOutput>(
-        { success: false, error: result.error },
-        () => out.error(`Failed to update device: ${result.error}`)
+      out.result<DeviceSetOutput>({ success: false, error: result.error }, () =>
+        out.error(`Failed to update device: ${result.error}`)
       );
       process.exitCode = 1;
       return;
     }
 
-    out.result<DeviceSetOutput>(
-      { success: true, device: name, updated: updates },
-      () => {
-        const changes: string[] = [];
-        for (const [key, value] of Object.entries(updates)) {
-          if (value === null) {
-            changes.push(`  ${key}: cleared (will use global default)`);
-          } else {
-            changes.push(`  ${key}: ${value}`);
-          }
-        }
-        out.print(`Updated device "${name}":`);
-        for (const change of changes) {
-          out.print(change);
+    out.result<DeviceSetOutput>({ success: true, device: name, updated: updates }, () => {
+      const changes: string[] = [];
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null) {
+          changes.push(`  ${key}: cleared (will use global default)`);
+        } else {
+          changes.push(`  ${key}: ${value}`);
         }
       }
-    );
+      out.print(`Updated device "${name}":`);
+      for (const change of changes) {
+        out.print(change);
+      }
+    });
   });
 
 // =============================================================================
@@ -2699,17 +2848,15 @@ const defaultSubcommand = new Command('default')
       const result = setDefaultDevice('', { configPath });
 
       if (!result.success) {
-        out.result<DeviceDefaultOutput>(
-          { success: false, error: result.error },
-          () => out.error(`Failed to clear default device: ${result.error}`)
+        out.result<DeviceDefaultOutput>({ success: false, error: result.error }, () =>
+          out.error(`Failed to clear default device: ${result.error}`)
         );
         process.exitCode = 1;
         return;
       }
 
-      out.result<DeviceDefaultOutput>(
-        { success: true, cleared: true },
-        () => out.print('Cleared default device.')
+      out.result<DeviceDefaultOutput>({ success: true, cleared: true }, () =>
+        out.print('Cleared default device.')
       );
       return;
     }
@@ -2717,16 +2864,13 @@ const defaultSubcommand = new Command('default')
     if (!name) {
       // Show current default
       const defaultDevice = config.defaults?.device;
-      out.result<DeviceDefaultOutput>(
-        { success: true, device: defaultDevice },
-        () => {
-          if (defaultDevice) {
-            out.print(`Default device: ${defaultDevice}`);
-          } else {
-            out.print('No default device set.');
-          }
+      out.result<DeviceDefaultOutput>({ success: true, device: defaultDevice }, () => {
+        if (defaultDevice) {
+          out.print(`Default device: ${defaultDevice}`);
+        } else {
+          out.print('No default device set.');
         }
-      );
+      });
       return;
     }
 
@@ -2749,17 +2893,15 @@ const defaultSubcommand = new Command('default')
     const result = setDefaultDevice(name, { configPath });
 
     if (!result.success) {
-      out.result<DeviceDefaultOutput>(
-        { success: false, error: result.error },
-        () => out.error(`Failed to set default device: ${result.error}`)
+      out.result<DeviceDefaultOutput>({ success: false, error: result.error }, () =>
+        out.error(`Failed to set default device: ${result.error}`)
       );
       process.exitCode = 1;
       return;
     }
 
-    out.result<DeviceDefaultOutput>(
-      { success: true, device: name },
-      () => out.print(`Set "${name}" as the default device.`)
+    out.result<DeviceDefaultOutput>({ success: true, device: name }, () =>
+      out.print(`Set "${name}" as the default device.`)
     );
   });
 

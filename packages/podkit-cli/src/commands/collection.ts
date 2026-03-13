@@ -20,8 +20,8 @@
  */
 
 import { Command } from 'commander';
-import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { existsSync, statSync } from '../utils/fs.js';
 import * as readline from 'node:readline';
 import { getContext } from '../context.js';
 import {
@@ -244,7 +244,9 @@ const listSubcommand = new Command('list')
     if (type) {
       if (type !== 'music' && type !== 'video') {
         const error = `Invalid type '${type}'. Must be 'music' or 'video'.`;
-        out.result<CollectionListOutput>({ success: false, error }, () => out.error(`Error: ${error}`));
+        out.result<CollectionListOutput>({ success: false, error }, () =>
+          out.error(`Error: ${error}`)
+        );
         process.exitCode = 1;
         return;
       }
@@ -253,9 +255,8 @@ const listSubcommand = new Command('list')
 
     const collections = getCollections(filterType);
 
-    out.result<CollectionListOutput>(
-      { success: true, collections },
-      () => out.print(formatCollectionTable(collections))
+    out.result<CollectionListOutput>({ success: true, collections }, () =>
+      out.print(formatCollectionTable(collections))
     );
   });
 
@@ -275,7 +276,9 @@ const addSubcommand = new Command('add')
     // Validate type
     if (type !== 'music' && type !== 'video') {
       const error = `Invalid type '${type}'. Must be 'music' or 'video'.`;
-      out.result<CollectionModifyOutput>({ success: false, error }, () => out.error(`Error: ${error}`));
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
       process.exitCode = 1;
       return;
     }
@@ -283,24 +286,30 @@ const addSubcommand = new Command('add')
     // Validate name (no special characters)
     if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
       const error = `Invalid name '${name}'. Use only letters, numbers, underscores, and hyphens.`;
-      out.result<CollectionModifyOutput>({ success: false, error }, () => out.error(`Error: ${error}`));
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
       process.exitCode = 1;
       return;
     }
 
     // Resolve and validate path
     const resolvedPath = path.resolve(collectionPath);
-    if (!fs.existsSync(resolvedPath)) {
+    if (!existsSync(resolvedPath)) {
       const error = `Path does not exist: ${resolvedPath}`;
-      out.result<CollectionModifyOutput>({ success: false, error }, () => out.error(`Error: ${error}`));
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
       process.exitCode = 1;
       return;
     }
 
-    const stats = fs.statSync(resolvedPath);
+    const stats = statSync(resolvedPath);
     if (!stats.isDirectory()) {
       const error = `Path is not a directory: ${resolvedPath}`;
-      out.result<CollectionModifyOutput>({ success: false, error }, () => out.error(`Error: ${error}`));
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
       process.exitCode = 1;
       return;
     }
@@ -309,7 +318,9 @@ const addSubcommand = new Command('add')
     const existing = findCollection(name);
     if ((type === 'music' && existing.music) || (type === 'video' && existing.video)) {
       const error = `A ${type} collection named '${name}' already exists.`;
-      out.result<CollectionModifyOutput>({ success: false, error }, () => out.error(`Error: ${error}`));
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
       process.exitCode = 1;
       return;
     }
@@ -329,9 +340,8 @@ const addSubcommand = new Command('add')
     }
 
     if (!result.success) {
-      out.result<CollectionModifyOutput>(
-        { success: false, error: result.error },
-        () => out.error(`Error: ${result.error}`)
+      out.result<CollectionModifyOutput>({ success: false, error: result.error }, () =>
+        out.error(`Error: ${result.error}`)
       );
       process.exitCode = 1;
       return;
@@ -383,7 +393,9 @@ const removeSubcommand = new Command('remove')
 
     if (!foundInMusic && !foundInVideo) {
       const error = `Collection '${name}' not found.`;
-      out.result<CollectionModifyOutput>({ success: false, error }, () => out.error(`Error: ${error}`));
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
       process.exitCode = 1;
       return;
     }
@@ -449,7 +461,9 @@ const removeSubcommand = new Command('remove')
 
     if (errors.length > 0) {
       const error = errors.join('; ');
-      out.result<CollectionModifyOutput>({ success: false, error }, () => out.error(`Error: ${error}`));
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
       process.exitCode = 1;
       return;
     }
@@ -506,40 +520,39 @@ const infoSubcommand = new Command('info')
 
     if (collections.length === 0) {
       const error = `Collection '${name}' not found.`;
-      out.result<CollectionShowOutput>({ success: false, error }, () => out.error(`Error: ${error}`));
+      out.result<CollectionShowOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
       process.exitCode = 1;
       return;
     }
 
-    out.result<CollectionShowOutput>(
-      { success: true, collections },
-      () => {
-        for (const col of collections) {
-          out.print(`Collection: ${col.name} (${col.type})`);
+    out.result<CollectionShowOutput>({ success: true, collections }, () => {
+      for (const col of collections) {
+        out.print(`Collection: ${col.name} (${col.type})`);
+        out.newline();
+
+        if (col.subsonicUrl) {
+          out.print('  Type:      subsonic');
+          out.print(`  URL:       ${col.subsonicUrl}`);
+          if (col.subsonicUsername) {
+            out.print(`  Username:  ${col.subsonicUsername}`);
+          }
+          out.print(`  Path:      ${col.path}`);
+        } else {
+          out.print('  Type:      directory');
+          out.print(`  Path:      ${col.path}`);
+        }
+
+        if (col.isDefault) {
+          out.print(`  Default:   yes`);
+        }
+
+        if (collections.indexOf(col) < collections.length - 1) {
           out.newline();
-
-          if (col.subsonicUrl) {
-            out.print('  Type:      subsonic');
-            out.print(`  URL:       ${col.subsonicUrl}`);
-            if (col.subsonicUsername) {
-              out.print(`  Username:  ${col.subsonicUsername}`);
-            }
-            out.print(`  Path:      ${col.path}`);
-          } else {
-            out.print('  Type:      directory');
-            out.print(`  Path:      ${col.path}`);
-          }
-
-          if (col.isDefault) {
-            out.print(`  Default:   yes`);
-          }
-
-          if (collections.indexOf(col) < collections.length - 1) {
-            out.newline();
-          }
         }
       }
-    );
+    });
   });
 
 // =============================================================================
@@ -567,7 +580,13 @@ const musicSubcommand = new Command('music')
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
     const fields = parseFields(options.fields);
-    const mode = options.tracks ? 'tracks' : options.albums ? 'albums' : options.artists ? 'artists' : 'stats';
+    const mode = options.tracks
+      ? 'tracks'
+      : options.albums
+        ? 'albums'
+        : options.artists
+          ? 'artists'
+          : 'stats';
 
     const outputError = (error: string) => {
       if (format === 'json') {
@@ -589,7 +608,7 @@ const musicSubcommand = new Command('music')
     const isSubsonic = collectionConfig.type === 'subsonic';
 
     // Check if path exists (only for directory collections)
-    if (!isSubsonic && !fs.existsSync(collectionConfig.path)) {
+    if (!isSubsonic && !existsSync(collectionConfig.path)) {
       outputError(`Collection path does not exist: ${collectionConfig.path}`);
       return;
     }
@@ -700,7 +719,13 @@ const videoSubcommand = new Command('video')
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
     const fields = parseFields(options.fields);
-    const mode = options.tracks ? 'tracks' : options.albums ? 'albums' : options.artists ? 'artists' : 'stats';
+    const mode = options.tracks
+      ? 'tracks'
+      : options.albums
+        ? 'albums'
+        : options.artists
+          ? 'artists'
+          : 'stats';
 
     const outputError = (error: string) => {
       if (format === 'json') {
@@ -720,7 +745,7 @@ const videoSubcommand = new Command('video')
     const { collection } = resolved;
 
     // Check if path exists
-    if (!fs.existsSync(collection.path)) {
+    if (!existsSync(collection.path)) {
       outputError(`Collection path does not exist: ${collection.path}`);
       return;
     }
@@ -832,7 +857,9 @@ const defaultSubcommand = new Command('default')
     // Validate type
     if (type !== 'music' && type !== 'video') {
       const error = `Invalid type '${type}'. Must be 'music' or 'video'.`;
-      out.result<CollectionDefaultOutput>({ success: false, error }, () => out.error(`Error: ${error}`));
+      out.result<CollectionDefaultOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
       process.exitCode = 1;
       return;
     }
@@ -844,17 +871,15 @@ const defaultSubcommand = new Command('default')
       const result = setDefaultCollection(collType, '', { configPath });
 
       if (!result.success) {
-        out.result<CollectionDefaultOutput>(
-          { success: false, error: result.error },
-          () => out.error(`Error: ${result.error}`)
+        out.result<CollectionDefaultOutput>({ success: false, error: result.error }, () =>
+          out.error(`Error: ${result.error}`)
         );
         process.exitCode = 1;
         return;
       }
 
-      out.result<CollectionDefaultOutput>(
-        { success: true, type: collType, cleared: true },
-        () => out.print(`Cleared default ${type} collection.`)
+      out.result<CollectionDefaultOutput>({ success: true, type: collType, cleared: true }, () =>
+        out.print(`Cleared default ${type} collection.`)
       );
       return;
     }
@@ -894,17 +919,15 @@ const defaultSubcommand = new Command('default')
     const result = setDefaultCollection(collType, name, { configPath });
 
     if (!result.success) {
-      out.result<CollectionDefaultOutput>(
-        { success: false, error: result.error },
-        () => out.error(`Error: ${result.error}`)
+      out.result<CollectionDefaultOutput>({ success: false, error: result.error }, () =>
+        out.error(`Error: ${result.error}`)
       );
       process.exitCode = 1;
       return;
     }
 
-    out.result<CollectionDefaultOutput>(
-      { success: true, type: collType, name },
-      () => out.print(`Set '${name}' as the default ${type} collection.`)
+    out.result<CollectionDefaultOutput>({ success: true, type: collType, name }, () =>
+      out.print(`Set '${name}' as the default ${type} collection.`)
     );
   });
 
@@ -927,8 +950,7 @@ export const collectionCommand = new Command('collection')
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const collections = getCollections();
 
-    out.result<CollectionListOutput>(
-      { success: true, collections },
-      () => out.print(formatCollectionTable(collections))
+    out.result<CollectionListOutput>({ success: true, collections }, () =>
+      out.print(formatCollectionTable(collections))
     );
   });
