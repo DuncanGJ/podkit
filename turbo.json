@@ -38,7 +38,8 @@
     },
     "record": {
       "dependsOn": ["build"],
-      "cache": false
+      "inputs": ["src/**", "build.ts", "demo.tape", "run.sh", "package.json"],
+      "outputs": ["demo.gif"]
     },
     "clean": {
       "cache": false

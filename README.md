@@ -10,7 +10,7 @@ If you're rocking an old-school iPod on stock firmware and wondering why syncing
 
 > **Beta software** — podkit is in early development and things may break. Only use it with an iPod you're willing to wipe. If you're up for that, I'd love your help — [join as a beta tester](https://github.com/jvgomg/podkit/discussions/22) and help shape the project.
 
-<!-- TODO: Add terminal recording / GIF / screenshot of a sync in action here -->
+![podkit demo](packages/demo/demo.gif)
 
 ## Features
 
