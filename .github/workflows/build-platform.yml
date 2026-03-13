@@ -150,7 +150,7 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build packages
-        run: bun run build
+        run: turbo run build --filter=!@podkit/docs-site
 
       - name: Compile CLI binary
         run: bun run compile
