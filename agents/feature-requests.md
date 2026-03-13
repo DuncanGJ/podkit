@@ -155,6 +155,7 @@ Keep this table updated when creating or closing discussions.
 | 23 | Playlist sync | Library Sync | Later |
 | 24 | Star rating sync | Library Sync | Later |
 | 25 | Play count and scrobble sync | Library Sync | Later |
+| 32 | Sound Check (volume normalization) support | Library Sync | Later |
 
 ## Documentation
 
