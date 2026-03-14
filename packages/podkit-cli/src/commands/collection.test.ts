@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import { collectionCommand } from './collection.js';
+import { setContext, clearContext } from '../context.js';
 
 describe('collection command', () => {
   describe('command structure', () => {
@@ -115,6 +116,39 @@ describe('collection command', () => {
       const nameArg = videoCmd?.registeredArguments.find((arg) => arg.name() === 'name');
       expect(nameArg).toBeDefined();
       expect(nameArg?.required).toBe(false);
+    });
+  });
+
+  describe('--fields validation', () => {
+    let savedExitCode: typeof process.exitCode;
+
+    beforeEach(() => {
+      savedExitCode = process.exitCode;
+      process.exitCode = undefined;
+      const minimalConfig = { music: {}, video: {}, devices: {} } as any;
+      setContext({
+        config: minimalConfig,
+        globalOpts: { json: false, quiet: false, verbose: 0, color: false },
+        configResult: { config: minimalConfig, configPath: '/tmp/test.toml', configFileExists: true },
+      });
+    });
+
+    afterEach(() => {
+      process.exitCode = savedExitCode;
+      clearContext();
+    });
+
+    it('music subcommand errors when --fields used without --tracks', async () => {
+      const musicCmd = collectionCommand.commands.find((cmd) => cmd.name() === 'music')!;
+      // Parse with --fields but no --tracks (stats mode)
+      await musicCmd.parseAsync(['node', 'music', '--fields', 'title,artist']);
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('video subcommand errors when --fields used without --tracks', async () => {
+      const videoCmd = collectionCommand.commands.find((cmd) => cmd.name() === 'video')!;
+      await videoCmd.parseAsync(['node', 'video', '--fields', 'title,artist']);
+      expect(process.exitCode).toBe(1);
     });
   });
 });

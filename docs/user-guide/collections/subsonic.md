@@ -68,6 +68,14 @@ Keychain and secret manager integration is on the [roadmap](/roadmap/). Vote and
 | Gonic | Untested | Should work (same API) |
 | Subsonic | Untested | Should work (original API) |
 
+## Sound Check / ReplayGain
+
+Servers that implement the [OpenSubsonic](https://opensubsonic.netlify.app/) extensions (Navidrome, Gonic, LMS) expose ReplayGain data via the API. podkit reads this automatically and writes Sound Check values to the iPod database during sync — no extra configuration needed.
+
+Classic Subsonic and Airsonic servers do not expose ReplayGain data. Tracks synced from these servers will have no Sound Check adjustment.
+
+See [Sound Check](/user-guide/syncing/sound-check) for more details.
+
 ## Limitations
 
 - **No playlist sync** (yet) - only tracks are synced

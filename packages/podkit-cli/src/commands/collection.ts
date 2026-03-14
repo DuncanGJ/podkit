@@ -597,6 +597,11 @@ const musicSubcommand = new Command('music')
       process.exitCode = 1;
     };
 
+    if (options.fields && mode !== 'tracks') {
+      outputError('--fields can only be used with --tracks');
+      return;
+    }
+
     const resolved = resolveMusicCollectionArg(name);
     if ('error' in resolved) {
       outputError(resolved.error);
@@ -737,6 +742,11 @@ const videoSubcommand = new Command('video')
       }
       process.exitCode = 1;
     };
+
+    if (options.fields && mode !== 'tracks') {
+      outputError('--fields can only be used with --tracks');
+      return;
+    }
 
     const resolved = resolveVideoCollectionArg(name);
     if ('error' in resolved) {

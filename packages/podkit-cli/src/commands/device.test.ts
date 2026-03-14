@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { deviceCommand } from './device.js';
 import { addDevice, setDefaultDevice } from '../config/writer.js';
+import { setContext, clearContext } from '../context.js';
 
 describe('device command', () => {
   describe('command structure', () => {
@@ -81,7 +82,41 @@ describe('device command', () => {
       expect(initCmd).toBeDefined();
       expect(initCmd?.description()).toContain('initialize');
     });
+  });
 
+  describe('--fields validation', () => {
+    let savedExitCode: typeof process.exitCode;
+
+    beforeEach(() => {
+      savedExitCode = process.exitCode;
+      process.exitCode = undefined;
+      const minimalConfig = { music: {}, video: {}, devices: {} } as any;
+      setContext({
+        config: minimalConfig,
+        globalOpts: { json: false, quiet: false, verbose: 0, color: false },
+        configResult: { config: minimalConfig, configPath: '/tmp/test.toml', configFileExists: true },
+      });
+    });
+
+    afterEach(() => {
+      process.exitCode = savedExitCode;
+      clearContext();
+    });
+
+    it('music subcommand errors when --fields used without --tracks', async () => {
+      const musicCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'music')!;
+      await musicCmd.parseAsync(['node', 'music', '--fields', 'title,artist']);
+      expect(process.exitCode).toBe(1);
+    });
+
+    it('video subcommand errors when --fields used without --tracks', async () => {
+      const videoCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'video')!;
+      await videoCmd.parseAsync(['node', 'video', '--fields', 'title,artist']);
+      expect(process.exitCode).toBe(1);
+    });
+  });
+
+  describe('additional command structure', () => {
     it('add subcommand requires name argument', () => {
       const addCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'add');
       const nameArg = addCmd?.registeredArguments.find((arg) => arg.name() === 'name');

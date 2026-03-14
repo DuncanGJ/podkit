@@ -730,6 +730,26 @@ describe('computeStats', () => {
     expect(stats.compilationTracks).toBe(0);
     expect(stats.compilationAlbums).toBe(0);
   });
+
+  it('counts tracks with soundcheck data', () => {
+    const tracks = [
+      createTrack({ soundcheck: 1024 }),
+      createTrack({ soundcheck: 2048 }),
+      createTrack({ soundcheck: undefined }),
+      createTrack({ soundcheck: 0 }),
+    ];
+    const stats = computeStats(tracks);
+    expect(stats.soundCheckTracks).toBe(2);
+  });
+
+  it('returns zero soundCheckTracks when no tracks have soundcheck', () => {
+    const tracks = [
+      createTrack({ soundcheck: undefined }),
+      createTrack({ soundcheck: 0 }),
+    ];
+    const stats = computeStats(tracks);
+    expect(stats.soundCheckTracks).toBe(0);
+  });
 });
 
 // =============================================================================
@@ -744,6 +764,7 @@ describe('formatStatsText', () => {
       artists: 45,
       compilationAlbums: 0,
       compilationTracks: 0,
+      soundCheckTracks: 0,
       fileTypes: { FLAC: 892, MP3: 280 },
     };
     const result = formatStatsText(stats, 'Music on TERAPOD:');
@@ -765,6 +786,7 @@ describe('formatStatsText', () => {
       artists: 1,
       compilationAlbums: 0,
       compilationTracks: 0,
+      soundCheckTracks: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -779,6 +801,7 @@ describe('formatStatsText', () => {
       artists: 8,
       compilationAlbums: 3,
       compilationTracks: 25,
+      soundCheckTracks: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -793,11 +816,42 @@ describe('formatStatsText', () => {
       artists: 8,
       compilationAlbums: 0,
       compilationTracks: 0,
+      soundCheckTracks: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
 
     expect(result).not.toContain('Compilations');
+  });
+
+  it('includes Sound Check line when tracks have soundcheck data', () => {
+    const stats: ContentStats = {
+      tracks: 100,
+      albums: 10,
+      artists: 8,
+      compilationAlbums: 0,
+      compilationTracks: 0,
+      soundCheckTracks: 75,
+      fileTypes: {},
+    };
+    const result = formatStatsText(stats, 'Music:');
+
+    expect(result).toContain('Sound Check: 75/100 tracks');
+  });
+
+  it('omits Sound Check line when no tracks have soundcheck data', () => {
+    const stats: ContentStats = {
+      tracks: 100,
+      albums: 10,
+      artists: 8,
+      compilationAlbums: 0,
+      compilationTracks: 0,
+      soundCheckTracks: 0,
+      fileTypes: {},
+    };
+    const result = formatStatsText(stats, 'Music:');
+
+    expect(result).not.toContain('Sound Check');
   });
 });
 

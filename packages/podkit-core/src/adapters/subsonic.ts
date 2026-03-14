@@ -9,6 +9,7 @@ import SubsonicAPI from 'subsonic-api';
 import type { Child, AlbumWithSongsID3 } from 'subsonic-api';
 import type { CollectionAdapter, CollectionTrack, FileAccess } from './interface.js';
 import type { TrackFilter, AudioFileType } from '../types.js';
+import { replayGainToSoundcheck } from '../sync/soundcheck.js';
 
 /**
  * Configuration for SubsonicAdapter
@@ -279,7 +280,31 @@ export class SubsonicAdapter implements CollectionAdapter {
 
       // MusicBrainz IDs if available
       musicBrainzRecordingId: song.musicBrainzId,
+
+      // Sound Check (volume normalization) from ReplayGain data
+      // Prefer track gain over album gain
+      soundcheck: this.extractReplayGainSoundcheck(song.replayGain),
     };
+  }
+
+  /**
+   * Extract soundcheck value from Subsonic ReplayGain data.
+   *
+   * Prefers track gain over album gain. The ReplayGain type from subsonic-api
+   * marks fields as required numbers, but the OpenSubsonic spec treats them
+   * as optional — so we null-check carefully. A gain of 0 is valid (unity gain).
+   */
+  private extractReplayGainSoundcheck(
+    replayGain: Child['replayGain'],
+  ): number | undefined {
+    if (!replayGain) return undefined;
+
+    // Prefer track gain, fall back to album gain
+    const gainDb = replayGain.trackGain ?? replayGain.albumGain;
+
+    if (gainDb === undefined) return undefined;
+
+    return replayGainToSoundcheck(gainDb);
   }
 
   /**

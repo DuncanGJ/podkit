@@ -7,6 +7,8 @@
 import { describe, it, expect } from 'bun:test';
 import { SubsonicAdapter } from './subsonic.js';
 import type { SubsonicAdapterConfig } from './subsonic.js';
+import type { Child, AlbumWithSongsID3 } from 'subsonic-api';
+import { replayGainToSoundcheck } from '../sync/soundcheck.js';
 
 // We need to mock the subsonic-api module before importing SubsonicAdapter
 // Since bun:test doesn't have vi.mock, we'll test the adapter's behavior
@@ -169,5 +171,97 @@ describe('SubsonicAdapter error handling', () => {
     });
 
     await expect(adapter.connect()).rejects.toThrow(/Failed to connect/);
+  });
+});
+
+// =============================================================================
+// Sound Check / ReplayGain Tests
+// =============================================================================
+
+describe('SubsonicAdapter Sound Check (ReplayGain)', () => {
+  // Helper to call the private mapSongToTrack method
+  function mapSong(song: Partial<Child>, album?: Partial<AlbumWithSongsID3>) {
+    const adapter = createTestAdapter();
+    const fullSong: Child = {
+      id: 'song-1',
+      isDir: false,
+      title: 'Test Song',
+      artist: 'Test Artist',
+      album: 'Test Album',
+      ...song,
+    };
+    const fullAlbum: AlbumWithSongsID3 = {
+      id: 'album-1',
+      name: 'Test Album',
+      artist: 'Test Artist',
+      songCount: 1,
+      duration: 300,
+      created: new Date('2024-01-01T00:00:00Z'),
+      ...album,
+    };
+    // Access private method via bracket notation
+    return (adapter as any)['mapSongToTrack'](fullSong, fullAlbum);
+  }
+
+  it('prefers track gain over album gain', () => {
+    const track = mapSong({
+      replayGain: {
+        trackGain: -6.0,
+        albumGain: -3.0,
+        trackPeak: 1.0,
+        albumPeak: 1.0,
+        baseGain: 0,
+        fallbackGain: 0,
+      },
+    });
+
+    // Track gain of -6.0 dB should be used, not album gain
+    expect(track.soundcheck).toBe(replayGainToSoundcheck(-6.0));
+  });
+
+  it('falls back to album gain when track gain is missing', () => {
+    const track = mapSong({
+      replayGain: {
+        albumGain: -3.0,
+        trackPeak: 1.0,
+        albumPeak: 1.0,
+        baseGain: 0,
+      } as any, // trackGain missing (OpenSubsonic spec says optional)
+    });
+
+    expect(track.soundcheck).toBe(replayGainToSoundcheck(-3.0));
+  });
+
+  it('soundcheck is undefined when no ReplayGain data present', () => {
+    const track = mapSong({});
+
+    expect(track.soundcheck).toBeUndefined();
+  });
+
+  it('soundcheck is undefined when replayGain object exists but has no gain values', () => {
+    const track = mapSong({
+      replayGain: {
+        trackPeak: 1.0,
+        albumPeak: 1.0,
+        baseGain: 0,
+      } as any, // No trackGain or albumGain
+    });
+
+    expect(track.soundcheck).toBeUndefined();
+  });
+
+  it('a gain of 0 dB correctly produces soundcheck of 1000', () => {
+    const track = mapSong({
+      replayGain: {
+        trackGain: 0,
+        albumGain: -3.0,
+        trackPeak: 1.0,
+        albumPeak: 1.0,
+        baseGain: 0,
+        fallbackGain: 0,
+      },
+    });
+
+    expect(track.soundcheck).toBe(1000);
   });
 });

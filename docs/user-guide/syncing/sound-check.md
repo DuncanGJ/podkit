@@ -9,6 +9,8 @@ Sound Check is the iPod's built-in volume normalization feature. It adjusts play
 
 podkit reads existing normalization data from your source files and writes the appropriate Sound Check value to the iPod database during sync. No analysis or scanning step is required — if your files already have normalization tags, podkit will use them automatically.
 
+This works with both directory and Subsonic collections. Navidrome and other [OpenSubsonic](https://opensubsonic.netlify.app/)-compatible servers expose ReplayGain data via the API, so podkit can extract Sound Check values without needing direct file access.
+
 ## How It Works
 
 ### Source Detection
@@ -91,28 +93,32 @@ Estimates:
 
 ## Viewing Sound Check Values
 
-Both `podkit device music` and `podkit collection music` support displaying Sound Check values.
+### Summary stats
 
-### On the iPod
+By default, `podkit device music` and `podkit collection music` show a stats summary. When any tracks have Sound Check data, the summary includes a coverage line:
 
-Use the `--fields` option with `podkit device music` to see Sound Check values stored on the iPod:
+```
+Music on TERAPOD:
+
+  Tracks:  650
+  Albums:  42
+  Artists: 28
+  Sound Check: 620/650 tracks
+```
+
+### Per-track values
+
+Use `--tracks --fields` to see individual Sound Check values:
 
 ```bash
-podkit device music --fields title,artist,soundcheck
+podkit device music --tracks --fields title,artist,soundcheck
+podkit collection music --tracks --fields title,artist,soundcheck
 ```
 
 Or in JSON format:
 
 ```bash
-podkit device music --format json
+podkit device music --tracks --format json
 ```
 
-### In your collection
-
-Use `podkit collection music` to see Sound Check values detected from your source files before syncing:
-
-```bash
-podkit collection music --fields title,artist,soundcheck
-```
-
-This is useful for verifying which tracks in your collection have normalization data. Tracks without ReplayGain or iTunNORM tags will show an empty soundcheck field.
+Tracks without ReplayGain or iTunNORM tags will show an empty soundcheck field.

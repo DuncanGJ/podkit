@@ -351,6 +351,7 @@ export interface ContentStats {
   artists: number;
   compilationAlbums: number;
   compilationTracks: number;
+  soundCheckTracks: number;
   fileTypes: Record<string, number>;
 }
 
@@ -363,6 +364,7 @@ export function computeStats(tracks: DisplayTrack[]): ContentStats {
   const fileTypes: Record<string, number> = {};
   const compilationAlbumSet = new Set<string>();
   let compilationTracks = 0;
+  let soundCheckTracks = 0;
 
   for (const track of tracks) {
     const album = track.album || 'Unknown Album';
@@ -373,6 +375,10 @@ export function computeStats(tracks: DisplayTrack[]): ContentStats {
     if (track.compilation === true) {
       compilationTracks++;
       compilationAlbumSet.add(album);
+    }
+
+    if (track.soundcheck !== undefined && track.soundcheck > 0) {
+      soundCheckTracks++;
     }
 
     if (track.format) {
@@ -386,6 +392,7 @@ export function computeStats(tracks: DisplayTrack[]): ContentStats {
     artists: artists.size,
     compilationAlbums: compilationAlbumSet.size,
     compilationTracks,
+    soundCheckTracks,
     fileTypes,
   };
 }
@@ -410,6 +417,12 @@ export function formatStatsText(stats: ContentStats, heading: string): string {
     const compAlbums = formatNumber(stats.compilationAlbums);
     const compTracks = formatNumber(stats.compilationTracks);
     lines.push(`  Compilations: ${compAlbums} albums (${compTracks} tracks)`);
+  }
+
+  if (stats.soundCheckTracks > 0) {
+    const scTracks = formatNumber(stats.soundCheckTracks);
+    const totalTracks = formatNumber(stats.tracks);
+    lines.push(`  Sound Check: ${scTracks}/${totalTracks} tracks`);
   }
 
   const typeEntries = Object.entries(stats.fileTypes).sort((a, b) => b[1] - a[1]);
