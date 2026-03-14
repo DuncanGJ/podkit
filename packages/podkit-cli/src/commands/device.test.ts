@@ -85,10 +85,10 @@ describe('device command', () => {
   });
 
   describe('--fields validation', () => {
-    let savedExitCode: typeof process.exitCode;
+    let _savedExitCode: typeof process.exitCode;
 
     beforeEach(() => {
-      savedExitCode = process.exitCode;
+      _savedExitCode = process.exitCode;
       process.exitCode = undefined;
       const minimalConfig = { music: {}, video: {}, devices: {} } as any;
       setContext({
