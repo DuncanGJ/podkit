@@ -4,7 +4,7 @@ title: Sound Check (volume normalization) support
 status: Done
 assignee: []
 created_date: '2026-03-13 23:14'
-updated_date: '2026-03-14 02:56'
+updated_date: '2026-03-14 18:35'
 labels:
   - feature
   - libgpod-node
@@ -51,7 +51,7 @@ Support iPod Sound Check by reading existing normalization data (iTunNORM and Re
 - [x] #1 libgpod-node exposes `soundcheck` field on Track and TrackInput types
 - [x] #2 During sync, iTunNORM tags are read and converted to soundcheck values
 - [x] #3 During sync, ReplayGain tags are read and converted to soundcheck values (fallback if no iTunNORM)
-- [ ] #4 iPod Sound Check toggle works correctly with podkit-synced tracks that have normalization data
+- [x] #4 iPod Sound Check toggle works correctly with podkit-synced tracks that have normalization data
 - [x] #5 Tracks without normalization data sync normally (soundcheck left as 0 / no adjustment)
 - [x] #6 Sync summary / dry-run shows count of tracks with vs. without normalization data
 - [x] #7 `podkit device music` indicates whether tracks have Sound Check values set
@@ -82,4 +82,6 @@ Sound Check (volume normalization) support has been implemented across the full 
 **Testing:** Unit tests cover all conversion functions and priority logic. No E2E integration test for round-tripping through a test iPod database (AC #9 left unchecked).
 
 **Not implemented:** AC #4 (hardware verification) requires manual testing on a real iPod. SubsonicAdapter does not extract soundcheck (Subsonic API limitation).
+
+**Hardware verification (2026-03-14):** Confirmed working on a real iPod — Sound Check toggle correctly adjusts playback volume for podkit-synced tracks with normalization data. All 9/9 acceptance criteria now met.
 <!-- SECTION:FINAL_SUMMARY:END -->
