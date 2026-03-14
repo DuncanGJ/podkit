@@ -1,10 +1,10 @@
 ---
 id: TASK-064
 title: Design self-healing sync for changed/upgraded source files
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-02-26 14:38'
-updated_date: '2026-03-14 02:42'
+updated_date: '2026-03-14 13:55'
 labels:
   - design
   - sync
@@ -96,11 +96,11 @@ Design document / ADR covering:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Change detection strategy decided
-- [ ] #2 Meaningful change criteria defined
-- [ ] #3 Update vs replace approach chosen
-- [ ] #4 CLI/config options designed
-- [ ] #5 ADR documenting the approach
+- [x] #1 Change detection strategy decided
+- [x] #2 Meaningful change criteria defined
+- [x] #3 Update vs replace approach chosen
+- [x] #4 CLI/config options designed
+- [x] #5 ADR documenting the approach
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -111,4 +111,16 @@ Design document / ADR covering:
 With TASK-133 (Sound Check support), tracks now carry a `soundcheck` value extracted from ReplayGain/iTunNORM tags. If a user adds normalization data to files that are already synced (e.g., runs `loudgain` on their collection), the soundcheck value won't be updated on the iPod because the diff engine only matches on core metadata (title/artist/album). The track would need to be removed and re-added.
 
 This is a candidate for the "meaningful change" criteria — a soundcheck value appearing (or changing) on a source track that's already synced could trigger an in-place metadata update without replacing the audio file, since soundcheck is just a database field, not part of the audio data.
+
+### Resolution
+
+Design completed in ADR-009 (`adr/adr-009-self-healing-sync.md`). Key decisions:
+
+- **Change detection:** Metadata comparison (no file hashing, no mtime)
+- **Meaningful changes:** Format upgrade, quality upgrade, artwork added, soundcheck update, metadata correction
+- **In-place upgrade:** Preserve database entry (keeps play counts, ratings, playlists), swap the file underneath
+- **Defaults:** Upgrades on by default; `--skip-upgrades` / `skipUpgrades` config as escape hatch
+- **Config pattern:** `skipUpgrades` follows the standard resolution order (CLI → device → global → default)
+
+Implementation work tracked in child tasks.
 <!-- SECTION:NOTES:END -->

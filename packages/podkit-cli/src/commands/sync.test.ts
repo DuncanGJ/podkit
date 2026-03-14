@@ -22,6 +22,23 @@ describe('sync command', () => {
       const deleteOption = options.find((opt) => opt.long === '--delete');
       expect(deleteOption).toBeDefined();
     });
+
+    it('has --skip-upgrades option', () => {
+      const options = syncCommand.options;
+      const skipUpgradesOption = options.find((opt) => opt.long === '--skip-upgrades');
+      expect(skipUpgradesOption).toBeDefined();
+      expect(skipUpgradesOption?.description).toContain('upgrade');
+    });
+
+    it('--skip-upgrades is parsed as boolean flag with attributeName skipUpgrades', () => {
+      const options = syncCommand.options;
+      const skipUpgradesOption = options.find((opt) => opt.long === '--skip-upgrades');
+      // commander converts --skip-upgrades to skipUpgrades for options object access
+      expect(skipUpgradesOption?.attributeName()).toBe('skipUpgrades');
+      // boolean flag: no argument expected
+      expect(skipUpgradesOption?.required).toBe(false);
+      expect(skipUpgradesOption?.optional).toBe(false);
+    });
   });
 });
 

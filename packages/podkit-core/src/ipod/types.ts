@@ -146,10 +146,20 @@ export interface TrackFields {
   totalDiscs?: number;
   /** Release year */
   year?: number;
+  /** Duration in milliseconds */
+  duration?: number;
+  /** Bitrate in kbps */
+  bitrate?: number;
+  /** Sample rate in Hz */
+  sampleRate?: number;
+  /** File size in bytes */
+  size?: number;
   /** Beats per minute */
   bpm?: number;
   /** Sound Check volume normalization value */
   soundcheck?: number;
+  /** File type description (e.g., "MPEG audio file", "AAC audio file") */
+  filetype?: string;
   /** Media type flags */
   mediaType?: number;
   /** Whether the track is part of a compilation */

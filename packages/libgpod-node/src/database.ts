@@ -618,6 +618,54 @@ export class Database {
   }
 
   /**
+   * Replace the audio file for an existing track on the iPod.
+   *
+   * This overwrites the track's file in-place while preserving all database
+   * metadata (play counts, ratings, playlist membership, etc.). The track
+   * keeps the same `ipodPath` and database entry.
+   *
+   * Use this for "self-healing sync" scenarios where a track's audio needs
+   * to be upgraded (e.g., MP3 to AAC transcoding) without losing user data.
+   *
+   * The track must already have a file on the iPod (i.e., `copyTrackToDevice()`
+   * must have been called previously). For new tracks, use `copyTrackToDevice()`.
+   *
+   * After replacing, the track's `size` field is automatically updated to
+   * match the new file. Other metadata (bitrate, duration, filetype, etc.)
+   * should be updated separately via `updateTrack()` if they have changed.
+   *
+   * @param handle Handle of the track whose file should be replaced
+   * @param newFilePath Path to the new audio file
+   * @returns The updated track metadata
+   * @throws LibgpodError if the track has no file on the iPod, or if copying fails
+   *
+   * @example
+   * ```typescript
+   * // Upgrade a track's file from MP3 to AAC
+   * db.updateTrack(handle, {
+   *   filetype: 'AAC audio file',
+   *   bitrate: 256,
+   * });
+   * const track = db.replaceTrackFile(handle, '/path/to/upgraded.m4a');
+   * console.log(track.ipodPath); // Same path as before
+   * console.log(track.size);     // Updated to new file's size
+   * await db.save();
+   * ```
+   */
+  replaceTrackFile(handle: TrackHandle, newFilePath: string): Track {
+    const native = this.ensureOpen();
+    try {
+      return native.replaceTrackFile(handle.index, newFilePath);
+    } catch (error) {
+      throw new LibgpodError(
+        error instanceof Error ? error.message : String(error),
+        LibgpodErrorCode.Unknown,
+        'replaceTrackFile'
+      );
+    }
+  }
+
+  /**
    * Remove a track from the database.
    *
    * Note: This does not delete the file from the iPod.

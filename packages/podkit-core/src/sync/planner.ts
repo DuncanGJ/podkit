@@ -45,10 +45,12 @@ import type {
   SyncWarning,
   TranscodePresetRef,
   UpdateTrack,
+  UpgradeReason,
 } from './types.js';
 import type { TrackMetadata } from '../types.js';
 import { estimateTransferTime } from './estimation.js';
 import { calculateVideoOperationSize, calculateVideoOperationTime } from './video-planner.js';
+import { isFileReplacementUpgrade } from './upgrades.js';
 
 // =============================================================================
 // Constants
@@ -326,6 +328,24 @@ function changesToMetadata(changes: MetadataChange[]): Partial<TrackMetadata> {
       case 'albumArtist':
         metadata.albumArtist = change.to;
         break;
+      case 'genre':
+        metadata.genre = change.to;
+        break;
+      case 'year':
+        metadata.year = change.to ? Number(change.to) : undefined;
+        break;
+      case 'trackNumber':
+        metadata.trackNumber = change.to ? Number(change.to) : undefined;
+        break;
+      case 'discNumber':
+        metadata.discNumber = change.to ? Number(change.to) : undefined;
+        break;
+      case 'compilation':
+        metadata.compilation = change.to === 'true';
+        break;
+      case 'soundcheck':
+        metadata.soundcheck = change.to ? Number(change.to) : undefined;
+        break;
     }
   }
 
@@ -412,13 +432,81 @@ function planRemoveOperations(tracks: IPodTrack[], removeOrphans: boolean): Sync
 }
 
 /**
- * Plan operations for tracks that need metadata updates
- *
- * These are tracks that already exist on the iPod but need metadata changes,
- * typically due to transform configuration changes (enable/disable ftintitle).
+ * Result of planning update/upgrade operations
  */
-function planUpdateOperations(tracks: UpdateTrack[]): SyncOperation[] {
-  return tracks.map((track) => createUpdateMetadataOperation(track));
+interface PlanUpdateResult {
+  operations: SyncOperation[];
+  lossyToLossyTracks: CollectionTrack[];
+}
+
+/**
+ * Plan operations for tracks that need metadata updates or file upgrades
+ *
+ * Routes update tracks based on their reason:
+ * - File-replacement upgrades (format-upgrade, quality-upgrade, artwork-added)
+ *   create `upgrade` operations with transcode/copy preset decisions
+ * - Metadata-only updates (soundcheck-update, metadata-correction, transform-apply/remove)
+ *   create `update-metadata` operations
+ *
+ * When a track has multiple upgrade reasons (e.g., format-upgrade + soundcheck-update),
+ * the highest-priority file-replacement reason is used for the upgrade operation.
+ * Metadata updates are handled as part of the upgrade transfer.
+ */
+function planUpdateOperations(tracks: UpdateTrack[], config: TranscodeConfig): PlanUpdateResult {
+  const operations: SyncOperation[] = [];
+  const lossyToLossyTracks: CollectionTrack[] = [];
+
+  for (const updateTrack of tracks) {
+    const { reason } = updateTrack;
+
+    // Check if this is a file-replacement upgrade
+    if (isFileReplacementUpgrade(reason)) {
+      const category = categorizeSource(updateTrack.source);
+      const effectivePreset = resolveEffectivePreset(config, category);
+
+      // Track lossy-to-lossy conversions for warnings
+      if (willWarnLossyToLossy(category)) {
+        lossyToLossyTracks.push(updateTrack.source);
+      }
+
+      // Determine if upgrade needs a transcode preset
+      let preset: TranscodePresetRef | undefined;
+
+      switch (category) {
+        case 'lossless':
+          if (effectivePreset === 'lossless') {
+            // ALAC source can be copied directly
+            if (updateTrack.source.codec?.toLowerCase() === 'alac') {
+              preset = undefined; // copy
+            } else {
+              preset = { name: effectivePreset };
+            }
+          } else {
+            preset = { name: effectivePreset };
+          }
+          break;
+        case 'compatible-lossy':
+          preset = undefined; // copy
+          break;
+        case 'incompatible-lossy':
+          preset = { name: effectivePreset };
+          break;
+      }
+
+      operations.push({
+        type: 'upgrade',
+        source: updateTrack.source,
+        target: updateTrack.ipod,
+        reason: reason as UpgradeReason,
+        ...(preset !== undefined && { preset }),
+      });
+    } else {
+      // Metadata-only update (transforms, soundcheck, metadata-correction)
+      operations.push(createUpdateMetadataOperation(updateTrack));
+    }
+  }
+
+  return { operations, lossyToLossyTracks };
 }
 
 /**
@@ -432,6 +520,15 @@ export function calculateOperationSize(operation: SyncOperation): number {
       return estimateTranscodedSize(duration, bitrate);
     }
     case 'copy': {
+      return estimateCopySize(operation.source);
+    }
+    case 'upgrade': {
+      // Upgrades replace a file, so estimate based on preset (transcode) or source (copy)
+      if (operation.preset) {
+        const duration = operation.source.duration ?? 240000;
+        const bitrate = getPresetBitrate(operation.preset.name);
+        return estimateTranscodedSize(duration, bitrate);
+      }
       return estimateCopySize(operation.source);
     }
     case 'remove':
@@ -462,6 +559,11 @@ function calculateOperationTime(operation: SyncOperation): number {
       const size = calculateOperationSize(operation);
       return estimateTransferTime(size);
     }
+    case 'upgrade': {
+      // Upgrade time is similar to transcode/copy — based on transfer size
+      const size = calculateOperationSize(operation);
+      return estimateTransferTime(size);
+    }
     case 'remove':
       // Removal is nearly instant (database update)
       return 0.1;
@@ -479,14 +581,17 @@ function calculateOperationTime(operation: SyncOperation): number {
  * Order operations for efficient execution
  *
  * Strategy:
- * 1. Remove operations first (free up space)
- * 2. Copy operations next (faster, no CPU intensive)
- * 3. Transcode operations last (CPU intensive, can parallelize)
+ * 1. Remove operations first (free up space before adding)
+ * 2. Copy operations next (fast, not CPU intensive)
+ * 3. Upgrade operations next (replace existing files — similar cost to copy/transcode)
+ * 4. Transcode operations next (CPU intensive, benefits from pipeline parallelism)
+ * 5. Update-metadata operations last (in-database only, instant)
  */
 function orderOperations(operations: SyncOperation[]): SyncOperation[] {
   const removes: SyncOperation[] = [];
   const copies: SyncOperation[] = [];
   const transcodes: SyncOperation[] = [];
+  const upgrades: SyncOperation[] = [];
   const updates: SyncOperation[] = [];
 
   for (const op of operations) {
@@ -500,13 +605,17 @@ function orderOperations(operations: SyncOperation[]): SyncOperation[] {
       case 'transcode':
         transcodes.push(op);
         break;
+      case 'upgrade':
+        upgrades.push(op);
+        break;
       case 'update-metadata':
         updates.push(op);
         break;
     }
   }
 
-  return [...removes, ...copies, ...transcodes, ...updates];
+  // Upgrades run after removes (free space) and before adds (similar transfer work)
+  return [...removes, ...copies, ...upgrades, ...transcodes, ...updates];
 }
 
 // =============================================================================
@@ -544,11 +653,11 @@ export function createPlan(diff: SyncDiff, options: PlanOptions = {}): SyncPlan 
   // Plan remove operations (if enabled)
   const removeOperations = planRemoveOperations(diff.toRemove, removeOrphans);
 
-  // Plan update operations for metadata changes (e.g., transforms)
-  const updateOperations = planUpdateOperations(diff.toUpdate);
+  // Plan update/upgrade operations for metadata changes and file replacements
+  const updateResult = planUpdateOperations(diff.toUpdate, config);
 
   // Combine and order operations
-  const allOperations = [...addResult.operations, ...removeOperations, ...updateOperations];
+  const allOperations = [...addResult.operations, ...removeOperations, ...updateResult.operations];
   const orderedOperations = orderOperations(allOperations);
 
   // Calculate totals
@@ -560,14 +669,18 @@ export function createPlan(diff: SyncDiff, options: PlanOptions = {}): SyncPlan 
     estimatedTime += calculateOperationTime(op);
   }
 
-  // Build warnings
+  // Build warnings — combine lossy-to-lossy tracks from adds and upgrades
   const warnings: SyncWarning[] = [];
+  const allLossyToLossyTracks = [
+    ...addResult.lossyToLossyTracks,
+    ...updateResult.lossyToLossyTracks,
+  ];
 
-  if (addResult.lossyToLossyTracks.length > 0) {
+  if (allLossyToLossyTracks.length > 0) {
     warnings.push({
       type: 'lossy-to-lossy',
-      message: `${addResult.lossyToLossyTracks.length} track${addResult.lossyToLossyTracks.length === 1 ? '' : 's'} require lossy-to-lossy conversion (OGG, Opus). This is unavoidable but results in quality loss.`,
-      tracks: addResult.lossyToLossyTracks,
+      message: `${allLossyToLossyTracks.length} track${allLossyToLossyTracks.length === 1 ? '' : 's'} require lossy-to-lossy conversion (OGG, Opus). This is unavoidable but results in quality loss.`,
+      tracks: allLossyToLossyTracks,
     });
   }
 
@@ -598,11 +711,13 @@ export function getPlanSummary(plan: SyncPlan): {
   copyCount: number;
   removeCount: number;
   updateCount: number;
+  upgradeCount: number;
 } {
   let transcodeCount = 0;
   let copyCount = 0;
   let removeCount = 0;
   let updateCount = 0;
+  let upgradeCount = 0;
 
   for (const op of plan.operations) {
     switch (op.type) {
@@ -618,10 +733,13 @@ export function getPlanSummary(plan: SyncPlan): {
       case 'update-metadata':
         updateCount++;
         break;
+      case 'upgrade':
+        upgradeCount++;
+        break;
     }
   }
 
-  return { transcodeCount, copyCount, removeCount, updateCount };
+  return { transcodeCount, copyCount, removeCount, updateCount, upgradeCount };
 }
 
 // =============================================================================

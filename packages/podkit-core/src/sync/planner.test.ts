@@ -135,7 +135,6 @@ function createEmptyDiff(): SyncDiff {
     toAdd: [],
     toRemove: [],
     existing: [],
-    conflicts: [],
     toUpdate: [],
   };
 }
@@ -1048,23 +1047,11 @@ describe('createPlan - empty scenarios', () => {
     expect(plan.operations).toHaveLength(0);
   });
 
-  it('handles diff with only conflicts', () => {
-    const diff: SyncDiff = {
-      ...createEmptyDiff(),
-      conflicts: [
-        {
-          collection: createCollectionTrack('Artist', 'Song', 'Album', 'mp3', {
-            genre: 'Rock',
-          }),
-          ipod: createIPodTrack('Artist', 'Song', 'Album', { genre: 'Pop' }),
-          conflicts: ['genre'],
-        },
-      ],
-    };
+  it('handles diff with nothing to do', () => {
+    const diff: SyncDiff = createEmptyDiff();
 
     const plan = createPlan(diff);
 
-    // Conflicts are not automatically handled - they need explicit resolution
     expect(plan.operations).toHaveLength(0);
   });
 });
@@ -1867,5 +1854,324 @@ describe('createPlan - update operations', () => {
 
     expect(summary.copyCount).toBe(1);
     expect(summary.updateCount).toBe(1);
+  });
+});
+
+// =============================================================================
+// Upgrade Operations Tests (Self-Healing Sync)
+// =============================================================================
+
+describe('createPlan - upgrade operations', () => {
+  it('creates upgrade operation for format-upgrade reason (lossless source)', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            duration: 200000,
+            lossless: true,
+          }),
+          ipod: createIPodTrack('Artist', 'Song', 'Album', {
+            filetype: 'MPEG audio file',
+            bitrate: 192,
+          }),
+          reason: 'format-upgrade',
+          changes: [
+            { field: 'fileType', from: 'mp3', to: 'flac' },
+            { field: 'lossless', from: 'false', to: 'true' },
+          ],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff, { transcodeConfig: { quality: 'high' } });
+
+    expect(plan.operations).toHaveLength(1);
+    const op = plan.operations[0]!;
+    expect(op.type).toBe('upgrade');
+    if (op.type === 'upgrade') {
+      expect(op.reason).toBe('format-upgrade');
+      expect(op.source.artist).toBe('Artist');
+      expect(op.target.artist).toBe('Artist');
+      // FLAC source needs transcoding to AAC
+      expect(op.preset).toBeDefined();
+      expect(op.preset!.name).toBe('high');
+    }
+  });
+
+  it('creates upgrade operation for format-upgrade with ALAC preset', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+          }),
+          ipod: createIPodTrack('Artist', 'Song', 'Album', {
+            filetype: 'MPEG audio file',
+          }),
+          reason: 'format-upgrade',
+          changes: [{ field: 'fileType', from: 'mp3', to: 'flac' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff, { transcodeConfig: { quality: 'lossless' } });
+
+    const op = plan.operations[0]!;
+    expect(op.type).toBe('upgrade');
+    if (op.type === 'upgrade') {
+      // FLAC to ALAC needs transcoding
+      expect(op.preset).toBeDefined();
+      expect(op.preset!.name).toBe('lossless');
+    }
+  });
+
+  it('creates upgrade operation without preset for compatible lossy source', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'mp3', {
+            bitrate: 320,
+          }),
+          ipod: createIPodTrack('Artist', 'Song', 'Album', {
+            filetype: 'MPEG audio file',
+            bitrate: 128,
+          }),
+          reason: 'quality-upgrade',
+          changes: [{ field: 'bitrate', from: '128', to: '320' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+
+    const op = plan.operations[0]!;
+    expect(op.type).toBe('upgrade');
+    if (op.type === 'upgrade') {
+      expect(op.reason).toBe('quality-upgrade');
+      // MP3 source can be copied directly — no preset
+      expect(op.preset).toBeUndefined();
+    }
+  });
+
+  it('creates upgrade operation for artwork-added reason', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'm4a'),
+          ipod: createIPodTrack('Artist', 'Song', 'Album', {
+            hasArtwork: false,
+          }),
+          reason: 'artwork-added',
+          changes: [],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+
+    const op = plan.operations[0]!;
+    expect(op.type).toBe('upgrade');
+    if (op.type === 'upgrade') {
+      expect(op.reason).toBe('artwork-added');
+    }
+  });
+
+  it('creates update-metadata operation for soundcheck-update reason', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'mp3', {
+            soundcheck: 1234,
+          }),
+          ipod: createIPodTrack('Artist', 'Song', 'Album'),
+          reason: 'soundcheck-update',
+          changes: [{ field: 'soundcheck', from: '', to: '1234' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+
+    expect(plan.operations).toHaveLength(1);
+    expect(plan.operations[0]!.type).toBe('update-metadata');
+  });
+
+  it('creates update-metadata operation for metadata-correction reason', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'mp3', {
+            genre: 'Rock',
+            year: 2024,
+          }),
+          ipod: createIPodTrack('Artist', 'Song', 'Album', {
+            genre: 'Pop',
+            year: 2020,
+          }),
+          reason: 'metadata-correction',
+          changes: [
+            { field: 'genre', from: 'Pop', to: 'Rock' },
+            { field: 'year', from: '2020', to: '2024' },
+          ],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+
+    expect(plan.operations).toHaveLength(1);
+    expect(plan.operations[0]!.type).toBe('update-metadata');
+  });
+
+  it('includes upgrade operations in size estimates', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            duration: 240000,
+            lossless: true,
+          }),
+          ipod: createIPodTrack('Artist', 'Song', 'Album', {
+            filetype: 'MPEG audio file',
+          }),
+          reason: 'format-upgrade',
+          changes: [{ field: 'fileType', from: 'mp3', to: 'flac' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff, { transcodeConfig: { quality: 'high' } });
+
+    expect(plan.estimatedSize).toBeGreaterThan(0);
+    expect(plan.estimatedTime).toBeGreaterThan(0);
+  });
+
+  it('includes upgrade operations in getPlanSummary', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toAdd: [createCollectionTrack('Artist', 'New', 'Album', 'mp3')],
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Upgrade', 'Album', 'flac', {
+            lossless: true,
+          }),
+          ipod: createIPodTrack('Artist', 'Upgrade', 'Album', {
+            filetype: 'MPEG audio file',
+          }),
+          reason: 'format-upgrade',
+          changes: [{ field: 'fileType', from: 'mp3', to: 'flac' }],
+        },
+        {
+          source: createCollectionTrack('Artist', 'Update', 'Album', 'mp3', {
+            soundcheck: 1234,
+          }),
+          ipod: createIPodTrack('Artist', 'Update', 'Album'),
+          reason: 'soundcheck-update',
+          changes: [{ field: 'soundcheck', from: '', to: '1234' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+    const summary = getPlanSummary(plan);
+
+    expect(summary.upgradeCount).toBe(1);
+    expect(summary.updateCount).toBe(1);
+    expect(summary.copyCount).toBe(1); // the add operation
+  });
+
+  it('orders upgrade operations after removes and copies, before transcodes and updates', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toAdd: [createCollectionTrack('Artist', 'New', 'Album', 'flac')],
+      toRemove: [createIPodTrack('Artist', 'Old', 'Album')],
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Upgrade', 'Album', 'mp3', {
+            bitrate: 320,
+          }),
+          ipod: createIPodTrack('Artist', 'Upgrade', 'Album', {
+            filetype: 'MPEG audio file',
+            bitrate: 128,
+          }),
+          reason: 'quality-upgrade',
+          changes: [{ field: 'bitrate', from: '128', to: '320' }],
+        },
+        {
+          source: createCollectionTrack('Artist', 'MetaUpdate', 'Album', 'mp3'),
+          ipod: createIPodTrack('Artist', 'MetaUpdate', 'Album'),
+          reason: 'soundcheck-update',
+          changes: [{ field: 'soundcheck', from: '', to: '1234' }],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff, { removeOrphans: true });
+    const types = plan.operations.map((op) => op.type);
+
+    // Order: remove, upgrade (copy-like), transcode, update-metadata
+    expect(types.indexOf('remove')).toBeLessThan(types.indexOf('upgrade'));
+    expect(types.indexOf('upgrade')).toBeLessThan(types.indexOf('transcode'));
+    expect(types.indexOf('transcode')).toBeLessThan(types.indexOf('update-metadata'));
+  });
+
+  it('generates lossy-to-lossy warning for OGG upgrade source', () => {
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'ogg'),
+          ipod: createIPodTrack('Artist', 'Song', 'Album', {
+            filetype: 'MPEG audio file',
+          }),
+          reason: 'format-upgrade',
+          changes: [],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+
+    expect(plan.warnings).toHaveLength(1);
+    expect(plan.warnings[0]!.type).toBe('lossy-to-lossy');
+  });
+
+  it('preserves target iPod track reference in upgrade operation', () => {
+    const ipodTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:UPGRADE.m4a',
+      playCount: 42,
+      rating: 80,
+    });
+
+    const diff: SyncDiff = {
+      ...createEmptyDiff(),
+      toUpdate: [
+        {
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+          }),
+          ipod: ipodTrack,
+          reason: 'format-upgrade',
+          changes: [],
+        },
+      ],
+    };
+
+    const plan = createPlan(diff);
+    const op = plan.operations[0]!;
+
+    expect(op.type).toBe('upgrade');
+    if (op.type === 'upgrade') {
+      expect(op.target.filePath).toBe(':iPod_Control:Music:F00:UPGRADE.m4a');
+      expect(op.target.playCount).toBe(42);
+      expect(op.target.rating).toBe(80);
+    }
   });
 });

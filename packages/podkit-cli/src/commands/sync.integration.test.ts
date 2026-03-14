@@ -65,7 +65,6 @@ describe('sync command integration', () => {
         expect(diff.toAdd).toHaveLength(0);
         expect(diff.toRemove).toHaveLength(0);
         expect(diff.existing).toHaveLength(0);
-        expect(diff.conflicts).toHaveLength(0);
       } finally {
         ipod.close();
         await adapter.disconnect();

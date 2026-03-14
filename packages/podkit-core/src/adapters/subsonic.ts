@@ -284,6 +284,10 @@ export class SubsonicAdapter implements CollectionAdapter {
       lossless,
       bitrate: song.bitRate,
 
+      // Artwork: coverArt is the server-side cover art ID for this song.
+      // Its presence (non-empty string) means the server has artwork for this track.
+      hasArtwork: song.coverArt !== undefined && song.coverArt !== '',
+
       // MusicBrainz IDs if available
       musicBrainzRecordingId: song.musicBrainzId,
 

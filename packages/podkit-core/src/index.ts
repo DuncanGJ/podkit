@@ -34,7 +34,6 @@ export type { SubsonicAdapterConfig } from './adapters/subsonic.js';
 // Sync engine
 export type {
   MatchedTrack,
-  ConflictTrack,
   SyncDiff,
   SyncPlan,
   SyncOperation,
@@ -50,6 +49,7 @@ export type {
   SyncWarningType,
   // Transform-related update types
   UpdateReason,
+  UpgradeReason,
   MetadataChange,
   UpdateTrack,
   DiffOptions,
@@ -57,6 +57,9 @@ export type {
 
 // Differ
 export { computeDiff, createDiffer, DefaultSyncDiffer } from './sync/differ.js';
+
+// Upgrade detection (self-healing sync)
+export { isQualityUpgrade, detectUpgrades, isFileReplacementUpgrade } from './sync/upgrades.js';
 
 // Planner
 export {

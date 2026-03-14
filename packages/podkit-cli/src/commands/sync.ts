@@ -85,6 +85,7 @@ interface SyncOptions {
   lossyQuality?: AacQualityPreset;
   filter?: string;
   artwork?: boolean;
+  skipUpgrades?: boolean;
   delete?: boolean;
   collection?: string;
   eject?: boolean;
@@ -146,19 +147,11 @@ export interface UpdateBreakdown {
   'transform-apply'?: number;
   'transform-remove'?: number;
   'metadata-changed'?: number;
-}
-
-/**
- * Conflict info for JSON output - tracks that match but have metadata differences
- */
-export interface ConflictInfo {
-  track: string;
-  fields: string[];
-  details: Array<{
-    field: string;
-    collection: string | number | undefined;
-    ipod: string | number | undefined;
-  }>;
+  'format-upgrade'?: number;
+  'quality-upgrade'?: number;
+  'artwork-added'?: number;
+  'soundcheck-update'?: number;
+  'metadata-correction'?: number;
 }
 
 /**
@@ -170,26 +163,27 @@ export interface SyncOutput {
   source?: string;
   device?: string;
   transforms?: TransformInfo[];
+  skipUpgrades?: boolean;
   plan?: {
     tracksToAdd: number;
     tracksToRemove: number;
     tracksToUpdate: number;
+    tracksToUpgrade: number;
     updateBreakdown?: UpdateBreakdown;
     tracksToTranscode: number;
     tracksToCopy: number;
     tracksExisting: number;
-    tracksWithConflicts: number;
     estimatedSize: number;
     estimatedTime: number;
     soundCheckTracks?: number;
   };
-  conflictDetails?: ConflictInfo[];
   operations?: Array<{
     type:
       | 'transcode'
       | 'copy'
       | 'remove'
       | 'update-metadata'
+      | 'upgrade'
       | 'video-transcode'
       | 'video-copy'
       | 'video-remove';
@@ -197,6 +191,7 @@ export interface SyncOutput {
     status?: 'pending' | 'completed' | 'failed' | 'skipped';
     error?: string;
     changes?: Array<{ field: string; from: string; to: string }>;
+    reason?: string;
   }>;
   result?: {
     completed: number;
@@ -403,6 +398,18 @@ function getEffectiveArtwork(globalArtwork: boolean, deviceConfig?: DeviceConfig
   return deviceConfig?.artwork ?? globalArtwork;
 }
 
+/**
+ * Get effective skipUpgrades setting for a device
+ *
+ * Resolution order: device skipUpgrades > global skipUpgrades > default (false)
+ */
+function getEffectiveSkipUpgrades(
+  globalSkipUpgrades: boolean | undefined,
+  deviceConfig?: DeviceConfig
+): boolean {
+  return deviceConfig?.skipUpgrades ?? globalSkipUpgrades ?? false;
+}
+
 // =============================================================================
 // Music Sync Helpers
 // =============================================================================
@@ -418,6 +425,7 @@ interface MusicSyncContext {
   effectiveQuality: QualityPreset;
   lossyQuality: AacQualityPreset | undefined;
   effectiveArtwork: boolean;
+  skipUpgrades: boolean;
   ipod: Awaited<ReturnType<typeof import('@podkit/core').IpodDatabase.open>>;
   transcoder: ReturnType<typeof import('@podkit/core').createFFmpegTranscoder>;
   core: typeof import('@podkit/core');
@@ -445,6 +453,7 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
     effectiveQuality,
     lossyQuality,
     effectiveArtwork,
+    skipUpgrades,
     ipod,
     transcoder,
     core,
@@ -541,6 +550,8 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
   const ipodTracks = ipod.getTracks();
   const diff = core.computeDiff(collectionTracks, ipodTracks, {
     transforms: effectiveTransforms,
+    skipUpgrades,
+    transcodingActive: effectiveQuality !== 'lossless',
   });
   diffSpinner.stop('Diff computed');
 
@@ -560,6 +571,7 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
       effectiveQuality,
       lossyQuality,
       effectiveTransforms,
+      skipUpgrades,
       diff,
       plan,
       summary,
@@ -589,10 +601,10 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
             tracksToAdd: diff.toAdd.length,
             tracksToRemove: removeOrphans ? diff.toRemove.length : 0,
             tracksToUpdate: diff.toUpdate.length,
+            tracksToUpgrade: summary.upgradeCount,
             tracksToTranscode: summary.transcodeCount,
             tracksToCopy: summary.copyCount,
             tracksExisting: diff.existing.length,
-            tracksWithConflicts: diff.conflicts.length,
             estimatedSize: plan.estimatedSize,
             estimatedTime: plan.estimatedTime,
           },
@@ -692,6 +704,7 @@ interface MusicDryRunContext {
   effectiveQuality: QualityPreset;
   lossyQuality: AacQualityPreset | undefined;
   effectiveTransforms: TransformsConfig;
+  skipUpgrades: boolean;
   diff: ReturnType<typeof import('@podkit/core').computeDiff>;
   plan: ReturnType<typeof import('@podkit/core').createPlan>;
   summary: ReturnType<typeof import('@podkit/core').getPlanSummary>;
@@ -710,6 +723,7 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
     effectiveQuality,
     lossyQuality,
     effectiveTransforms,
+    skipUpgrades,
     diff,
     plan,
     summary,
@@ -742,6 +756,12 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
         };
       }
     }
+    if (op.type === 'upgrade') {
+      return {
+        ...base,
+        reason: op.reason,
+      };
+    }
     return base;
   });
 
@@ -773,22 +793,6 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
     updateBreakdown[update.reason] = count + 1;
   }
 
-  const conflictDetails: ConflictInfo[] = diff.conflicts.map((conflict) => ({
-    track: `${conflict.collection.artist} - ${conflict.collection.title}`,
-    fields: conflict.conflicts,
-    details: conflict.conflicts.map((field) => ({
-      field,
-      collection: (conflict.collection as unknown as Record<string, unknown>)[field] as
-        | string
-        | number
-        | undefined,
-      ipod: (conflict.ipod as unknown as Record<string, unknown>)[field] as
-        | string
-        | number
-        | undefined,
-    })),
-  }));
-
   // Text output for dry-run
   if (out.isText) {
     out.newline();
@@ -803,6 +807,9 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
     const transformsDisplay = formatTransformsConfig(effectiveTransforms);
     if (transformsDisplay) {
       out.print(`Transforms: ${transformsDisplay}`);
+    }
+    if (skipUpgrades) {
+      out.print(`Skip upgrades: enabled`);
     }
     out.newline();
 
@@ -819,38 +826,6 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
     }
     out.print(`  Already synced: ${formatNumber(diff.existing.length)}`);
 
-    if (diff.conflicts.length > 0) {
-      out.print(
-        `  Metadata conflicts: ${formatNumber(diff.conflicts.length)} (no action will be taken)`
-      );
-      const fieldCounts = new Map<string, number>();
-      for (const conflict of diff.conflicts) {
-        for (const field of conflict.conflicts) {
-          fieldCounts.set(field, (fieldCounts.get(field) ?? 0) + 1);
-        }
-      }
-      const fieldParts = [...fieldCounts.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(([field, count]) => `${field}: ${count}`);
-      out.print(`    Fields: ${fieldParts.join(', ')}`);
-
-      if (out.isVerbose) {
-        const examples = diff.conflicts.slice(0, 3);
-        out.print('    Examples:');
-        for (const conflict of examples) {
-          out.print(`      ${conflict.collection.artist} - ${conflict.collection.title}`);
-          for (const field of conflict.conflicts) {
-            const colVal = (conflict.collection as unknown as Record<string, unknown>)[field];
-            const ipodVal = (conflict.ipod as unknown as Record<string, unknown>)[field];
-            out.print(`        ${field}: "${colVal ?? ''}" vs iPod "${ipodVal ?? ''}"`);
-          }
-        }
-        if (diff.conflicts.length > 3) {
-          out.print(`      ... and ${diff.conflicts.length - 3} more`);
-        }
-      }
-    }
-
     if (diff.toUpdate.length > 0) {
       const updatesByReason = new Map<string, number>();
       for (const update of diff.toUpdate) {
@@ -859,9 +834,7 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
       }
       const reasonParts: string[] = [];
       for (const [reason, count] of updatesByReason) {
-        reasonParts.push(
-          `${formatUpdateReason(reason as 'transform-apply' | 'transform-remove' | 'metadata-changed')}: ${count}`
-        );
+        reasonParts.push(`${formatUpdateReason(reason)}: ${count}`);
       }
       out.print(
         `  Tracks to update: ${formatNumber(diff.toUpdate.length)} (${reasonParts.join(', ')})`
@@ -955,15 +928,16 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
     source: sourcePath,
     device: devicePath,
     transforms: transformsInfo.length > 0 ? transformsInfo : undefined,
+    skipUpgrades: skipUpgrades || undefined,
     plan: {
       tracksToAdd: diff.toAdd.length,
       tracksToRemove: removeOrphans ? diff.toRemove.length : 0,
       tracksToUpdate: diff.toUpdate.length,
+      tracksToUpgrade: summary.upgradeCount,
       updateBreakdown: diff.toUpdate.length > 0 ? updateBreakdown : undefined,
       tracksToTranscode: summary.transcodeCount,
       tracksToCopy: summary.copyCount,
       tracksExisting: diff.existing.length,
-      tracksWithConflicts: diff.conflicts.length,
       estimatedSize: plan.estimatedSize,
       estimatedTime: plan.estimatedTime,
       soundCheckTracks:
@@ -972,7 +946,6 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
           : undefined,
     },
     operations,
-    conflictDetails: conflictDetails.length > 0 ? conflictDetails : undefined,
     planWarnings: planWarningInfos.length > 0 ? planWarningInfos : undefined,
     scanWarnings: scanWarningInfos.length > 0 ? scanWarningInfos : undefined,
   };
@@ -1228,6 +1201,7 @@ export const syncCommand = new Command('sync')
   )
   .option('--filter <pattern>', 'only sync tracks matching pattern')
   .option('--no-artwork', 'skip artwork transfer')
+  .option('--skip-upgrades', 'skip file-replacement upgrades for changed source files')
   .option('--delete', 'remove tracks from iPod not in source')
   .option('--eject', 'eject iPod after successful sync')
   .action(async (typeArg: string | undefined, options: SyncOptions) => {
@@ -1299,6 +1273,10 @@ export const syncCommand = new Command('sync')
       options.artwork !== undefined
         ? options.artwork
         : getEffectiveArtwork(config.artwork, deviceConfig);
+    const effectiveSkipUpgrades =
+      options.skipUpgrades !== undefined
+        ? options.skipUpgrades
+        : getEffectiveSkipUpgrades(config.skipUpgrades, deviceConfig);
     const lossyQuality = options.lossyQuality ?? config.lossyQuality;
 
     // ----- Resolve collections -----
@@ -1541,6 +1519,7 @@ export const syncCommand = new Command('sync')
             effectiveQuality,
             lossyQuality,
             effectiveArtwork,
+            skipUpgrades: effectiveSkipUpgrades,
             ipod,
             transcoder,
             core,

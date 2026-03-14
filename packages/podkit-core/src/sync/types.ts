@@ -24,19 +24,21 @@ export interface MatchedTrack {
   ipod: IPodTrack;
 }
 
-/**
- * A track with conflicting metadata between collection and iPod
- */
-export interface ConflictTrack {
-  collection: CollectionTrack;
-  ipod: IPodTrack;
-  /** Fields that differ between collection and iPod */
-  conflicts: (keyof TrackMetadata)[];
-}
-
 // =============================================================================
 // Update Types (for transforms)
 // =============================================================================
+
+/**
+ * Reasons related to track upgrades (self-healing sync)
+ *
+ * @see ADR-009 for full design context
+ */
+export type UpgradeReason =
+  | 'format-upgrade'
+  | 'quality-upgrade'
+  | 'artwork-added'
+  | 'soundcheck-update'
+  | 'metadata-correction';
 
 /**
  * Reason why a track needs metadata update
@@ -44,14 +46,36 @@ export interface ConflictTrack {
  * - transform-apply: Transform is enabled and iPod has original metadata
  * - transform-remove: Transform is disabled and iPod has transformed metadata
  * - metadata-changed: Source metadata changed (for future use)
+ * - format-upgrade: Source is lossless, iPod has lossy (file replacement)
+ * - quality-upgrade: Same format family, significantly higher bitrate (file replacement)
+ * - artwork-added: Source has artwork, iPod does not (file replacement)
+ * - soundcheck-update: Source has soundcheck value, iPod lacks or differs (metadata-only)
+ * - metadata-correction: Non-matching metadata fields differ (metadata-only)
  */
-export type UpdateReason = 'transform-apply' | 'transform-remove' | 'metadata-changed';
+export type UpdateReason =
+  | 'transform-apply'
+  | 'transform-remove'
+  | 'metadata-changed'
+  | UpgradeReason;
 
 /**
  * A single metadata field change
  */
 export interface MetadataChange {
-  field: 'artist' | 'title' | 'album' | 'albumArtist';
+  field:
+    | 'artist'
+    | 'title'
+    | 'album'
+    | 'albumArtist'
+    | 'genre'
+    | 'year'
+    | 'trackNumber'
+    | 'discNumber'
+    | 'compilation'
+    | 'soundcheck'
+    | 'bitrate'
+    | 'fileType'
+    | 'lossless';
   from: string;
   to: string;
 }
@@ -80,9 +104,7 @@ export interface SyncDiff {
   toRemove: IPodTrack[];
   /** Tracks that exist in both and are in sync */
   existing: MatchedTrack[];
-  /** Tracks with metadata mismatches */
-  conflicts: ConflictTrack[];
-  /** Tracks that need metadata updates (e.g., transform applied/removed) */
+  /** Tracks that need metadata updates (e.g., transform applied/removed, self-healing corrections) */
   toUpdate: UpdateTrack[];
 }
 
@@ -151,6 +173,13 @@ export type SyncOperation =
       metadata: Partial<TrackMetadata>;
     }
   | {
+      type: 'upgrade';
+      source: CollectionTrack;
+      target: IPodTrack;
+      reason: UpgradeReason;
+      preset?: TranscodePresetRef;
+    }
+  | {
       type: 'video-transcode';
       source: CollectionVideo;
       settings: VideoTranscodeSettings;
@@ -202,6 +231,7 @@ export interface SyncProgress {
     | 'copying'
     | 'removing'
     | 'updating-metadata'
+    | 'upgrading'
     | 'video-transcoding'
     | 'video-copying'
     | 'updating-db'
@@ -236,6 +266,28 @@ export interface DiffOptions {
    * original or transformed metadata.
    */
   transforms?: TransformsConfig;
+
+  /**
+   * When true, suppress file-replacement upgrades (format-upgrade, quality-upgrade,
+   * artwork-added) but still allow metadata-only updates (soundcheck-update,
+   * metadata-correction).
+   *
+   * This is useful for space-constrained devices where file replacements
+   * (e.g., replacing MP3 with FLAC) would use significantly more storage.
+   *
+   * @default false
+   */
+  skipUpgrades?: boolean;
+
+  /**
+   * When true, indicates that lossless sources are transcoded to lossy format
+   * (e.g., FLAC → AAC) during sync. This suppresses false `format-upgrade`
+   * detections: a lossless source paired with a lossy iPod track is the
+   * expected state when transcoding is active, not an upgrade opportunity.
+   *
+   * @default false
+   */
+  transcodingActive?: boolean;
 }
 
 /**

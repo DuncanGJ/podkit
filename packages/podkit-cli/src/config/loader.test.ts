@@ -238,6 +238,31 @@ artwork = "yes"
       expect(result).toEqual({});
     });
 
+    it('parses skipUpgrades = true', () => {
+      const configPath = path.join(tempDir, 'config.toml');
+      fs.writeFileSync(configPath, `skipUpgrades = true`);
+
+      const result = loadConfigFile(configPath);
+      expect(result?.skipUpgrades).toBe(true);
+    });
+
+    it('parses skipUpgrades = false', () => {
+      const configPath = path.join(tempDir, 'config.toml');
+      fs.writeFileSync(configPath, `skipUpgrades = false`);
+
+      const result = loadConfigFile(configPath);
+      expect(result?.skipUpgrades).toBe(false);
+    });
+
+    it('ignores skipUpgrades with wrong type (string instead of boolean)', () => {
+      const configPath = path.join(tempDir, 'config.toml');
+      fs.writeFileSync(configPath, `skipUpgrades = "yes"`);
+
+      const result = loadConfigFile(configPath);
+      // String "yes" should not be parsed as skipUpgrades since type check is strict
+      expect(result).toEqual({});
+    });
+
     describe('transforms config', () => {
       it('parses [transforms.ftintitle] section', () => {
         const configPath = path.join(tempDir, 'config.toml');
@@ -724,6 +749,37 @@ artwork = "yes"
 
         expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "artwork"/);
       });
+
+      it('parses device skipUpgrades', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(
+          configPath,
+          `
+[devices.nano]
+volumeUuid = "ABC-123"
+volumeName = "NANO"
+skipUpgrades = true
+`
+        );
+
+        const result = loadConfigFile(configPath);
+        expect(result?.devices?.nano!.skipUpgrades).toBe(true);
+      });
+
+      it('throws on invalid skipUpgrades type', () => {
+        const configPath = path.join(tempDir, 'config.toml');
+        fs.writeFileSync(
+          configPath,
+          `
+[devices.terapod]
+volumeUuid = "ABC-123"
+volumeName = "TERAPOD"
+skipUpgrades = "yes"
+`
+        );
+
+        expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "skipUpgrades"/);
+      });
     });
 
     describe('defaults', () => {
@@ -982,6 +1038,18 @@ device = "terapod"
       expect(result.artwork).toBe(false);
     });
 
+    it('extracts skipUpgrades from command options', () => {
+      const globalOpts: GlobalOptions = {
+        verbose: 0,
+        quiet: false,
+        json: false,
+        color: true,
+      };
+      const commandOpts = { skipUpgrades: true };
+      const result = loadCliConfig(globalOpts, commandOpts);
+      expect(result.skipUpgrades).toBe(true);
+    });
+
     it('ignores invalid quality in command options', () => {
       const globalOpts: GlobalOptions = {
         verbose: 0,
@@ -1100,6 +1168,24 @@ device = "terapod"
       const second: PartialConfig = {}; // no quality
       const result = mergeConfigs(first, second);
       expect(result.quality).toBe('low');
+    });
+
+    it('merges skipUpgrades from partial config', () => {
+      const partial: PartialConfig = { skipUpgrades: true };
+      const result = mergeConfigs(partial);
+      expect(result.skipUpgrades).toBe(true);
+    });
+
+    it('later skipUpgrades overrides earlier', () => {
+      const first: PartialConfig = { skipUpgrades: true };
+      const second: PartialConfig = { skipUpgrades: false };
+      const result = mergeConfigs(first, second);
+      expect(result.skipUpgrades).toBe(false);
+    });
+
+    it('skipUpgrades defaults to undefined when not set', () => {
+      const result = mergeConfigs();
+      expect(result.skipUpgrades).toBeUndefined();
     });
 
     describe('transforms merging', () => {

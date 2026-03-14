@@ -38,6 +38,8 @@ export interface TrackMetadata {
   discNumber?: number;
   compilation?: boolean;
   duration?: number; // milliseconds
+  /** Sound Check volume normalization value */
+  soundcheck?: number;
 }
 
 /**

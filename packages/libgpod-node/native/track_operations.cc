@@ -6,6 +6,8 @@
 #include "gpod_helpers.h"
 #include "gpod_converters.h"
 #include <ctime>
+#include <sys/stat.h>
+#include <unistd.h>
 
 Napi::Value DatabaseWrapper::GetTrackData(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
@@ -193,6 +195,107 @@ Napi::Value DatabaseWrapper::CopyTrackToDevice(const Napi::CallbackInfo& info) {
     }
 
     // Return the updated track object with the new ipod_path
+    return TrackToObject(env, track);
+}
+
+Napi::Value DatabaseWrapper::ReplaceTrackFile(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (!db_) {
+        Napi::Error::New(env, "Database not open").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (info.Length() < 2) {
+        Napi::TypeError::New(env, "Expected track handle and new file path").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected track handle as number").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    if (!info[1].IsString()) {
+        Napi::TypeError::New(env, "Expected new file path as string").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    uint32_t handle = info[0].As<Napi::Number>().Uint32Value();
+    std::string newFilePath = info[1].As<Napi::String>().Utf8Value();
+
+    Itdb_Track* track = GetTrackByHandle(handle);
+    if (!track) {
+        Napi::Error::New(env, "Invalid track handle").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Verify the track has already been transferred (has a file on the iPod).
+    // replaceTrackFile() is only valid for tracks that already have a file.
+    // For new tracks, use copyTrackToDevice() instead.
+    if (!track->transferred || !track->ipod_path) {
+        Napi::Error::New(env, "Track has no file on the iPod. Use copyTrackToDevice() for new tracks.").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // DEVIATION FROM LIBGPOD: Delete old file, clear ipod_path, and let
+    // libgpod generate a fresh path with the correct extension.
+    //
+    // libgpod's itdb_cp_track_to_ipod() checks track->transferred and returns
+    // TRUE immediately (no-op) if the track already has a file. Additionally,
+    // when ipod_path is set, libgpod reuses the existing path — which means
+    // the old file extension is preserved even if the new file is a different
+    // format (e.g., replacing MP3 with AAC would store AAC content in a .mp3
+    // file, causing playback failure on the iPod).
+    //
+    // By deleting the old file, clearing ipod_path, and resetting transferred,
+    // we let libgpod generate a new path with the correct extension derived
+    // from the source file. This also correctly sets filetype_marker (a 4-byte
+    // binary field the iPod firmware uses for decoder selection).
+    //
+    // The database entry (play counts, ratings, playlist membership) is
+    // preserved because these are tied to the Itdb_Track pointer, not the
+    // file path.
+
+    // 1. Delete the old file from the iPod
+    gchar* oldFilePath = itdb_filename_on_ipod(track);
+    if (oldFilePath) {
+        ::unlink(oldFilePath);
+        g_free(oldFilePath);
+    }
+
+    // 2. Clear ipod_path so libgpod generates a new one with the correct
+    //    extension from the source file
+    g_free(track->ipod_path);
+    track->ipod_path = nullptr;
+
+    // 3. Reset transferred flag so itdb_cp_track_to_ipod will proceed
+    track->transferred = FALSE;
+
+    // 4. Copy the new file — libgpod generates a fresh path (e.g., .m4a for AAC)
+    GError* error = nullptr;
+    gboolean success = itdb_cp_track_to_ipod(track, newFilePath.c_str(), &error);
+
+    if (!success) {
+        std::string message = "Failed to replace track file on iPod";
+        if (error) {
+            message = error->message;
+            g_error_free(error);
+        }
+        // Restore transferred flag on failure. Note: ipod_path is now NULL
+        // and the old file is deleted, so the track has no file on the iPod.
+        // The next sync will detect this and re-add the file.
+        track->transferred = FALSE;
+        Napi::Error::New(env, message).ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    // Update the file size from the source file.
+    struct stat stat_buf;
+    if (::stat(newFilePath.c_str(), &stat_buf) == 0) {
+        track->size = static_cast<guint32>(stat_buf.st_size);
+    }
+
     return TrackToObject(env, track);
 }
 

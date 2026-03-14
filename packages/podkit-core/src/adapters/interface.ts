@@ -69,6 +69,18 @@ export interface CollectionTrack {
    */
   bitrate?: number;
 
+  // Artwork
+  /**
+   * Whether the source file has embedded artwork.
+   * Used by upgrade detection to flag `artwork-added` when the iPod track has
+   * no artwork but the source does.
+   *
+   * - `true`:  artwork is embedded in the source file (or available on the server for remote sources)
+   * - `false`: no artwork detected
+   * - `undefined`: artwork availability not determined (treated as unknown — no upgrade triggered)
+   */
+  hasArtwork?: boolean;
+
   // Volume normalization
   /**
    * Sound Check value for volume normalization.

@@ -211,11 +211,15 @@ export class DirectoryAdapter implements CollectionAdapter {
    * Parse metadata from a single audio file
    */
   private async parseFile(filePath: string): Promise<CollectionTrack> {
-    // Parse metadata with music-metadata
+    // Parse metadata with music-metadata.
+    // We use skipCovers: false so that music-metadata populates common.picture,
+    // allowing us to detect artwork presence for upgrade detection (artwork-added).
+    // We immediately discard the raw image bytes after reading the count, so the
+    // memory overhead is proportional to the number of files with artwork, not
+    // the total artwork size — each IPicture object's .data field is freed once
+    // we capture hasArtwork below.
     const metadata = await mm.parseFile(filePath, {
-      // Skip picture data during scanning for performance
-      // Artwork extraction happens separately during sync
-      skipCovers: true,
+      skipCovers: false,
     });
 
     const { common, format } = metadata;
@@ -233,6 +237,11 @@ export class DirectoryAdapter implements CollectionAdapter {
     if (format.bitrate) {
       bitrate = Math.round(format.bitrate / 1000);
     }
+
+    // Detect artwork presence from embedded pictures.
+    // common.picture is populated by music-metadata when skipCovers: false.
+    // We only need to know whether artwork exists (boolean), not the actual bytes.
+    const hasArtwork = (common.picture?.length ?? 0) > 0;
 
     // Volume normalization
     const scResult = extractSoundcheck(metadata);
@@ -264,6 +273,9 @@ export class DirectoryAdapter implements CollectionAdapter {
       codec,
       lossless,
       bitrate,
+
+      // Artwork
+      hasArtwork,
 
       // Volume normalization
       soundcheck: scResult?.value,

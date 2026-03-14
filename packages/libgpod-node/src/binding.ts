@@ -62,6 +62,8 @@ export interface NativeDatabase {
   removeTrack(handle: number): void;
   /** Copy track file to device */
   copyTrackToDevice(handle: number, sourcePath: string): Track;
+  /** Replace an existing track's file on the iPod */
+  replaceTrackFile(handle: number, newFilePath: string): Track;
   /** Set track thumbnails from file */
   setTrackThumbnails(handle: number, imagePath: string): Track;
   /** Set track thumbnails from buffer */

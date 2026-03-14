@@ -559,6 +559,43 @@ export class IpodDatabase implements IpodDatabaseInternal, PlaylistDatabaseInter
   }
 
   /**
+   * Replaces the audio file for an existing track on the iPod.
+   *
+   * This preserves the track's database entry (play counts, ratings, playlist
+   * membership) while swapping the underlying audio file. Used by the upgrade
+   * system to improve track quality without losing user data.
+   *
+   * @param track - The track to replace the file for
+   * @param newFilePath - Path to the new audio file
+   * @returns A new IPodTrack snapshot with updated file info
+   * @throws {IpodError} If the source file is not found (code: FILE_NOT_FOUND)
+   * @throws {IpodError} If the replacement fails (code: COPY_FAILED)
+   * @throws {IpodError} If the track is unknown (code: TRACK_REMOVED)
+   * @throws {IpodError} If the database is closed (code: DATABASE_CLOSED)
+   *
+   * @see ADR-009 for self-healing sync design
+   */
+  replaceTrackFile(track: IPodTrack, newFilePath: string): IPodTrack {
+    this.assertOpen();
+    const handle = this.getTrackHandle(track);
+
+    // Check if source file exists
+    try {
+      fs.accessSync(newFilePath);
+    } catch {
+      throw new IpodError(`Source file not found: ${newFilePath}`, 'FILE_NOT_FOUND');
+    }
+
+    try {
+      this.db.replaceTrackFile(handle, newFilePath);
+      return this.createTrackFromHandle(handle);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new IpodError(`Failed to replace track file: ${message}`, 'COPY_FAILED');
+    }
+  }
+
+  /**
    * Sets artwork for a track from an image file.
    *
    * @param track - The track to set artwork for

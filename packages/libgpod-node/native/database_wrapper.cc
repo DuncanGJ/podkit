@@ -28,6 +28,7 @@ Napi::Object DatabaseWrapper::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("addTrack", &DatabaseWrapper::AddTrack),
         InstanceMethod("removeTrack", &DatabaseWrapper::RemoveTrack),
         InstanceMethod("copyTrackToDevice", &DatabaseWrapper::CopyTrackToDevice),
+        InstanceMethod("replaceTrackFile", &DatabaseWrapper::ReplaceTrackFile),
         InstanceMethod("updateTrack", &DatabaseWrapper::UpdateTrack),
         InstanceMethod("getTrackFilePath", &DatabaseWrapper::GetTrackFilePath),
         InstanceMethod("duplicateTrack", &DatabaseWrapper::DuplicateTrack),

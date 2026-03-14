@@ -1,0 +1,1387 @@
+/**
+ * Unit tests for upgrade detection (self-healing sync)
+ *
+ * Tests cover:
+ * 1. isQualityUpgrade: format and bitrate comparisons
+ * 2. detectUpgrades: all upgrade categories
+ * 3. computeDiff integration: upgraded tracks route to toUpdate
+ */
+
+import { describe, expect, it } from 'bun:test';
+import { isQualityUpgrade, detectUpgrades, isFileReplacementUpgrade } from './upgrades.js';
+import { computeDiff } from './differ.js';
+import type { CollectionTrack } from '../adapters/interface.js';
+import type { IPodTrack } from './types.js';
+
+// =============================================================================
+// Test Fixtures
+// =============================================================================
+
+let ipodTrackPathCounter = 0;
+
+function createCollectionTrack(
+  artist: string,
+  title: string,
+  album: string,
+  options: Partial<CollectionTrack> = {}
+): CollectionTrack {
+  return {
+    id: options.id ?? `${artist}-${title}-${album}`,
+    artist,
+    title,
+    album,
+    filePath: options.filePath ?? `/music/${artist}/${album}/${title}.flac`,
+    fileType: options.fileType ?? 'flac',
+    ...options,
+  };
+}
+
+function createIPodTrack(
+  artist: string,
+  title: string,
+  album: string,
+  options: Partial<
+    Omit<
+      IPodTrack,
+      'update' | 'remove' | 'copyFile' | 'setArtwork' | 'setArtworkFromData' | 'removeArtwork'
+    >
+  > = {}
+): IPodTrack {
+  const uniquePath =
+    options.filePath ?? `:iPod_Control:Music:F00:TRACK${ipodTrackPathCounter++}.m4a`;
+  const track: IPodTrack = {
+    artist,
+    title,
+    album,
+    duration: options.duration ?? 180000,
+    bitrate: options.bitrate ?? 256,
+    sampleRate: options.sampleRate ?? 44100,
+    size: options.size ?? 5000000,
+    mediaType: options.mediaType ?? 1,
+    filePath: uniquePath,
+    timeAdded: options.timeAdded ?? Math.floor(Date.now() / 1000),
+    timeModified: options.timeModified ?? Math.floor(Date.now() / 1000),
+    timePlayed: options.timePlayed ?? 0,
+    timeReleased: options.timeReleased ?? 0,
+    playCount: options.playCount ?? 0,
+    skipCount: options.skipCount ?? 0,
+    rating: options.rating ?? 0,
+    hasArtwork: options.hasArtwork ?? false,
+    hasFile: options.hasFile ?? true,
+    compilation: options.compilation ?? false,
+    albumArtist: options.albumArtist,
+    genre: options.genre,
+    composer: options.composer,
+    comment: options.comment,
+    grouping: options.grouping,
+    trackNumber: options.trackNumber,
+    totalTracks: options.totalTracks,
+    discNumber: options.discNumber,
+    totalDiscs: options.totalDiscs,
+    year: options.year,
+    bpm: options.bpm,
+    filetype: options.filetype,
+    soundcheck: options.soundcheck,
+    update: () => track,
+    remove: () => {},
+    copyFile: () => track,
+    setArtwork: () => track,
+    setArtworkFromData: () => track,
+    removeArtwork: () => track,
+  };
+  return track;
+}
+
+// =============================================================================
+// isQualityUpgrade
+// =============================================================================
+
+describe('isQualityUpgrade', () => {
+  describe('lossless vs lossy', () => {
+    it('returns true for lossless source replacing lossy iPod (FLAC -> MP3)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+        bitrate: 1000,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(true);
+    });
+
+    it('returns true for ALAC source replacing lossy iPod', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'alac',
+        lossless: true,
+        bitrate: 800,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'AAC audio file',
+        bitrate: 256,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(true);
+    });
+
+    it('returns true for WAV source replacing lossy iPod', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'wav',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 320,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(true);
+    });
+
+    it('returns false for lossy source replacing lossless iPod', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'Apple Lossless audio file',
+        bitrate: 800,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+
+    it('returns false for lossless replacing lossless (already best quality)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+        bitrate: 1100,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'Apple Lossless audio file',
+        bitrate: 900,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+  });
+
+  describe('lossy bitrate comparison (same format family)', () => {
+    it('returns true for significant bitrate increase (MP3 128 -> 320)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(true);
+    });
+
+    it('returns true for AAC bitrate increase (128 -> 256)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'm4a',
+        lossless: false,
+        bitrate: 256,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'AAC audio file',
+        bitrate: 128,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(true);
+    });
+
+    it('returns true when absolute increase >= 64 kbps even if < 1.5x', () => {
+      // 256 -> 320 = 64 kbps increase, 1.25x multiplier
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(true);
+    });
+
+    it('returns true when multiplier >= 1.5x even if < 64 kbps absolute', () => {
+      // 64 -> 96 = 32 kbps increase, 1.5x multiplier
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 96,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 64,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(true);
+    });
+
+    it('returns false for small bitrate increase (below both thresholds)', () => {
+      // 192 -> 224 = 32 kbps increase, 1.17x multiplier
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 224,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+
+    it('returns false for equal bitrate', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+
+    it('returns false for lower bitrate source', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 128,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+  });
+
+  describe('cross-format lossy', () => {
+    it('returns false for MP3 -> AAC (different format family)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'AAC audio file',
+        bitrate: 128,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+
+    it('returns false for AAC -> MP3 (different format family)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'm4a',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+
+    it('returns false for OGG -> MP3 (different format family)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'ogg',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+  });
+
+  describe('edge cases', () => {
+    it('returns false when source bitrate is missing', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        // no bitrate
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+
+    it('returns false when iPod bitrate is 0', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 0,
+      });
+      // bitrate 0 is falsy, so can't determine upgrade
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+
+    it('returns false when source bitrate is 0', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 0,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+      // bitrate 0 is falsy, so can't determine upgrade
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+
+    it('handles M4A with ALAC codec as lossless source', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'm4a',
+        codec: 'alac',
+        // lossless not set explicitly; should be detected from codec
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(true);
+    });
+
+    it('returns false when iPod filetype is missing (unknown format)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        // no filetype
+        bitrate: 128,
+      });
+      // Unknown iPod format family, so cross-format check fails
+      expect(isQualityUpgrade(source, ipod)).toBe(false);
+    });
+
+    it('detects lossless from fileType when lossless field is undefined', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        // lossless not set
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+      });
+      expect(isQualityUpgrade(source, ipod)).toBe(true);
+    });
+  });
+});
+
+// =============================================================================
+// detectUpgrades
+// =============================================================================
+
+describe('detectUpgrades', () => {
+  describe('format-upgrade', () => {
+    it('detects lossless source replacing lossy iPod', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('format-upgrade');
+    });
+
+    it('does not detect format-upgrade for lossy replacing lossy', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('format-upgrade');
+    });
+  });
+
+  describe('quality-upgrade', () => {
+    it('detects significant bitrate increase within same format', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('quality-upgrade');
+    });
+
+    it('does not detect quality-upgrade for cross-format lossy', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'AAC audio file',
+        bitrate: 128,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('quality-upgrade');
+    });
+
+    it('does not report quality-upgrade when format-upgrade applies', () => {
+      // When source is lossless, it's a format-upgrade not quality-upgrade
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+        bitrate: 1000,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('format-upgrade');
+      expect(reasons).not.toContain('quality-upgrade');
+    });
+  });
+
+  describe('artwork-added', () => {
+    it('detects artwork-added when source has artwork and iPod does not', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: false,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('artwork-added');
+    });
+
+    it('does not detect artwork-added when source hasArtwork is undefined', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        // hasArtwork undefined
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: false,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('artwork-added');
+    });
+
+    it('does not detect artwork-added when iPod already has artwork', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('artwork-added');
+    });
+
+    it('does not detect artwork-added when source has no artwork', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: false,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: false,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('artwork-added');
+    });
+
+    it('detects artwork-added alongside other upgrades', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+        hasArtwork: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+        hasArtwork: false,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('format-upgrade');
+      expect(reasons).toContain('artwork-added');
+    });
+  });
+
+  describe('soundcheck-update', () => {
+    it('detects soundcheck added (source has, iPod does not)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+        soundcheck: 1000,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'Apple Lossless audio file',
+        bitrate: 900,
+        // no soundcheck
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('soundcheck-update');
+    });
+
+    it('detects soundcheck changed (both have different values)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        soundcheck: 1500,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        soundcheck: 1000,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('soundcheck-update');
+    });
+
+    it('does not detect soundcheck when source has no value', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        // no soundcheck
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        soundcheck: 1000,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('soundcheck-update');
+    });
+
+    it('does not detect soundcheck when both have same value', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        soundcheck: 1000,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        soundcheck: 1000,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('soundcheck-update');
+    });
+  });
+
+  describe('metadata-correction', () => {
+    it('detects genre change', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        genre: 'Progressive Rock',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        genre: 'Rock',
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('metadata-correction');
+    });
+
+    it('detects year change', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        year: 1975,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        year: 1974,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('metadata-correction');
+    });
+
+    it('detects trackNumber change', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        trackNumber: 5,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        trackNumber: 3,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('metadata-correction');
+    });
+
+    it('detects discNumber change', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        discNumber: 2,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        discNumber: 1,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('metadata-correction');
+    });
+
+    it('detects albumArtist added', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        albumArtist: 'Various Artists',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        // no albumArtist
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('metadata-correction');
+    });
+
+    it('detects compilation flag change', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        compilation: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        compilation: false,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('metadata-correction');
+    });
+
+    it('does not detect metadata-correction when fields are equivalent', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        genre: 'Rock',
+        year: 1975,
+        trackNumber: 1,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        genre: 'Rock',
+        year: 1975,
+        trackNumber: 1,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('metadata-correction');
+    });
+
+    it('treats undefined and empty as equivalent (no false positive)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        // genre undefined
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        // genre undefined
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('metadata-correction');
+    });
+
+    it('treats compilation undefined and false as equivalent', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        // compilation undefined
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        compilation: false,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('metadata-correction');
+    });
+
+    it('case-insensitive genre comparison (no false positive)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        genre: 'rock',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        genre: 'Rock',
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('metadata-correction');
+    });
+  });
+
+  describe('multiple reasons', () => {
+    it('detects format-upgrade and soundcheck-update together', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+        soundcheck: 1000,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+        // no soundcheck
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('format-upgrade');
+      expect(reasons).toContain('soundcheck-update');
+    });
+
+    it('detects quality-upgrade, soundcheck-update, and metadata-correction together', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+        soundcheck: 1200,
+        genre: 'Progressive Rock',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+        soundcheck: 800,
+        genre: 'Rock',
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('quality-upgrade');
+      expect(reasons).toContain('soundcheck-update');
+      expect(reasons).toContain('metadata-correction');
+    });
+  });
+
+  describe('edge cases', () => {
+    it('explicit lossless: false wins over lossless fileType inference (contradictory metadata)', () => {
+      // A track with fileType 'flac' but explicitly lossless: false
+      // The explicit flag should take priority over format-based inference
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: false, // Contradicts fileType; explicit flag wins
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+
+      const reasons = detectUpgrades(source, ipod);
+
+      // Should NOT detect format-upgrade because lossless: false is explicit
+      expect(reasons).not.toContain('format-upgrade');
+      // But should still detect quality-upgrade if bitrate thresholds are met
+      // (MP3 family: 320 vs 128 = 2.5x, well above 1.5x threshold)
+      // However, source is 'flac' and iPod is 'mp3' — different format families
+      // Cross-format lossy is never a quality upgrade
+      expect(reasons).not.toContain('quality-upgrade');
+    });
+
+    it('artwork-added is not detected when source hasArtwork is undefined (adapter did not populate the field)', () => {
+      // When source.hasArtwork is undefined (adapter didn't populate it), we must
+      // not produce a false positive — we have no information about artwork presence.
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        // hasArtwork not set — adapter didn't determine it
+      });
+      const ipodNoArtwork = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: false,
+      });
+
+      const reasons = detectUpgrades(source, ipodNoArtwork);
+      expect(reasons).not.toContain('artwork-added');
+    });
+
+    it('artwork-added is not detected when source hasArtwork is false', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: false,
+      });
+      const ipodNoArtwork = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: false,
+      });
+
+      const reasons = detectUpgrades(source, ipodNoArtwork);
+      expect(reasons).not.toContain('artwork-added');
+    });
+
+    it('artwork-added is not detected when iPod already has artwork', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+      });
+      const ipodWithArtwork = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+      });
+
+      const reasons = detectUpgrades(source, ipodWithArtwork);
+      expect(reasons).not.toContain('artwork-added');
+    });
+  });
+
+  describe('bitrate 0 edge cases', () => {
+    it('does not detect quality-upgrade when iPod bitrate is 0', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 0, // Unknown bitrate — should not trigger quality-upgrade
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('quality-upgrade');
+    });
+
+    it('does not detect quality-upgrade when source bitrate is 0', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 0,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('quality-upgrade');
+    });
+
+    it('still detects format-upgrade even when iPod bitrate is 0', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 0,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      // Format upgrade is lossless->lossy, independent of bitrate
+      expect(reasons).toContain('format-upgrade');
+    });
+  });
+
+  describe('format-upgrade detection for real-world format combinations', () => {
+    it('detects format-upgrade: FLAC source, MP3 iPod', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('format-upgrade');
+    });
+
+    it('detects format-upgrade: FLAC source, AAC iPod', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'AAC audio file',
+        bitrate: 256,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('format-upgrade');
+    });
+
+    it('detects format-upgrade: ALAC source, MP3 iPod', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'alac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('format-upgrade');
+    });
+
+    it('detects format-upgrade: WAV source, AAC iPod', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'wav',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'AAC audio file',
+        bitrate: 256,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('format-upgrade');
+    });
+
+    it('detects format-upgrade: lossless M4A (ALAC codec) source, MP3 iPod', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'm4a',
+        codec: 'alac',
+        // lossless not set — should be inferred from codec
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('format-upgrade');
+    });
+  });
+
+  describe('no false positives on identical tracks', () => {
+    it('returns empty array for identical tracks', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        genre: 'Rock',
+        year: 1975,
+        trackNumber: 1,
+        discNumber: 1,
+        soundcheck: 1000,
+        compilation: false,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        genre: 'Rock',
+        year: 1975,
+        trackNumber: 1,
+        discNumber: 1,
+        soundcheck: 1000,
+        compilation: false,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toEqual([]);
+    });
+
+    it('returns empty array for tracks with all empty optional fields', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toEqual([]);
+    });
+  });
+});
+
+// =============================================================================
+// isFileReplacementUpgrade
+// =============================================================================
+
+describe('isFileReplacementUpgrade', () => {
+  it('returns true for format-upgrade', () => {
+    expect(isFileReplacementUpgrade('format-upgrade')).toBe(true);
+  });
+
+  it('returns true for quality-upgrade', () => {
+    expect(isFileReplacementUpgrade('quality-upgrade')).toBe(true);
+  });
+
+  it('returns true for artwork-added', () => {
+    expect(isFileReplacementUpgrade('artwork-added')).toBe(true);
+  });
+
+  it('returns false for soundcheck-update', () => {
+    expect(isFileReplacementUpgrade('soundcheck-update')).toBe(false);
+  });
+
+  it('returns false for metadata-correction', () => {
+    expect(isFileReplacementUpgrade('metadata-correction')).toBe(false);
+  });
+});
+
+// =============================================================================
+// computeDiff integration
+// =============================================================================
+
+describe('computeDiff with upgrades', () => {
+  it('routes format-upgraded track to toUpdate', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'flac',
+      lossless: true,
+    });
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      filetype: 'MPEG audio file',
+      bitrate: 192,
+    });
+
+    const diff = computeDiff([source], [ipod]);
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('format-upgrade');
+    expect(diff.existing).toHaveLength(0);
+    expect(diff.toAdd).toHaveLength(0);
+    expect(diff.toRemove).toHaveLength(0);
+  });
+
+  it('routes quality-upgraded track to toUpdate', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'mp3',
+      lossless: false,
+      bitrate: 320,
+    });
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      filetype: 'MPEG audio file',
+      bitrate: 128,
+    });
+
+    const diff = computeDiff([source], [ipod]);
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('quality-upgrade');
+    expect(diff.existing).toHaveLength(0);
+  });
+
+  it('routes soundcheck-updated track to toUpdate', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'mp3',
+      lossless: false,
+      bitrate: 256,
+      soundcheck: 1200,
+    });
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      filetype: 'MPEG audio file',
+      bitrate: 256,
+    });
+
+    const diff = computeDiff([source], [ipod]);
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('soundcheck-update');
+  });
+
+  it('routes metadata-corrected track to toUpdate', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'mp3',
+      lossless: false,
+      bitrate: 256,
+      genre: 'Progressive Rock',
+    });
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      filetype: 'MPEG audio file',
+      bitrate: 256,
+      genre: 'Rock',
+    });
+
+    const diff = computeDiff([source], [ipod]);
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
+  });
+
+  it('includes metadata changes in toUpdate entry', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'flac',
+      lossless: true,
+      genre: 'Progressive Rock',
+    });
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      filetype: 'MPEG audio file',
+      bitrate: 192,
+      genre: 'Rock',
+    });
+
+    const diff = computeDiff([source], [ipod]);
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.changes.length).toBeGreaterThan(0);
+    // Should have a fileType change for format-upgrade
+    const fileTypeChange = diff.toUpdate[0]!.changes.find((c) => c.field === 'fileType');
+    expect(fileTypeChange).toBeDefined();
+    expect(fileTypeChange!.to).toBe('flac');
+  });
+
+  it('keeps identical tracks in existing', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'mp3',
+      lossless: false,
+      bitrate: 256,
+    });
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      filetype: 'MPEG audio file',
+      bitrate: 256,
+    });
+
+    const diff = computeDiff([source], [ipod]);
+
+    expect(diff.existing).toHaveLength(1);
+    expect(diff.toUpdate).toHaveLength(0);
+  });
+
+  describe('skipUpgrades option', () => {
+    it('suppresses file-replacement upgrades when skipUpgrades is true', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+
+      const diff = computeDiff([source], [ipod], { skipUpgrades: true });
+
+      // format-upgrade is a file-replacement, should be suppressed
+      // Track should end up in existing (since no metadata-only upgrades apply)
+      expect(diff.toUpdate).toHaveLength(0);
+      expect(diff.existing).toHaveLength(1);
+    });
+
+    it('allows metadata-only upgrades when skipUpgrades is true', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        soundcheck: 1200,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+      });
+
+      const diff = computeDiff([source], [ipod], { skipUpgrades: true });
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('soundcheck-update');
+    });
+
+    it('allows metadata-correction when skipUpgrades suppresses format-upgrade', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+        genre: 'Progressive Rock',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+        genre: 'Rock',
+      });
+
+      const diff = computeDiff([source], [ipod], { skipUpgrades: true });
+
+      // format-upgrade suppressed, but metadata-correction should still apply
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
+    });
+
+    it('does not suppress upgrades when skipUpgrades is false', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+
+      const diff = computeDiff([source], [ipod], { skipUpgrades: false });
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('format-upgrade');
+    });
+
+    it('skipUpgrades with active transforms: both work together', () => {
+      // When skipUpgrades is true AND transforms are active, both should apply:
+      // - File-replacement upgrades suppressed
+      // - Transform changes still applied
+      const source = createCollectionTrack('Artist feat. Guest', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+        genre: 'Progressive Rock',
+      });
+      const ipod = createIPodTrack('Artist feat. Guest', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+        genre: 'Rock',
+      });
+
+      const transforms = {
+        ftintitle: { enabled: true, drop: false, format: 'feat. {}', ignore: [] },
+      };
+
+      const diff = computeDiff([source], [ipod], {
+        skipUpgrades: true,
+        transforms,
+      });
+
+      // The transform should match and apply (transform-apply takes priority)
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('transform-apply');
+    });
+
+    it('does not suppress upgrades when skipUpgrades is not set', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+
+      const diff = computeDiff([source], [ipod]);
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('format-upgrade');
+    });
+  });
+
+  describe('interaction with existing diff behavior', () => {
+    it('still adds new tracks not on iPod', () => {
+      const source1 = createCollectionTrack('Artist', 'Song 1', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const source2 = createCollectionTrack('Artist', 'Song 2', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+      });
+
+      const diff = computeDiff([source1, source2], []);
+
+      expect(diff.toAdd).toHaveLength(2);
+      expect(diff.toUpdate).toHaveLength(0);
+    });
+
+    it('still removes iPod tracks not in collection', () => {
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+
+      const diff = computeDiff([], [ipod]);
+
+      expect(diff.toRemove).toHaveLength(1);
+      expect(diff.toUpdate).toHaveLength(0);
+    });
+
+    it('handles mix of upgrades, adds, removes, and existing', () => {
+      const sources = [
+        // Will be added (not on iPod)
+        createCollectionTrack('Artist', 'New Song', 'Album'),
+        // Will be upgraded (lossless replacing lossy)
+        createCollectionTrack('Artist', 'Upgrade Song', 'Album', {
+          fileType: 'flac',
+          lossless: true,
+        }),
+        // Will remain existing (same quality)
+        createCollectionTrack('Artist', 'Same Song', 'Album', {
+          fileType: 'mp3',
+          lossless: false,
+          bitrate: 256,
+        }),
+      ];
+
+      const ipods = [
+        // Matches "Upgrade Song" - lower quality
+        createIPodTrack('Artist', 'Upgrade Song', 'Album', {
+          filetype: 'MPEG audio file',
+          bitrate: 192,
+        }),
+        // Matches "Same Song" - same quality
+        createIPodTrack('Artist', 'Same Song', 'Album', {
+          filetype: 'MPEG audio file',
+          bitrate: 256,
+        }),
+        // Will be removed (not in collection)
+        createIPodTrack('Artist', 'Old Song', 'Album', {
+          filetype: 'MPEG audio file',
+          bitrate: 128,
+        }),
+      ];
+
+      const diff = computeDiff(sources, ipods);
+
+      expect(diff.toAdd).toHaveLength(1);
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('format-upgrade');
+      expect(diff.existing).toHaveLength(1);
+      expect(diff.toRemove).toHaveLength(1);
+    });
+  });
+});

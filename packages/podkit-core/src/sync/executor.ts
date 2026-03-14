@@ -185,7 +185,7 @@ export interface ExecutorDependencies {
  */
 export interface PreparedFile {
   /** The sync operation this file is for */
-  operation: Extract<SyncOperation, { type: 'transcode' | 'copy' }>;
+  operation: Extract<SyncOperation, { type: 'transcode' | 'copy' | 'upgrade' }>;
   /** Path to the file to transfer (temp file for transcode, source for copy) */
   sourcePath: string;
   /** Whether this is a temp file that should be deleted after transfer */
@@ -325,6 +325,7 @@ function toTrackInput(track: CollectionTrack): TrackInput {
     discNumber: track.discNumber,
     compilation: track.compilation,
     duration: track.duration,
+    bitrate: track.bitrate,
     soundcheck: track.soundcheck,
   };
 }
@@ -342,6 +343,8 @@ export function getOperationDisplayName(operation: SyncOperation): string {
       return `${operation.track.artist} - ${operation.track.title}`;
     case 'update-metadata':
       return `${operation.track.artist} - ${operation.track.title}`;
+    case 'upgrade':
+      return `${operation.source.artist} - ${operation.source.title}`;
     case 'video-transcode':
     case 'video-copy':
       return operation.source.title;
@@ -411,6 +414,9 @@ export function categorizeError(error: Error, operationType: SyncOperation['type
   }
   if (operationType === 'copy') {
     return 'copy';
+  }
+  if (operationType === 'upgrade') {
+    return 'copy'; // Upgrade errors are treated like copy errors for retry purposes
   }
 
   return 'unknown';
@@ -545,7 +551,9 @@ export class DefaultSyncExecutor implements SyncExecutor {
 
     // Create temp directory for transcoded files if needed
     const transcodeDir = join(tempDir, `podkit-transcode-${randomUUID()}`);
-    const hasTranscodes = plan.operations.some((op) => op.type === 'transcode');
+    const hasTranscodes = plan.operations.some(
+      (op) => op.type === 'transcode' || (op.type === 'upgrade' && op.preset !== undefined)
+    );
     if (hasTranscodes && !dryRun) {
       await mkdir(transcodeDir, { recursive: true });
     }
@@ -704,6 +712,23 @@ export class DefaultSyncExecutor implements SyncExecutor {
                 break;
               }
             }
+          } else if (operation.type === 'upgrade') {
+            const result = await this.prepareWithRetry(
+              () => this.prepareUpgrade(operation, transcodeDir, adapter, signal),
+              operation,
+              retryConfig
+            );
+            if (result.value) {
+              await transferQueue.push(result.value);
+            } else {
+              producerFailures.push({ operation, error: result.error, attempts: result.attempts });
+              failed++;
+              if (!continueOnError) {
+                producerError = result.error;
+                abortRequested = true;
+                break;
+              }
+            }
           } else if (operation.type === 'remove') {
             await this.executeRemove(operation);
             inlineCompletions.push(operation);
@@ -750,7 +775,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
           const totalRetries = (prepared.prepareAttempts ?? 0) + (result.attempts ?? 0);
 
           yield {
-            phase: prepared.operation.type === 'transcode' ? 'transcoding' : 'copying',
+            phase: getPhaseForOperation(prepared.operation),
             operation: prepared.operation,
             index: completed + failed + inlineCompleted - 1,
             current: completed + failed + inlineCompleted,
@@ -772,7 +797,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
           );
 
           yield {
-            phase: prepared.operation.type === 'transcode' ? 'transcoding' : 'copying',
+            phase: getPhaseForOperation(prepared.operation),
             operation: prepared.operation,
             index: completed + failed + inlineCompleted - 1,
             current: completed + failed + inlineCompleted,
@@ -806,7 +831,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
       );
 
       yield {
-        phase: failure.operation.type === 'transcode' ? 'transcoding' : 'copying',
+        phase: getPhaseForOperation(failure.operation),
         operation: failure.operation,
         index: completed + failed + inlineCompleted - 1,
         current: completed + failed + inlineCompleted,
@@ -903,7 +928,11 @@ export class DefaultSyncExecutor implements SyncExecutor {
     | { value: null; error: Error; attempts: number }
   > {
     const maxRetries =
-      operation.type === 'transcode' ? retryConfig.transcodeRetries : retryConfig.copyRetries;
+      operation.type === 'transcode' ||
+      (operation.type === 'upgrade' &&
+        (operation as Extract<SyncOperation, { type: 'upgrade' }>).preset !== undefined)
+        ? retryConfig.transcodeRetries
+        : retryConfig.copyRetries;
 
     let lastError: Error | undefined;
 
@@ -983,6 +1012,9 @@ export class DefaultSyncExecutor implements SyncExecutor {
         return this.executeRemove(operation);
       case 'update-metadata':
         return this.executeUpdateMetadata(operation);
+      case 'upgrade':
+        // Upgrade operations are handled via the pipeline (prepare + transfer)
+        throw new Error('Upgrade operations should be handled via the pipeline');
       case 'video-transcode':
       case 'video-copy':
       case 'video-remove':
@@ -1184,6 +1216,12 @@ export class DefaultSyncExecutor implements SyncExecutor {
     if (metadata.discNumber !== undefined) {
       updateFields.discNumber = metadata.discNumber;
     }
+    if (metadata.compilation !== undefined) {
+      updateFields.compilation = metadata.compilation;
+    }
+    if (metadata.soundcheck !== undefined) {
+      updateFields.soundcheck = metadata.soundcheck;
+    }
 
     // Update the track metadata (preserves play stats automatically)
     foundTrack.update(updateFields);
@@ -1289,16 +1327,59 @@ export class DefaultSyncExecutor implements SyncExecutor {
   }
 
   /**
+   * Prepare an upgrade operation by transcoding or getting file info.
+   *
+   * Delegates to prepareTranscode when a preset is set (transcode needed),
+   * or prepareCopy when no preset is set (direct file copy). The operation
+   * field on the returned PreparedFile is rewritten to the upgrade operation
+   * so the transfer phase can target the existing iPod track.
+   */
+  private async prepareUpgrade(
+    operation: Extract<SyncOperation, { type: 'upgrade' }>,
+    transcodeDir: string,
+    adapter?: CollectionAdapter,
+    signal?: AbortSignal
+  ): Promise<PreparedFile> {
+    if (operation.preset) {
+      // Needs transcoding — delegate to prepareTranscode using a synthetic transcode op
+      const transcodeOp: Extract<SyncOperation, { type: 'transcode' }> = {
+        type: 'transcode',
+        source: operation.source,
+        preset: operation.preset,
+      };
+      const prepared = await this.prepareTranscode(transcodeOp, transcodeDir, adapter, signal);
+      return { ...prepared, operation };
+    } else {
+      // Copy directly — delegate to prepareCopy using a synthetic copy op
+      const copyOp: Extract<SyncOperation, { type: 'copy' }> = {
+        type: 'copy',
+        source: operation.source,
+      };
+      const prepared = await this.prepareCopy(copyOp, adapter);
+      return { ...prepared, operation };
+    }
+  }
+
+  /**
    * Transfer a prepared file to the iPod.
    *
    * This is the USB I/O-bound part of the operation. It adds the track to
    * the database, copies the file, and transfers artwork.
+   *
+   * For upgrade operations, replaces the existing file while preserving
+   * the database entry (play counts, ratings, playlists).
    */
   private async transferToIpod(
     prepared: PreparedFile,
     artworkEnabled: boolean
   ): Promise<{ bytesTransferred: number; track: IpodDatabaseTrack }> {
     const { operation, sourcePath, size, bitrate, filetype, artworkSourcePath } = prepared;
+
+    // Upgrade operations: replace file on existing track
+    if (operation.type === 'upgrade') {
+      return this.transferUpgradeToIpod(prepared, artworkEnabled);
+    }
+
     const source = operation.source;
 
     // Add track to iPod database
@@ -1320,6 +1401,66 @@ export class DefaultSyncExecutor implements SyncExecutor {
     }
 
     return { bytesTransferred: size, track };
+  }
+
+  /**
+   * Transfer an upgrade file to the iPod, replacing the existing track's file.
+   *
+   * Preserves the database entry (play counts, ratings, playlist membership)
+   * while swapping the audio file and updating technical metadata.
+   */
+  private async transferUpgradeToIpod(
+    prepared: PreparedFile,
+    artworkEnabled: boolean
+  ): Promise<{ bytesTransferred: number; track: IpodDatabaseTrack }> {
+    const { sourcePath, size, bitrate, filetype, artworkSourcePath } = prepared;
+    const operation = prepared.operation as Extract<SyncOperation, { type: 'upgrade' }>;
+    const { source, target } = operation;
+
+    // Find the existing track in the database by filePath
+    const tracks = this.ipod.getTracks();
+    let foundTrack = tracks.find((t) => t.filePath === target.filePath);
+
+    // Fall back to metadata matching
+    if (!foundTrack) {
+      foundTrack = tracks.find(
+        (t) => t.title === target.title && t.artist === target.artist && t.album === target.album
+      );
+    }
+
+    if (!foundTrack) {
+      throw new Error(
+        `Track not found in database for upgrade: ${target.artist} - ${target.title}`
+      );
+    }
+
+    // Replace the audio file (preserves database entry, playlists, play counts)
+    this.ipod.replaceTrackFile(foundTrack, sourcePath);
+
+    // Update technical metadata to reflect the new file
+    const updateFields: Parameters<IpodDatabaseTrack['update']>[0] = {
+      filetype,
+      ...(bitrate !== undefined && { bitrate }),
+      ...(source.duration !== undefined && { duration: source.duration }),
+      ...(source.soundcheck !== undefined && { soundcheck: source.soundcheck }),
+    };
+
+    // Update metadata fields from source that may have changed
+    if (source.genre !== undefined) updateFields.genre = source.genre;
+    if (source.year !== undefined) updateFields.year = source.year;
+    if (source.trackNumber !== undefined) updateFields.trackNumber = source.trackNumber;
+    if (source.discNumber !== undefined) updateFields.discNumber = source.discNumber;
+    if (source.albumArtist !== undefined) updateFields.albumArtist = source.albumArtist;
+    if (source.compilation !== undefined) updateFields.compilation = source.compilation;
+
+    foundTrack.update(updateFields);
+
+    // Extract and transfer artwork if enabled
+    if (artworkEnabled) {
+      await this.transferArtwork(foundTrack, artworkSourcePath);
+    }
+
+    return { bytesTransferred: size, track: foundTrack };
   }
 
   /**
@@ -1356,6 +1497,8 @@ function getPhaseForOperation(operation: SyncOperation): SyncProgress['phase'] {
       return 'removing';
     case 'update-metadata':
       return 'updating-metadata';
+    case 'upgrade':
+      return 'upgrading';
     case 'video-transcode':
       return 'video-transcoding';
     case 'video-copy':

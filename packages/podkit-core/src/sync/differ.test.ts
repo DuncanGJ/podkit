@@ -10,7 +10,7 @@
  * 2. Identical collections (nothing to sync)
  * 3. Fresh iPod scenarios (all tracks to add)
  * 4. Mixed scenarios (some new, some existing, some removed)
- * 5. Conflict detection (metadata mismatches)
+ * 5. Metadata correction routing (metadata mismatches → toUpdate)
  * 6. Performance with large collections (10k+ tracks)
  * 7. False positive/negative prevention
  */
@@ -149,7 +149,6 @@ describe('computeDiff - empty scenarios', () => {
     expect(diff.toAdd).toHaveLength(0);
     expect(diff.toRemove).toHaveLength(0);
     expect(diff.existing).toHaveLength(0);
-    expect(diff.conflicts).toHaveLength(0);
   });
 
   it('handles empty collection with populated iPod', () => {
@@ -163,7 +162,6 @@ describe('computeDiff - empty scenarios', () => {
     expect(diff.toAdd).toHaveLength(0);
     expect(diff.toRemove).toHaveLength(2);
     expect(diff.existing).toHaveLength(0);
-    expect(diff.conflicts).toHaveLength(0);
     expect(diff.toRemove).toEqual(ipodTracks);
   });
 
@@ -178,7 +176,6 @@ describe('computeDiff - empty scenarios', () => {
     expect(diff.toAdd).toHaveLength(2);
     expect(diff.toRemove).toHaveLength(0);
     expect(diff.existing).toHaveLength(0);
-    expect(diff.conflicts).toHaveLength(0);
     expect(diff.toAdd).toEqual(collectionTracks);
   });
 });
@@ -204,7 +201,6 @@ describe('computeDiff - identical collections', () => {
     expect(diff.toAdd).toHaveLength(0);
     expect(diff.toRemove).toHaveLength(0);
     expect(diff.existing).toHaveLength(2);
-    expect(diff.conflicts).toHaveLength(0);
   });
 
   it('handles identical collections with different ordering', () => {
@@ -416,8 +412,11 @@ describe('computeDiff - mixed scenarios', () => {
 // Conflict Detection Tests
 // =============================================================================
 
-describe('computeDiff - conflict detection', () => {
-  it('detects genre conflicts', () => {
+describe('computeDiff - metadata correction routing', () => {
+  // Metadata differences between collection and iPod tracks are detected as
+  // 'metadata-correction' upgrades and routed to toUpdate (self-healing sync, ADR-009).
+
+  it('routes genre differences to toUpdate as metadata-correction', () => {
     const collectionTracks = [createCollectionTrack('Artist', 'Song', 'Album', { genre: 'Rock' })];
 
     const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album', { genre: 'Pop' })];
@@ -425,44 +424,44 @@ describe('computeDiff - conflict detection', () => {
     const diff = computeDiff(collectionTracks, ipodTracks);
 
     expect(diff.existing).toHaveLength(0);
-    expect(diff.conflicts).toHaveLength(1);
-    expect(diff.conflicts[0]!.conflicts).toContain('genre');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
   });
 
-  it('detects year conflicts', () => {
+  it('routes year differences to toUpdate as metadata-correction', () => {
     const collectionTracks = [createCollectionTrack('Artist', 'Song', 'Album', { year: 2020 })];
 
     const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album', { year: 2019 })];
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(1);
-    expect(diff.conflicts[0]!.conflicts).toContain('year');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
   });
 
-  it('detects trackNumber conflicts', () => {
+  it('routes trackNumber differences to toUpdate as metadata-correction', () => {
     const collectionTracks = [createCollectionTrack('Artist', 'Song', 'Album', { trackNumber: 1 })];
 
     const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album', { trackNumber: 2 })];
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(1);
-    expect(diff.conflicts[0]!.conflicts).toContain('trackNumber');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
   });
 
-  it('detects discNumber conflicts', () => {
+  it('routes discNumber differences to toUpdate as metadata-correction', () => {
     const collectionTracks = [createCollectionTrack('Artist', 'Song', 'Album', { discNumber: 1 })];
 
     const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album', { discNumber: 2 })];
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(1);
-    expect(diff.conflicts[0]!.conflicts).toContain('discNumber');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
   });
 
-  it('detects albumArtist conflicts', () => {
+  it('routes albumArtist differences to toUpdate as metadata-correction', () => {
     const collectionTracks = [
       createCollectionTrack('Artist', 'Song', 'Album', {
         albumArtist: 'Various Artists',
@@ -477,11 +476,11 @@ describe('computeDiff - conflict detection', () => {
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(1);
-    expect(diff.conflicts[0]!.conflicts).toContain('albumArtist');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
   });
 
-  it('detects multiple conflicts on same track', () => {
+  it('routes multiple metadata differences to a single toUpdate entry', () => {
     const collectionTracks = [
       createCollectionTrack('Artist', 'Song', 'Album', {
         genre: 'Rock',
@@ -500,10 +499,13 @@ describe('computeDiff - conflict detection', () => {
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(1);
-    expect(diff.conflicts[0]!.conflicts).toContain('genre');
-    expect(diff.conflicts[0]!.conflicts).toContain('year');
-    expect(diff.conflicts[0]!.conflicts).toContain('trackNumber');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
+    // Changes should include the differing fields
+    const changeFields = diff.toUpdate[0]!.changes.map((c) => c.field);
+    expect(changeFields).toContain('genre');
+    expect(changeFields).toContain('year');
+    expect(changeFields).toContain('trackNumber');
   });
 
   it('does not report conflict for matching metadata with case differences', () => {
@@ -513,8 +515,8 @@ describe('computeDiff - conflict detection', () => {
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    // Genre matches (case-insensitive), so no conflict
-    expect(diff.conflicts).toHaveLength(0);
+    // Genre matches (case-insensitive), so no update needed
+    expect(diff.toUpdate).toHaveLength(0);
     expect(diff.existing).toHaveLength(1);
   });
 
@@ -527,7 +529,7 @@ describe('computeDiff - conflict detection', () => {
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(0);
     expect(diff.existing).toHaveLength(1);
   });
 
@@ -538,22 +540,22 @@ describe('computeDiff - conflict detection', () => {
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(0);
     expect(diff.existing).toHaveLength(1);
   });
 
-  it('detects conflict when one has value and other is undefined', () => {
+  it('routes metadata-correction when one has value and other is undefined', () => {
     const collectionTracks = [createCollectionTrack('Artist', 'Song', 'Album', { genre: 'Rock' })];
 
     const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album', { genre: undefined })];
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(1);
-    expect(diff.conflicts[0]!.conflicts).toContain('genre');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
   });
 
-  it('detects compilation conflict', () => {
+  it('routes compilation difference to toUpdate as metadata-correction', () => {
     const collectionTracks = [
       createCollectionTrack('Artist', 'Song', 'Album', { compilation: true }),
     ];
@@ -562,11 +564,11 @@ describe('computeDiff - conflict detection', () => {
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(1);
-    expect(diff.conflicts[0]!.conflicts).toContain('compilation');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
   });
 
-  it('does not report conflict when both compilation values match', () => {
+  it('does not trigger update when both compilation values match', () => {
     const collectionTracks = [
       createCollectionTrack('Artist', 'Song', 'Album', { compilation: true }),
     ];
@@ -575,11 +577,11 @@ describe('computeDiff - conflict detection', () => {
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(0);
     expect(diff.existing).toHaveLength(1);
   });
 
-  it('treats undefined compilation as equivalent to false (no spurious conflict)', () => {
+  it('treats undefined compilation as equivalent to false (no spurious update)', () => {
     const collectionTracks = [
       createCollectionTrack('Artist', 'Song', 'Album'),
       // compilation is undefined
@@ -589,11 +591,11 @@ describe('computeDiff - conflict detection', () => {
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(0);
     expect(diff.existing).toHaveLength(1);
   });
 
-  it('includes both collection and iPod tracks in conflict object', () => {
+  it('includes source and iPod tracks in toUpdate entry for metadata-correction', () => {
     const collectionTracks = [
       createCollectionTrack('Artist', 'Song', 'Album', {
         id: 'coll-1',
@@ -609,9 +611,9 @@ describe('computeDiff - conflict detection', () => {
 
     const diff = computeDiff(collectionTracks, ipodTracks);
 
-    expect(diff.conflicts).toHaveLength(1);
-    expect(diff.conflicts[0]!.collection.id).toBe('coll-1');
-    expect(diff.conflicts[0]!.ipod.title).toBe('Song');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.source.id).toBe('coll-1');
+    expect(diff.toUpdate[0]!.ipod.title).toBe('Song');
   });
 });
 
@@ -762,7 +764,7 @@ describe('computeDiff - duplicate handling', () => {
     const diff = computeDiff(collectionTracks, ipodTracks);
 
     // Both collection tracks match the same iPod track
-    // First is added to existing, second also matches (conflicts or existing)
+    // First is added to existing, second also matches (existing or update)
     expect(diff.toRemove).toHaveLength(0);
     // The iPod track is matched, so it shouldn't be removed
   });
@@ -898,7 +900,7 @@ describe('DefaultSyncDiffer', () => {
     expect(classDiff.toAdd).toHaveLength(directDiff.toAdd.length);
     expect(classDiff.toRemove).toHaveLength(directDiff.toRemove.length);
     expect(classDiff.existing).toHaveLength(directDiff.existing.length);
-    expect(classDiff.conflicts).toHaveLength(directDiff.conflicts.length);
+    expect(classDiff.toUpdate).toHaveLength(directDiff.toUpdate.length);
   });
 });
 
@@ -1293,6 +1295,223 @@ describe('computeDiff - transform-aware matching', () => {
 
       expect(diff.toRemove).toHaveLength(1);
       expect(diff.toRemove[0]!.artist).toBe('Old Artist');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // transcodingActive flag
+  // -------------------------------------------------------------------------
+
+  describe('transcodingActive flag', () => {
+    it('suppresses format-upgrade for lossless source vs lossy iPod when transcodingActive is true', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'AAC audio file',
+        bitrate: 256,
+      });
+
+      const diff = computeDiff([source], [ipod], { transcodingActive: true });
+
+      // Should NOT route to toUpdate for format-upgrade (AAC is the expected transcode output)
+      expect(diff.toUpdate).toHaveLength(0);
+      expect(diff.existing).toHaveLength(1);
+    });
+
+    it('does NOT suppress format-upgrade when iPod track is MP3 (not the expected transcode output)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+
+      const diff = computeDiff([source], [ipod], { transcodingActive: true });
+
+      // MP3 on iPod with lossless source IS a genuine upgrade — the source
+      // was originally MP3 (copied as-is) and has since been replaced with FLAC
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('format-upgrade');
+      expect(diff.existing).toHaveLength(0);
+    });
+
+    it('does NOT suppress quality-upgrade when transcodingActive is true', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 320,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 128,
+      });
+
+      const diff = computeDiff([source], [ipod], { transcodingActive: true });
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('quality-upgrade');
+    });
+
+    it('does NOT suppress metadata-correction when transcodingActive is true', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+        genre: 'Progressive Rock',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'AAC audio file',
+        bitrate: 256,
+        genre: 'Rock',
+      });
+
+      const diff = computeDiff([source], [ipod], { transcodingActive: true });
+
+      // Format-upgrade suppressed, but metadata-correction should still apply
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
+    });
+
+    it('does NOT suppress soundcheck-update when transcodingActive is true', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+        soundcheck: 1200,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'AAC audio file',
+        bitrate: 256,
+      });
+
+      const diff = computeDiff([source], [ipod], { transcodingActive: true });
+
+      // Format-upgrade suppressed, but soundcheck-update still applies
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('soundcheck-update');
+    });
+
+    it('does NOT suppress format-upgrade when iPod track is OGG (not the expected transcode output)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'OGG audio file',
+        bitrate: 192,
+      });
+
+      const diff = computeDiff([source], [ipod], { transcodingActive: true });
+
+      // OGG on iPod is not the expected transcode output (AAC), so format-upgrade applies
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('format-upgrade');
+      expect(diff.existing).toHaveLength(0);
+    });
+
+    it('does NOT suppress format-upgrade when iPod track has unknown/missing filetype', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        // no filetype set — unknown format
+        bitrate: 192,
+      });
+
+      const diff = computeDiff([source], [ipod], { transcodingActive: true });
+
+      // Unknown filetype should not be suppressed — be conservative, allow the upgrade
+      // (iPod track with no filetype has isIpodTrackLossless returning undefined,
+      // so format-upgrade won't be detected at all — track stays in existing)
+      // This verifies the conservative behavior: unknown format is NOT treated as AAC
+      expect(diff.toUpdate).toHaveLength(0);
+      expect(diff.existing).toHaveLength(1);
+    });
+
+    it('still detects format-upgrade when transcodingActive is false', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+
+      const diff = computeDiff([source], [ipod], { transcodingActive: false });
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('format-upgrade');
+    });
+
+    it('still detects format-upgrade when transcodingActive is undefined', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'flac',
+        lossless: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 192,
+      });
+
+      const diff = computeDiff([source], [ipod]);
+
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('format-upgrade');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Real-world regression: format upgrade with transcodingActive for non-AAC iPod tracks
+  // -------------------------------------------------------------------------
+
+  describe('real-world regression: FLAC source + MP3 iPod + transcodingActive', () => {
+    it('detects format-upgrade for FLAC source with MP3 iPod track when transcodingActive is true', () => {
+      // This is the exact scenario that was broken: a Navidrome collection has
+      // a FLAC file, the iPod has an MP3 copy (copied as-is because it was
+      // originally MP3 in the collection). The source was later replaced with
+      // FLAC. With transcodingActive, the old code suppressed ALL format-upgrades,
+      // but it should only suppress when the iPod track is AAC (the expected
+      // transcode output format).
+      const source = createCollectionTrack('Pink Floyd', 'Comfortably Numb', 'The Wall', {
+        fileType: 'flac',
+        lossless: true,
+        bitrate: 1000,
+      });
+      const ipod = createIPodTrack('Pink Floyd', 'Comfortably Numb', 'The Wall', {
+        filetype: 'MPEG audio file', // MP3 — was copied as-is originally
+        bitrate: 192,
+      });
+
+      const diff = computeDiff([source], [ipod], { transcodingActive: true });
+
+      // MP3 on iPod is NOT the expected transcode output (AAC is),
+      // so this should be detected as a format-upgrade
+      expect(diff.toUpdate).toHaveLength(1);
+      expect(diff.toUpdate[0]!.reason).toBe('format-upgrade');
+      expect(diff.existing).toHaveLength(0);
+    });
+
+    it('still suppresses format-upgrade for FLAC source with AAC iPod track when transcodingActive is true', () => {
+      // Counterpart: when the iPod has AAC (the expected transcode output),
+      // format-upgrade should be suppressed since the track was already transcoded
+      const source = createCollectionTrack('Pink Floyd', 'Comfortably Numb', 'The Wall', {
+        fileType: 'flac',
+        lossless: true,
+        bitrate: 1000,
+      });
+      const ipod = createIPodTrack('Pink Floyd', 'Comfortably Numb', 'The Wall', {
+        filetype: 'AAC audio file', // AAC — was transcoded as expected
+        bitrate: 256,
+      });
+
+      const diff = computeDiff([source], [ipod], { transcodingActive: true });
+
+      expect(diff.toUpdate).toHaveLength(0);
+      expect(diff.existing).toHaveLength(1);
     });
   });
 

@@ -56,6 +56,7 @@ program.hook('preAction', (thisCommand, actionCommand) => {
   const commandOpts = actionCommand.opts() as {
     quality?: string;
     artwork?: boolean;
+    skipUpgrades?: boolean;
   };
 
   // Load and merge config from all sources

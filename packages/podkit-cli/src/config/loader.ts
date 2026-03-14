@@ -123,6 +123,10 @@ export function loadConfigFile(configPath: string): PartialConfig | undefined {
     config.artwork = parsed.artwork;
   }
 
+  if (typeof parsed.skipUpgrades === 'boolean') {
+    config.skipUpgrades = parsed.skipUpgrades;
+  }
+
   // Parse transforms section
   if (parsed.transforms !== undefined) {
     config.transforms = parseTransformsConfig(parsed.transforms);
@@ -447,6 +451,17 @@ function parseDevices(
       device.artwork = rawDevice.artwork;
     }
 
+    // Parse optional skipUpgrades
+    if (rawDevice.skipUpgrades !== undefined) {
+      if (typeof rawDevice.skipUpgrades !== 'boolean') {
+        throw new Error(
+          `Invalid type for "skipUpgrades" in [devices.${name}]. ` +
+            `Expected boolean, got ${typeof rawDevice.skipUpgrades}.`
+        );
+      }
+      device.skipUpgrades = rawDevice.skipUpgrades;
+    }
+
     // Parse optional transforms
     if (rawDevice.transforms !== undefined) {
       device.transforms = parseTransformsConfig(rawDevice.transforms);
@@ -597,6 +612,7 @@ export function loadCliConfig(
     videoQuality?: string;
     lossyQuality?: string;
     artwork?: boolean;
+    skipUpgrades?: boolean;
   }
 ): PartialConfig {
   const config: PartialConfig = {};
@@ -629,6 +645,10 @@ export function loadCliConfig(
 
     if (commandOpts.artwork !== undefined) {
       config.artwork = commandOpts.artwork;
+    }
+
+    if (commandOpts.skipUpgrades !== undefined) {
+      config.skipUpgrades = commandOpts.skipUpgrades;
     }
   }
 
@@ -664,6 +684,9 @@ export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
     }
     if (config.artwork !== undefined) {
       merged.artwork = config.artwork;
+    }
+    if (config.skipUpgrades !== undefined) {
+      merged.skipUpgrades = config.skipUpgrades;
     }
     if (config.transforms !== undefined) {
       // Deep merge transforms config
@@ -772,6 +795,7 @@ export function loadConfig(
     videoQuality?: string;
     lossyQuality?: string;
     artwork?: boolean;
+    skipUpgrades?: boolean;
   }
 ): LoadConfigResult {
   const configsToMerge: PartialConfig[] = [];

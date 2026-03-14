@@ -12,21 +12,19 @@
  * 3. Track which iPod tracks were matched
  * 4. Remaining unmatched iPod tracks are candidates for removal
  *
- * ## Conflict Detection
- *
- * When a collection track matches an iPod track (same artist/title/album),
- * we check if metadata differs. If so, it's reported as a conflict.
- * The sync planner can then decide whether to update metadata.
- *
  * @module
  */
 
 import type { CollectionTrack } from '../adapters/interface.js';
-import type { TrackMetadata } from '../types.js';
 import { hasEnabledTransforms } from '../transforms/pipeline.js';
 import { buildMatchIndex, getTransformMatchKeys } from './matching.js';
+import {
+  detectUpgrades,
+  getIpodFormatFamily,
+  isFileReplacementUpgrade,
+  metadataValuesDiffer,
+} from './upgrades.js';
 import type {
-  ConflictTrack,
   DiffOptions,
   IPodTrack,
   MatchedTrack,
@@ -34,81 +32,8 @@ import type {
   SyncDiff,
   SyncDiffer,
   UpdateTrack,
+  UpgradeReason,
 } from './types.js';
-
-/**
- * Metadata fields to check for conflicts between collection and iPod tracks
- *
- * Note: We exclude artist, title, and album from conflict detection because
- * these fields are used for matching (via normalized keys). If tracks match,
- * they are considered "the same" even if the raw strings differ (e.g., case,
- * whitespace, "The X" vs "X, The").
- *
- * We only check for conflicts in supplementary metadata fields.
- */
-const CONFLICT_FIELDS: (keyof TrackMetadata)[] = [
-  'albumArtist',
-  'genre',
-  'year',
-  'trackNumber',
-  'discNumber',
-  'compilation',
-];
-
-/**
- * Check if a value represents "no value" (null, undefined, or empty string)
- * All these are treated as equivalent for metadata comparison.
- */
-function isEmpty(value: unknown): boolean {
-  return value === null || value === undefined || value === '';
-}
-
-/**
- * Check if two values are different (handling undefined/null/empty)
- */
-function valuesDiffer(collectionValue: unknown, ipodValue: unknown): boolean {
-  // Both empty -> no difference
-  if (isEmpty(collectionValue) && isEmpty(ipodValue)) {
-    return false;
-  }
-  // One empty, one not -> difference
-  if (isEmpty(collectionValue) || isEmpty(ipodValue)) {
-    return true;
-  }
-  // For strings, do case-insensitive comparison (metadata often has case variations)
-  if (typeof collectionValue === 'string' && typeof ipodValue === 'string') {
-    return collectionValue.toLowerCase().trim() !== ipodValue.toLowerCase().trim();
-  }
-  // For other types, strict equality
-  return collectionValue !== ipodValue;
-}
-
-/**
- * Find metadata fields that differ between collection and iPod tracks
- */
-function findConflictingFields(
-  collection: CollectionTrack,
-  ipod: IPodTrack
-): (keyof TrackMetadata)[] {
-  const conflicts: (keyof TrackMetadata)[] = [];
-
-  for (const field of CONFLICT_FIELDS) {
-    let collectionValue = collection[field as keyof CollectionTrack];
-    let ipodValue = ipod[field as keyof IPodTrack];
-
-    // Normalize boolean fields: undefined/null and false are equivalent
-    if (field === 'compilation') {
-      collectionValue = collectionValue ?? false;
-      ipodValue = ipodValue ?? false;
-    }
-
-    if (valuesDiffer(collectionValue, ipodValue)) {
-      conflicts.push(field);
-    }
-  }
-
-  return conflicts;
-}
 
 /**
  * Build metadata changes array from source to target track
@@ -189,7 +114,6 @@ export function computeDiff(
   // Output arrays
   const toAdd: CollectionTrack[] = [];
   const existing: MatchedTrack[] = [];
-  const conflicts: ConflictTrack[] = [];
   const toUpdate: UpdateTrack[] = [];
 
   // Check if transforms are enabled
@@ -244,23 +168,51 @@ export function computeDiff(
         }
       }
 
-      // Check for other metadata conflicts (not transform-related)
-      const conflictingFields = findConflictingFields(collectionTrack, ipodMatch);
+      // Check for upgrades (self-healing sync)
+      let upgradeReasons = detectUpgrades(collectionTrack, ipodMatch);
 
-      if (conflictingFields.length > 0) {
-        // Has metadata conflicts
-        conflicts.push({
-          collection: collectionTrack,
-          ipod: ipodMatch,
-          conflicts: conflictingFields,
-        });
-      } else {
-        // Fully in sync
-        existing.push({
-          collection: collectionTrack,
-          ipod: ipodMatch,
-        });
+      // When transcoding is active, lossless source → lossy iPod is expected
+      // ONLY if the iPod track is already in the target format (AAC).
+      // If the iPod track is MP3 (a compatible-lossy copy from before the source
+      // was upgraded to FLAC), that IS a genuine format upgrade opportunity.
+      if (options?.transcodingActive && upgradeReasons.includes('format-upgrade')) {
+        const ipodFamily = getIpodFormatFamily(ipodMatch);
+        if (ipodFamily === 'aac') {
+          upgradeReasons = upgradeReasons.filter((r) => r !== 'format-upgrade');
+        }
       }
+
+      if (upgradeReasons.length > 0) {
+        // Filter by skipUpgrades: when enabled, suppress file-replacement upgrades
+        // but keep metadata-only upgrades (soundcheck, metadata-correction)
+        const skipUpgrades = options?.skipUpgrades ?? false;
+        const effectiveReasons = skipUpgrades
+          ? upgradeReasons.filter((r) => !isFileReplacementUpgrade(r))
+          : upgradeReasons;
+
+        if (effectiveReasons.length > 0) {
+          // Build changes for upgrade tracking
+          const changes = buildUpgradeChanges(collectionTrack, ipodMatch, effectiveReasons);
+
+          // Use the first reason as the primary/headline reason for display.
+          // detectUpgrades() returns reasons in priority order (format > quality >
+          // artwork > soundcheck > metadata), so reasons[0] is the most significant.
+          // Full detail is available in the changes array.
+          toUpdate.push({
+            source: collectionTrack,
+            ipod: ipodMatch,
+            reason: effectiveReasons[0]!,
+            changes,
+          });
+          continue;
+        }
+      }
+
+      // Fully in sync
+      existing.push({
+        collection: collectionTrack,
+        ipod: ipodMatch,
+      });
     } else {
       // Track not on iPod - needs to be added
       // Apply transforms to the track metadata if enabled
@@ -292,9 +244,81 @@ export function computeDiff(
     toAdd,
     toRemove,
     existing,
-    conflicts,
     toUpdate,
   };
+}
+
+/**
+ * Build metadata changes array for upgrade tracking
+ *
+ * Produces human-readable change entries describing what's being upgraded.
+ */
+function buildUpgradeChanges(
+  source: CollectionTrack,
+  ipod: IPodTrack,
+  reasons: UpgradeReason[]
+): MetadataChange[] {
+  const changes: MetadataChange[] = [];
+
+  for (const reason of reasons) {
+    switch (reason) {
+      case 'format-upgrade':
+        changes.push({
+          field: 'fileType',
+          from: ipod.filetype ?? 'unknown',
+          to: source.fileType,
+        });
+        break;
+
+      case 'quality-upgrade':
+        changes.push({
+          field: 'bitrate',
+          from: String(ipod.bitrate),
+          to: String(source.bitrate ?? 'unknown'),
+        });
+        break;
+
+      case 'artwork-added':
+        // Placeholder for when CollectionTrack gains artwork metadata
+        break;
+
+      case 'soundcheck-update':
+        changes.push({
+          field: 'soundcheck',
+          from: String(ipod.soundcheck ?? 'absent'),
+          to: String(source.soundcheck ?? 'absent'),
+        });
+        break;
+
+      case 'metadata-correction': {
+        // Report each differing metadata field
+        const metadataFields = [
+          'genre',
+          'year',
+          'trackNumber',
+          'discNumber',
+          'albumArtist',
+          'compilation',
+        ] as const;
+
+        for (const field of metadataFields) {
+          const sourceValue = source[field as keyof CollectionTrack];
+          const ipodValue = ipod[field as keyof IPodTrack];
+
+          if (metadataValuesDiffer(field, sourceValue, ipodValue)) {
+            changes.push({
+              field: field as MetadataChange['field'],
+              from: String(ipodValue ?? ''),
+              to: String(sourceValue ?? ''),
+            });
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  return changes;
 }
 
 /**

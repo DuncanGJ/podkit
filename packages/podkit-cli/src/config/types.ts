@@ -116,6 +116,8 @@ export interface DeviceConfig {
   videoQuality?: VideoQualityPreset;
   /** Whether to sync artwork to this device */
   artwork?: boolean;
+  /** Skip file-replacement upgrades during sync for this device */
+  skipUpgrades?: boolean;
   /** Device-specific transform settings */
   transforms?: TransformsConfig;
 }
@@ -167,6 +169,8 @@ export interface PodkitConfig {
   lossyQuality?: AacQualityPreset;
   /** Include artwork in sync (global default, can be overridden per-device) */
   artwork: boolean;
+  /** Skip file-replacement upgrades during sync (global default, can be overridden per-device) */
+  skipUpgrades?: boolean;
   /** Transform configuration (global default, can be overridden per-device) */
   transforms: TransformsConfig;
 
@@ -251,6 +255,7 @@ export interface ConfigFileDevice {
   audioQuality?: string;
   videoQuality?: string;
   artwork?: boolean;
+  skipUpgrades?: boolean;
   transforms?: ConfigFileTransforms;
 }
 
@@ -309,6 +314,7 @@ export interface ConfigFileContent {
   videoQuality?: string;
   lossyQuality?: string;
   artwork?: boolean;
+  skipUpgrades?: boolean;
   transforms?: ConfigFileTransforms;
 
   /** Named music collections: [music.{name}] */

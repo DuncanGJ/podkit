@@ -247,7 +247,7 @@ describe('compilation album support', () => {
     });
   }, 120000);
 
-  it('reports compilation metadata conflict on re-sync when tag changes', async () => {
+  it('reports compilation metadata correction on re-sync when tag changes', async () => {
     if (skipIfUnavailable()) return;
 
     await withTarget(async (target) => {
@@ -274,7 +274,7 @@ describe('compilation album support', () => {
           stdio: 'ignore',
         });
 
-        // Dry-run re-sync should detect the compilation conflict
+        // Dry-run re-sync should detect the compilation metadata correction
         const { result: result2, json: json2 } = await runCliJson<SyncOutput>([
           '--config',
           configPath,
@@ -287,8 +287,8 @@ describe('compilation album support', () => {
         expect(result2.exitCode).toBe(0);
         expect(json2?.success).toBe(true);
 
-        // The track should be reported as having a metadata conflict
-        expect(json2?.plan?.tracksWithConflicts).toBeGreaterThanOrEqual(1);
+        // The track should be reported as needing a metadata correction update
+        expect(json2?.plan?.tracksToUpdate).toBeGreaterThanOrEqual(1);
       } finally {
         await rm(collectionDir, { recursive: true, force: true });
         await rm(configDir, { recursive: true, force: true });

@@ -92,6 +92,29 @@ track->chapterdata = itdb_chapterdata_new();  // Create empty, not NULL
 
 **Why:** This is a bug in libgpod - `itdb_chapterdata_free()` should check for NULL but doesn't. Since we can't modify libgpod, we work around it by ensuring chapterdata is never NULL.
 
+### 5. Track File Replacement: Delete Old File and Generate New Path
+
+**libgpod behavior:** `itdb_cp_track_to_ipod()` checks `track->transferred` and returns `TRUE` immediately (no-op) if the track already has a file on the iPod. There is no API to replace a track's audio file once it has been transferred. Additionally, when `track->ipod_path` is set, libgpod reuses the existing path — preserving the old file extension even when the new file is a different format.
+
+**Our behavior:** `Database.replaceTrackFile()` deletes the old file from the iPod, clears `track->ipod_path`, and resets `track->transferred` to `FALSE`. This causes `itdb_cp_track_to_ipod()` to generate a fresh path with the correct extension derived from the source file. The method also updates `track->size`.
+
+```cpp
+// native/track_operations.cc - ReplaceTrackFile()
+// 1. Delete old file
+gchar* oldFilePath = itdb_filename_on_ipod(track);
+if (oldFilePath) { ::unlink(oldFilePath); g_free(oldFilePath); }
+
+// 2. Clear ipod_path so libgpod generates a new one with correct extension
+g_free(track->ipod_path);
+track->ipod_path = nullptr;
+track->transferred = FALSE;
+
+// 3. libgpod generates fresh path (e.g., .m4a for AAC sources)
+gboolean success = itdb_cp_track_to_ipod(track, newFilePath.c_str(), &error);
+```
+
+**Why:** Self-healing sync needs to upgrade track files in-place (e.g., MP3 → AAC) while preserving play counts, ratings, and playlist membership. Clearing `ipod_path` is critical because the iPod firmware uses the file extension to select the audio decoder — an AAC file stored with a `.mp3` extension will not play. libgpod also derives `filetype_marker` (a 4-byte binary field) from the destination extension, so the extension must match the content.
+
 ## API Reference
 
 ### Database Operations
@@ -176,6 +199,9 @@ db.removeTrack(handle);
 
 // Copy file to iPod
 db.copyTrackToDevice(handle, '/path/to/song.mp3');
+
+// Replace an existing track's file (preserves play counts, ratings, playlists)
+db.replaceTrackFile(handle, '/path/to/upgraded.m4a');
 ```
 
 ### Chapter Operations

@@ -63,6 +63,7 @@ private:
     Napi::Value AddTrack(const Napi::CallbackInfo& info);  // Returns handle
     Napi::Value RemoveTrack(const Napi::CallbackInfo& info);  // Takes handle
     Napi::Value CopyTrackToDevice(const Napi::CallbackInfo& info);  // Takes handle
+    Napi::Value ReplaceTrackFile(const Napi::CallbackInfo& info);  // Takes handle + new file path
     Napi::Value UpdateTrack(const Napi::CallbackInfo& info);  // Takes handle
     Napi::Value GetTrackFilePath(const Napi::CallbackInfo& info);  // Takes handle
     Napi::Value DuplicateTrack(const Napi::CallbackInfo& info);  // Takes handle, returns handle

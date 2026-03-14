@@ -87,6 +87,7 @@ podkit sync [type] [options]
 | `--lossy-quality <preset>` | Quality for lossy sources when audio quality is `lossless` (default: `max`) |
 | `--filter <pattern>` | Only sync tracks matching pattern |
 | `--no-artwork` | Skip artwork transfer |
+| `--skip-upgrades` | Skip file-replacement upgrades for changed source files |
 | `--delete` | Remove tracks from iPod that are not in the source |
 | `--eject` | Eject iPod after successful sync |
 

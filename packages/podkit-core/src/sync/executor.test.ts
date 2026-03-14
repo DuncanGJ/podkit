@@ -310,6 +310,69 @@ describe('DefaultSyncExecutor - basic execution', () => {
     expect(trackInput.compilation).toBe(true);
   });
 
+  it('passes source bitrate to addTrack for copy operation', async () => {
+    const executor = new DefaultSyncExecutor(deps);
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'copy',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'mp3', {
+            bitrate: 192,
+          }),
+        },
+      ],
+      estimatedTime: 1,
+      estimatedSize: 5000000,
+      warnings: [],
+    };
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan)) {
+      progress.push(p);
+    }
+
+    expect(mockDb.addTrack.mock.calls.length).toBe(1);
+    const trackInput = mockDb.addTrack.mock.calls[0]![0] as Record<string, unknown>;
+    expect(trackInput.bitrate).toBe(192);
+  });
+
+  it('uses FFmpeg output bitrate (not source bitrate) for transcode operation', async () => {
+    // Mock transcoder to return a specific bitrate different from source
+    mockTranscoder.transcode = mock(async () => ({
+      outputPath: '/tmp/output.m4a',
+      size: 5000000,
+      duration: 1000,
+      bitrate: 128,
+    }));
+    deps = createDependencies(mockDb, mockTranscoder);
+
+    const executor = new DefaultSyncExecutor(deps);
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            bitrate: 1000, // Source is high-bitrate FLAC
+          }),
+          preset: { name: 'high' },
+        },
+      ],
+      estimatedTime: 18,
+      estimatedSize: 5000000,
+      warnings: [],
+    };
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan)) {
+      progress.push(p);
+    }
+
+    expect(mockDb.addTrack.mock.calls.length).toBe(1);
+    const trackInput = mockDb.addTrack.mock.calls[0]![0] as Record<string, unknown>;
+    // Should use the transcoder output bitrate (128), not the source bitrate (1000)
+    expect(trackInput.bitrate).toBe(128);
+  });
+
   it('executes transcode operation', async () => {
     const executor = new DefaultSyncExecutor(deps);
     const plan: SyncPlan = {
@@ -1874,5 +1937,376 @@ describe('getOperationDisplayName - update-metadata', () => {
     };
 
     expect(getOperationDisplayName(op)).toBe('Daft Punk - Get Lucky');
+  });
+});
+
+// =============================================================================
+// Upgrade Operation Tests
+// =============================================================================
+
+describe('getOperationDisplayName - upgrade', () => {
+  it('returns artist - title for upgrade operation', () => {
+    const op: SyncOperation = {
+      type: 'upgrade',
+      source: createCollectionTrack('Pink Floyd', 'Comfortably Numb', 'The Wall', 'flac'),
+      target: createIPodTrack('Pink Floyd', 'Comfortably Numb', 'The Wall'),
+      reason: 'format-upgrade',
+      preset: { name: 'high' },
+    };
+
+    expect(getOperationDisplayName(op)).toBe('Pink Floyd - Comfortably Numb');
+  });
+});
+
+describe('upgrade operations - dry run', () => {
+  let db: MockIpodDatabase;
+  let transcoder: MockTranscoder;
+
+  beforeEach(() => {
+    db = createMockIpodDatabase();
+    transcoder = createMockTranscoder();
+  });
+
+  it('reports upgrade operations in dry run without making changes', async () => {
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      playCount: 42,
+      rating: 80,
+    });
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+          }),
+          target: existingTrack,
+          reason: 'format-upgrade',
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan, { dryRun: true })) {
+      progress.push(p);
+    }
+
+    // Should report upgrade operation as skipped
+    const upgradeProgress = progress.find((p) => p.operation.type === 'upgrade');
+    expect(upgradeProgress).toBeDefined();
+    expect(upgradeProgress!.skipped).toBe(true);
+    expect(upgradeProgress!.phase).toBe('upgrading');
+
+    // No database operations should have been called
+    expect(db.addTrack).not.toHaveBeenCalled();
+    expect(db.save).not.toHaveBeenCalled();
+    expect(transcoder.transcode).not.toHaveBeenCalled();
+  });
+});
+
+describe('upgrade operations - execution', () => {
+  let db: MockIpodDatabase;
+  let transcoder: MockTranscoder;
+
+  beforeEach(() => {
+    db = createMockIpodDatabase();
+    transcoder = createMockTranscoder();
+  });
+
+  it('executes upgrade with transcode preset (format-upgrade)', async () => {
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      playCount: 42,
+      rating: 80,
+    });
+
+    // Add replaceTrackFile to the mock database
+    const replaceTrackFile = mock(() => existingTrack);
+    (db as any).replaceTrackFile = replaceTrackFile;
+
+    // Pre-populate database with the existing track
+    db.getTracks.mockReturnValue([existingTrack]);
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+            duration: 200000,
+          }),
+          target: existingTrack,
+          reason: 'format-upgrade',
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan, { artwork: false })) {
+      progress.push(p);
+    }
+
+    // Should have transcoded the file
+    expect(transcoder.transcode).toHaveBeenCalledTimes(1);
+
+    // Should have replaced the track file (not added a new one)
+    expect(db.addTrack).not.toHaveBeenCalled();
+    expect(replaceTrackFile).toHaveBeenCalledTimes(1);
+
+    // Should have saved the database
+    expect(db.save).toHaveBeenCalledTimes(1);
+
+    // Should report upgrading phase
+    const upgradeProgress = progress.find((p) => p.phase === 'upgrading');
+    expect(upgradeProgress).toBeDefined();
+  });
+
+  it('executes upgrade without preset (copy-based quality-upgrade)', async () => {
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      bitrate: 128,
+    });
+
+    const replaceTrackFile = mock(() => existingTrack);
+    (db as any).replaceTrackFile = replaceTrackFile;
+
+    db.getTracks.mockReturnValue([existingTrack]);
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'mp3', {
+            bitrate: 320,
+          }),
+          target: existingTrack,
+          reason: 'quality-upgrade',
+          // No preset — MP3 is copied directly
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    for await (const _p of executor.execute(plan, { artwork: false })) {
+      // consume
+    }
+
+    // Should NOT have transcoded
+    expect(transcoder.transcode).not.toHaveBeenCalled();
+
+    // Should have replaced the track file
+    expect(replaceTrackFile).toHaveBeenCalledTimes(1);
+
+    // Should NOT have added a new track
+    expect(db.addTrack).not.toHaveBeenCalled();
+  });
+
+  it('updates metadata fields after file replacement', async () => {
+    let capturedUpdateFields: Record<string, unknown> | undefined;
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      playCount: 42,
+      rating: 80,
+      update: (fields: Record<string, unknown>) => {
+        capturedUpdateFields = fields;
+        return existingTrack;
+      },
+    });
+
+    const replaceTrackFile = mock(() => existingTrack);
+    (db as any).replaceTrackFile = replaceTrackFile;
+
+    db.getTracks.mockReturnValue([existingTrack]);
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+            duration: 200000,
+            genre: 'Progressive Rock',
+            year: 1979,
+            soundcheck: 5432,
+          }),
+          target: existingTrack,
+          reason: 'format-upgrade',
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    for await (const _p of executor.execute(plan, { artwork: false })) {
+      // consume
+    }
+
+    // Should have updated metadata
+    expect(capturedUpdateFields).toBeDefined();
+    expect(capturedUpdateFields!.filetype).toBe('AAC audio file');
+    expect(capturedUpdateFields!.genre).toBe('Progressive Rock');
+    expect(capturedUpdateFields!.year).toBe(1979);
+    expect(capturedUpdateFields!.soundcheck).toBe(5432);
+    expect(capturedUpdateFields!.duration).toBe(200000);
+  });
+
+  it('categorizes upgrade errors as copy errors for retry', () => {
+    const error = new Error('something went wrong');
+    const category = categorizeError(error, 'upgrade');
+    expect(category).toBe('copy');
+  });
+
+  it('reports error when upgrade target track is not found in database', async () => {
+    // Empty database — the target track won't be found during transfer
+    db = createMockIpodDatabase();
+    const replaceTrackFile = mock(() => {});
+    (db as any).replaceTrackFile = replaceTrackFile;
+
+    const targetTrack = createIPodTrack('Missing', 'Track', 'Album', {
+      filePath: ':iPod_Control:Music:F00:GONE.m4a',
+    });
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Missing', 'Track', 'Album', 'flac', {
+            lossless: true,
+          }),
+          target: targetTrack,
+          reason: 'format-upgrade',
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    // The error is reported via progress events (not thrown)
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan, { artwork: false })) {
+      progress.push(p);
+    }
+
+    // Should have an error in the progress events
+    const errorEvent = progress.find((p) => p.error !== undefined);
+    expect(errorEvent).toBeDefined();
+    expect(errorEvent!.error!.message).toContain('Track not found in database for upgrade');
+  });
+
+  it('continues past upgrade-not-found error with continueOnError', async () => {
+    // Empty database — the target track won't be found
+    db = createMockIpodDatabase();
+    const replaceTrackFile = mock(() => {});
+    (db as any).replaceTrackFile = replaceTrackFile;
+
+    const targetTrack = createIPodTrack('Missing', 'Track', 'Album', {
+      filePath: ':iPod_Control:Music:F00:GONE.m4a',
+    });
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Missing', 'Track', 'Album', 'flac', {
+            lossless: true,
+          }),
+          target: targetTrack,
+          reason: 'format-upgrade',
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    // With continueOnError: true, should not throw
+    const progress: ExecutorProgress[] = [];
+    let errorThrown = false;
+    try {
+      for await (const p of executor.execute(plan, {
+        artwork: false,
+        continueOnError: true,
+      })) {
+        progress.push(p);
+      }
+    } catch {
+      errorThrown = true;
+    }
+
+    expect(errorThrown).toBe(false);
+    // Error should still be reported in progress
+    const errorEvent = progress.find((p) => p.error !== undefined);
+    expect(errorEvent).toBeDefined();
+  });
+
+  it('does not include identity fields (title, artist, album) in upgrade metadata update', async () => {
+    let capturedUpdateFields: Record<string, unknown> | undefined;
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      update: (fields: Record<string, unknown>) => {
+        capturedUpdateFields = fields;
+        return existingTrack;
+      },
+    });
+
+    const replaceTrackFile = mock(() => existingTrack);
+    (db as any).replaceTrackFile = replaceTrackFile;
+    db.getTracks.mockReturnValue([existingTrack]);
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+            duration: 200000,
+            genre: 'Rock',
+          }),
+          target: existingTrack,
+          reason: 'format-upgrade',
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    for await (const _p of executor.execute(plan, { artwork: false })) {
+      // consume
+    }
+
+    // Verify identity fields are NOT in the update (they are matching fields, not update fields)
+    expect(capturedUpdateFields).toBeDefined();
+    expect(capturedUpdateFields).not.toHaveProperty('title');
+    expect(capturedUpdateFields).not.toHaveProperty('artist');
+    expect(capturedUpdateFields).not.toHaveProperty('album');
+
+    // But technical metadata and other fields should be present
+    expect(capturedUpdateFields!.filetype).toBeDefined();
+    expect(capturedUpdateFields!.genre).toBe('Rock');
   });
 });

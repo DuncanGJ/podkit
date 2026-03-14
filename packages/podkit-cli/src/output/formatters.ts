@@ -97,9 +97,7 @@ export function renderProgressBar(current: number, total: number, width = 30): s
 /**
  * Format update reason for display
  */
-export function formatUpdateReason(
-  reason: 'transform-apply' | 'transform-remove' | 'metadata-changed'
-): string {
+export function formatUpdateReason(reason: string): string {
   switch (reason) {
     case 'transform-apply':
       return 'Apply ftintitle';
@@ -107,6 +105,18 @@ export function formatUpdateReason(
       return 'Revert ftintitle';
     case 'metadata-changed':
       return 'Metadata changed';
+    case 'format-upgrade':
+      return 'Format upgrade';
+    case 'quality-upgrade':
+      return 'Quality upgrade';
+    case 'artwork-added':
+      return 'Artwork added';
+    case 'soundcheck-update':
+      return 'Sound Check update';
+    case 'metadata-correction':
+      return 'Metadata correction';
+    default:
+      return reason;
   }
 }
 

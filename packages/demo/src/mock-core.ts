@@ -49,7 +49,6 @@ export type { SubsonicAdapterConfig } from '@podkit/core';
 // Sync types
 export type {
   MatchedTrack,
-  ConflictTrack,
   SyncDiff,
   SyncPlan,
   SyncOperation,
@@ -657,7 +656,6 @@ export function computeDiff(collectionTracks: any[], ipodTracks: any[], _options
       toAdd: collectionTracks,
       toRemove: [],
       existing: [],
-      conflicts: [],
       toUpdate: [],
     };
   }
@@ -669,7 +667,6 @@ export function computeDiff(collectionTracks: any[], ipodTracks: any[], _options
       collection: ct,
       ipod: ipodTracks[i],
     })),
-    conflicts: [],
     toUpdate: [],
   };
 }
@@ -759,13 +756,15 @@ export function getPlanSummary(plan: any) {
   let copyCount = 0;
   let removeCount = 0;
   let updateCount = 0;
+  let upgradeCount = 0;
   for (const op of plan.operations || []) {
     if (op.type === 'transcode') transcodeCount++;
     else if (op.type === 'copy') copyCount++;
     else if (op.type === 'remove') removeCount++;
     else if (op.type === 'update-metadata') updateCount++;
+    else if (op.type === 'upgrade') upgradeCount++;
   }
-  return { transcodeCount, copyCount, removeCount, updateCount };
+  return { transcodeCount, copyCount, removeCount, updateCount, upgradeCount };
 }
 
 export function categorizeSource(track: any) {

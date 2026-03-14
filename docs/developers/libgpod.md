@@ -164,6 +164,7 @@ The libgpod-node bindings intentionally deviate from raw libgpod to prevent data
 | `create()` | No master playlist | Create master playlist |
 | `initializeIpod()` | Requires mountpoint to exist | Creates directory with `g_mkdir_with_parents()` |
 | `clearTrackChapters()` | NULL chapterdata crashes | Create empty chapterdata |
+| `replaceTrackFile()` | `copyTrackToDevice()` is a no-op if track already transferred | Reset `transferred` flag, reuse existing `ipodPath` to overwrite file in place |
 
 See `packages/libgpod-node/README.md` for detailed rationale and code examples for each deviation.
 

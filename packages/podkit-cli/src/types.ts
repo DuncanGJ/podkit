@@ -13,5 +13,4 @@ export type {
   ScanWarningInfo,
   TransformInfo,
   UpdateBreakdown,
-  ConflictInfo,
 } from './commands/sync.js';

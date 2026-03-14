@@ -110,6 +110,7 @@ Read these documents based on what you're working on:
 | Troubleshooting | [docs/troubleshooting/](docs/troubleshooting/) |
 | Compilation albums | [docs/user-guide/syncing/compilation-albums.md](docs/user-guide/syncing/compilation-albums.md) |
 | Sound Check | [docs/user-guide/syncing/sound-check.md](docs/user-guide/syncing/sound-check.md) |
+| Track upgrades | [docs/user-guide/syncing/upgrades.md](docs/user-guide/syncing/upgrades.md) |
 | Transforms | [docs/user-guide/transforms.md](docs/user-guide/transforms.md) |
 | Demo GIF package | [packages/demo/README.md](packages/demo/README.md) |
 | Package READMEs | `packages/*/README.md` |
@@ -377,6 +378,7 @@ See `packages/libgpod-node/README.md` for the full list. Key deviations:
 | `removeTrack()` | Doesn't remove from playlists | Remove from all playlists first |
 | `create()` | No master playlist | Create master playlist |
 | `clearTrackChapters()` | NULL chapterdata crashes | Create empty chapterdata |
+| `replaceTrackFile()` | `copyTrackToDevice()` no-ops if already transferred | Reset `transferred` flag, overwrite file in place |
 
 ### Investigating New Issues
 

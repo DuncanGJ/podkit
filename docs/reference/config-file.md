@@ -22,6 +22,7 @@ audioQuality = "high"        # Audio override: lossless | max | max-cbr | high |
 videoQuality = "high"        # Video override: max | high | medium | low
 lossyQuality = "max"         # Quality for lossy sources when audioQuality = "lossless"
 artwork = true               # Include album artwork
+skipUpgrades = false         # Skip file-replacement upgrades for changed source files
 
 # Global transforms
 [transforms.ftintitle]
@@ -70,6 +71,7 @@ These apply to all devices unless overridden at the device level.
 | `videoQuality` | string | - | Video-specific quality override: `max`, `high`, `medium`, `low`. Overrides `quality` for video. |
 | `lossyQuality` | string | `"max"` | Quality preset for lossy sources when `audioQuality` resolves to `lossless` |
 | `artwork` | boolean | `true` | Include album artwork during sync |
+| `skipUpgrades` | boolean | `false` | Skip file-replacement upgrades for changed source files |
 
 ## Music Collections
 
@@ -133,6 +135,7 @@ quality = "high"              # Unified quality (audio + video)
 audioQuality = "lossless"     # Override: lossless audio
 videoQuality = "high"         # Override: high video quality
 artwork = true
+skipUpgrades = false          # Allow file-replacement upgrades (default)
 ```
 
 | Key | Type | Required | Default | Description |
@@ -143,6 +146,7 @@ artwork = true
 | `audioQuality` | string | no | global `audioQuality` | Audio-specific quality override for this device |
 | `videoQuality` | string | no | global `videoQuality` | Video-specific quality override for this device |
 | `artwork` | boolean | no | global `artwork` | Artwork override for this device |
+| `skipUpgrades` | boolean | no | global `skipUpgrades` | Skip file-replacement upgrades for this device |
 
 ### Per-Device Transforms
 
@@ -268,6 +272,7 @@ volumeUuid = "EFGH-5678"
 volumeName = "NANO"
 quality = "medium"            # Both audio and video use medium
 artwork = false
+skipUpgrades = true           # Nano has limited space, skip file upgrades
 
 # Defaults
 [defaults]
