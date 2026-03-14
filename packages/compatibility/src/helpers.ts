@@ -25,6 +25,8 @@ export function getGenerationInfo(generation: IpodGeneration): GenerationInfo | 
 }
 
 /** Get all generations at a given confidence level. */
-export function getGenerationsByConfidence(confidence: 'verified' | 'simulated' | 'expected'): GenerationInfo[] {
+export function getGenerationsByConfidence(
+  confidence: 'verified' | 'simulated' | 'expected'
+): GenerationInfo[] {
   return GENERATION_INFO.filter((g) => g.confidence === confidence);
 }

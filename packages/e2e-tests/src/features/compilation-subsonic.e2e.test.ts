@@ -276,7 +276,16 @@ music = "main"
 
           // Get tracks from iPod via CLI to check compilation flag
           const { json: musicJson } = await runCliJson<DeviceTrack[]>(
-            ['--config', configPath, 'device', 'music', '--tracks', '--device', target.path, '--json'],
+            [
+              '--config',
+              configPath,
+              'device',
+              'music',
+              '--tracks',
+              '--device',
+              target.path,
+              '--json',
+            ],
             {
               env: { SUBSONIC_PASSWORD: password },
             }

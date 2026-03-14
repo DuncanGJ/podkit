@@ -744,10 +744,7 @@ describe('computeStats', () => {
   });
 
   it('returns zero soundCheckTracks when no tracks have soundcheck', () => {
-    const tracks = [
-      createTrack({ soundcheck: undefined }),
-      createTrack({ soundcheck: 0 }),
-    ];
+    const tracks = [createTrack({ soundcheck: undefined }), createTrack({ soundcheck: 0 })];
     const stats = computeStats(tracks);
     expect(stats.soundCheckTracks).toBe(0);
   });
@@ -1185,7 +1182,9 @@ describe('formatAlbumsTable', () => {
   });
 
   it('includes heading and column headers', () => {
-    const albums = [{ album: 'Test Album', artist: 'Test Artist', tracks: 10, isCompilation: false }];
+    const albums = [
+      { album: 'Test Album', artist: 'Test Artist', tracks: 10, isCompilation: false },
+    ];
     const result = formatAlbumsTable(albums, 'Music on iPod:');
 
     expect(result).toContain('Music on iPod:');

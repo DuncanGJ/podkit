@@ -7,7 +7,12 @@
 
 import SubsonicAPI from 'subsonic-api';
 import type { Child, AlbumWithSongsID3 } from 'subsonic-api';
-import type { CollectionAdapter, CollectionTrack, FileAccess, SoundCheckSource } from './interface.js';
+import type {
+  CollectionAdapter,
+  CollectionTrack,
+  FileAccess,
+  SoundCheckSource,
+} from './interface.js';
 import type { TrackFilter, AudioFileType } from '../types.js';
 import { replayGainToSoundcheck } from '../sync/soundcheck.js';
 
@@ -299,7 +304,7 @@ export class SubsonicAdapter implements CollectionAdapter {
    * as optional — so we null-check carefully. A gain of 0 is valid (unity gain).
    */
   private extractReplayGainSoundcheck(
-    replayGain: Child['replayGain'],
+    replayGain: Child['replayGain']
   ): { value: number; source: SoundCheckSource } | undefined {
     if (!replayGain) return undefined;
 

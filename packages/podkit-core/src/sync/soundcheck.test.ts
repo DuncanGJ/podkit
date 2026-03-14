@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import {
-  replayGainToSoundcheck,
-  iTunNORMToSoundcheck,
-  extractSoundcheck,
-} from './soundcheck.js';
+import { replayGainToSoundcheck, iTunNORMToSoundcheck, extractSoundcheck } from './soundcheck.js';
 import type { IAudioMetadata } from 'music-metadata';
 
 describe('replayGainToSoundcheck', () => {
@@ -35,13 +31,15 @@ describe('replayGainToSoundcheck', () => {
 
 describe('iTunNORMToSoundcheck', () => {
   it('parses standard iTunNORM string', () => {
-    const norm = ' 00000A2B 00000A2B 00003F7C 00003F7C 00000000 00000000 00007FFF 00007FFF 00000000 00000000';
+    const norm =
+      ' 00000A2B 00000A2B 00003F7C 00003F7C 00000000 00000000 00007FFF 00007FFF 00000000 00000000';
     const result = iTunNORMToSoundcheck(norm);
     expect(result).toBe(0x0a2b); // 2603
   });
 
   it('takes the max of left and right channels', () => {
-    const norm = ' 00000100 00000200 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000';
+    const norm =
+      ' 00000100 00000200 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000';
     const result = iTunNORMToSoundcheck(norm);
     expect(result).toBe(0x200); // 512 (right channel is higher)
   });
@@ -59,7 +57,8 @@ describe('iTunNORMToSoundcheck', () => {
   });
 
   it('handles no leading space', () => {
-    const norm = '00000A2B 00000A2B 00003F7C 00003F7C 00000000 00000000 00007FFF 00007FFF 00000000 00000000';
+    const norm =
+      '00000A2B 00000A2B 00003F7C 00003F7C 00000000 00000000 00007FFF 00007FFF 00000000 00000000';
     const result = iTunNORMToSoundcheck(norm);
     expect(result).toBe(0x0a2b);
   });
@@ -124,7 +123,8 @@ describe('extractSoundcheck', () => {
         'ID3v2.3': [
           {
             id: 'TXXX:iTunNORM',
-            value: ' 00000A2B 00000A2B 00003F7C 00003F7C 00000000 00000000 00007FFF 00007FFF 00000000 00000000',
+            value:
+              ' 00000A2B 00000A2B 00003F7C 00003F7C 00000000 00000000 00007FFF 00007FFF 00000000 00000000',
           },
         ],
       },
@@ -136,10 +136,11 @@ describe('extractSoundcheck', () => {
   it('extracts iTunNORM from MP4 tags', () => {
     const metadata = makeMetadata({
       native: {
-        'iTunes': [
+        iTunes: [
           {
             id: '----:com.apple.iTunes:iTunNORM',
-            value: ' 00000500 00000600 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000',
+            value:
+              ' 00000500 00000600 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000',
           },
         ],
       },

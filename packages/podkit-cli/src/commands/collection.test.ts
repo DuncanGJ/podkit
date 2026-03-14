@@ -129,7 +129,11 @@ describe('collection command', () => {
       setContext({
         config: minimalConfig,
         globalOpts: { json: false, quiet: false, verbose: 0, color: false },
-        configResult: { config: minimalConfig, configPath: '/tmp/test.toml', configFileExists: true },
+        configResult: {
+          config: minimalConfig,
+          configPath: '/tmp/test.toml',
+          configFileExists: true,
+        },
       });
     });
 

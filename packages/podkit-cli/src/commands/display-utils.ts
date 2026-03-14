@@ -402,9 +402,10 @@ export function computeStats(tracks: DisplayTrack[]): ContentStats {
     compilationAlbums: compilationAlbumSet.size,
     compilationTracks,
     soundCheckTracks,
-    soundCheckSources: Object.keys(soundCheckSources).length > 0
-      ? (soundCheckSources as Record<SoundCheckSource, number>)
-      : undefined,
+    soundCheckSources:
+      Object.keys(soundCheckSources).length > 0
+        ? (soundCheckSources as Record<SoundCheckSource, number>)
+        : undefined,
     fileTypes,
   };
 }
@@ -477,7 +478,7 @@ const SOUND_CHECK_SOURCE_LABELS: Record<SoundCheckSource, string> = {
 export function formatStatsText(
   stats: ContentStats,
   heading: string,
-  options?: StatsFormatOptions,
+  options?: StatsFormatOptions
 ): string {
   const lines: string[] = [heading];
 
@@ -509,7 +510,7 @@ export function formatStatsText(
     if (options?.verbose && stats.soundCheckSources) {
       const entries = Object.entries(stats.soundCheckSources).sort((a, b) => b[1] - a[1]);
       const maxLabelLen = Math.max(
-        ...entries.map(([k]) => SOUND_CHECK_SOURCE_LABELS[k as SoundCheckSource].length),
+        ...entries.map(([k]) => SOUND_CHECK_SOURCE_LABELS[k as SoundCheckSource].length)
       );
       for (const [source, count] of entries) {
         const label = SOUND_CHECK_SOURCE_LABELS[source as SoundCheckSource];
@@ -578,7 +579,12 @@ export function aggregateAlbums(tracks: DisplayTrack[]): AlbumEntry[] {
   const entries: AlbumEntry[] = [];
   for (const [key, val] of map) {
     const album = key.split('\0')[0] ?? '';
-    entries.push({ album, artist: val.artist, tracks: val.count, isCompilation: val.isCompilation });
+    entries.push({
+      album,
+      artist: val.artist,
+      tracks: val.count,
+      isCompilation: val.isCompilation,
+    });
   }
 
   return entries.sort((a, b) => a.album.localeCompare(b.album));

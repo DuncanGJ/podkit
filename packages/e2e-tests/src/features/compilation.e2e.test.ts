@@ -155,10 +155,7 @@ music = "default"
  * Get tracks from iPod via CLI device music command (includes compilation field).
  * The CLI outputs a JSON array of track objects directly.
  */
-async function getDeviceTracks(
-  configPath: string,
-  devicePath: string
-): Promise<DeviceTrack[]> {
+async function getDeviceTracks(configPath: string, devicePath: string): Promise<DeviceTrack[]> {
   const { json } = await runCliJson<DeviceTrack[]>([
     '--config',
     configPath,
@@ -273,10 +270,9 @@ describe('compilation album support', () => {
 
         // Now mark the regular track as a compilation
         const regularPath = join(collectionDir, '03-regular-track.flac');
-        execSync(
-          `metaflac --remove-tag=COMPILATION --set-tag="COMPILATION=1" "${regularPath}"`,
-          { stdio: 'ignore' }
-        );
+        execSync(`metaflac --remove-tag=COMPILATION --set-tag="COMPILATION=1" "${regularPath}"`, {
+          stdio: 'ignore',
+        });
 
         // Dry-run re-sync should detect the compilation conflict
         const { result: result2, json: json2 } = await runCliJson<SyncOutput>([

@@ -659,13 +659,16 @@ const musicSubcommand = new Command('music')
         if (format === 'json') {
           out.stdout(JSON.stringify(stats, null, 2));
         } else {
-          const sourceInfo = collectionConfig.type === 'subsonic'
-            ? { adapterType: 'subsonic', location: collectionConfig.url! }
-            : { adapterType: 'directory', location: collectionConfig.path };
-          out.stdout(formatStatsText(stats, heading, {
-            verbose: out.isVerbose,
-            source: sourceInfo,
-          }));
+          const sourceInfo =
+            collectionConfig.type === 'subsonic'
+              ? { adapterType: 'subsonic', location: collectionConfig.url! }
+              : { adapterType: 'directory', location: collectionConfig.path };
+          out.stdout(
+            formatStatsText(stats, heading, {
+              verbose: out.isVerbose,
+              source: sourceInfo,
+            })
+          );
         }
       } else if (mode === 'albums') {
         const albums = aggregateAlbums(displayTracks);
