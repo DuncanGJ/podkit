@@ -115,6 +115,7 @@ Read these documents based on what you're working on:
 | Package READMEs | `packages/*/README.md` |
 | Feature requests | [agents/feature-requests.md](agents/feature-requests.md) |
 | About the project | [docs/about.md](docs/about.md) |
+| Similar projects | [docs/similar-projects.md](docs/similar-projects.md) |
 | Roadmap | [docs/roadmap.md](docs/roadmap.md) |
 | Feedback & feature requests (user-facing) | [docs/feedback.md](docs/feedback.md) |
 
