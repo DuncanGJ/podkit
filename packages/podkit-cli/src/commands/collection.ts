@@ -642,6 +642,7 @@ const musicSubcommand = new Command('music')
         discNumber: t.discNumber && t.discNumber > 0 ? t.discNumber : undefined,
         filePath: t.filePath || undefined,
         artwork: undefined, // Not available from collection adapter
+        compilation: t.compilation,
         format: t.fileType || undefined,
         bitrate: t.bitrate && t.bitrate > 0 ? t.bitrate : undefined,
       }));

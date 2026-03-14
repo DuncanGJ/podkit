@@ -108,6 +108,7 @@ Read these documents based on what you're working on:
 | Subsonic source | [docs/user-guide/subsonic-source.md](docs/user-guide/subsonic-source.md) |
 | iPod internals | [docs/devices/ipod-internals.md](docs/devices/ipod-internals.md) |
 | Troubleshooting | [docs/troubleshooting/](docs/troubleshooting/) |
+| Compilation albums | [docs/user-guide/syncing/compilation-albums.md](docs/user-guide/syncing/compilation-albums.md) |
 | Transforms | [docs/user-guide/transforms.md](docs/user-guide/transforms.md) |
 | Demo GIF package | [packages/demo/README.md](packages/demo/README.md) |
 | Package READMEs | `packages/*/README.md` |

@@ -288,6 +288,41 @@ describe('DirectoryAdapter', () => {
       expect(tracks[0]!.album).toBe('Unknown Album');
     });
 
+    it('extracts compilation flag from metadata', async () => {
+      mockGlob.mockImplementation(async () => ['/music/Various/track.flac']);
+      mockParseFile.mockImplementation(async () => ({
+        common: {
+          title: 'Track',
+          artist: 'Artist',
+          album: 'Compilation Album',
+          compilation: true,
+        },
+        format: {},
+      }));
+
+      const adapter = new DirectoryAdapter({ path: '/music' });
+      const tracks = await adapter.getTracks();
+
+      expect(tracks[0]!.compilation).toBe(true);
+    });
+
+    it('leaves compilation undefined when not set in metadata', async () => {
+      mockGlob.mockImplementation(async () => ['/music/song.flac']);
+      mockParseFile.mockImplementation(async () => ({
+        common: {
+          title: 'Track',
+          artist: 'Artist',
+          album: 'Album',
+        },
+        format: {},
+      }));
+
+      const adapter = new DirectoryAdapter({ path: '/music' });
+      const tracks = await adapter.getTracks();
+
+      expect(tracks[0]!.compilation).toBeUndefined();
+    });
+
     it('handles missing optional fields gracefully', async () => {
       mockGlob.mockImplementation(async () => ['/music/song.mp3']);
       mockParseFile.mockImplementation(async () => ({

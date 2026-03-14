@@ -603,6 +603,7 @@ The `--fields` option for track listing commands accepts a comma-separated list 
 | `discNumber` | Disc number |
 | `filePath` | File path |
 | `artwork` | Whether artwork is present |
+| `compilation` | Whether track is part of a compilation album |
 | `format` | Audio format |
 | `bitrate` | Bitrate |
 

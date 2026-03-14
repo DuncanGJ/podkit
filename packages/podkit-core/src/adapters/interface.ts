@@ -39,6 +39,7 @@ export interface CollectionTrack {
   year?: number;
   trackNumber?: number;
   discNumber?: number;
+  compilation?: boolean;
   duration?: number; // milliseconds
 
   // File info

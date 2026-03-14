@@ -553,6 +553,46 @@ describe('computeDiff - conflict detection', () => {
     expect(diff.conflicts[0]!.conflicts).toContain('genre');
   });
 
+  it('detects compilation conflict', () => {
+    const collectionTracks = [
+      createCollectionTrack('Artist', 'Song', 'Album', { compilation: true }),
+    ];
+
+    const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album', { compilation: false })];
+
+    const diff = computeDiff(collectionTracks, ipodTracks);
+
+    expect(diff.conflicts).toHaveLength(1);
+    expect(diff.conflicts[0]!.conflicts).toContain('compilation');
+  });
+
+  it('does not report conflict when both compilation values match', () => {
+    const collectionTracks = [
+      createCollectionTrack('Artist', 'Song', 'Album', { compilation: true }),
+    ];
+
+    const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album', { compilation: true })];
+
+    const diff = computeDiff(collectionTracks, ipodTracks);
+
+    expect(diff.conflicts).toHaveLength(0);
+    expect(diff.existing).toHaveLength(1);
+  });
+
+  it('treats undefined compilation as equivalent to false (no spurious conflict)', () => {
+    const collectionTracks = [
+      createCollectionTrack('Artist', 'Song', 'Album'),
+      // compilation is undefined
+    ];
+
+    const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album', { compilation: false })];
+
+    const diff = computeDiff(collectionTracks, ipodTracks);
+
+    expect(diff.conflicts).toHaveLength(0);
+    expect(diff.existing).toHaveLength(1);
+  });
+
   it('includes both collection and iPod tracks in conflict object', () => {
     const collectionTracks = [
       createCollectionTrack('Artist', 'Song', 'Album', {

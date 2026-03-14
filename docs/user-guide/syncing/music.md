@@ -75,8 +75,17 @@ podkit sync music --quality medium
 See what's on your iPod or in your collections:
 
 ```bash
-# Music on your iPod
+# Music on your iPod (shows stats by default)
 podkit device music
+
+# List all tracks
+podkit device music --tracks
+
+# List albums (compilation albums are marked)
+podkit device music --albums
+
+# Custom fields
+podkit device music --tracks --fields "title,artist,album,compilation"
 
 # Music in a collection
 podkit collection music
@@ -84,6 +93,8 @@ podkit collection music
 # Output as JSON
 podkit device music --format json
 ```
+
+See [Display Fields](/reference/cli-commands#display-fields) for all available fields.
 
 ## See Also
 

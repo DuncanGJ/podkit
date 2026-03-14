@@ -1583,6 +1583,7 @@ const musicSubcommand = new Command('music')
           discNumber: t.discNumber && t.discNumber > 0 ? t.discNumber : undefined,
           filePath: t.filePath || undefined,
           artwork: t.hasArtwork,
+          compilation: t.compilation,
           format: parseFormat(t.filetype),
           bitrate: t.bitrate > 0 ? t.bitrate : undefined,
         }));
@@ -1728,6 +1729,7 @@ const videoSubcommand = new Command('video')
           discNumber: t.discNumber && t.discNumber > 0 ? t.discNumber : undefined,
           filePath: t.filePath || undefined,
           artwork: t.hasArtwork,
+          compilation: t.compilation,
           format: parseFormat(t.filetype),
           bitrate: t.bitrate > 0 ? t.bitrate : undefined,
         }));

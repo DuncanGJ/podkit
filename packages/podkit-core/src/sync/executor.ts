@@ -323,6 +323,7 @@ function toTrackInput(track: CollectionTrack): TrackInput {
     year: track.year,
     trackNumber: track.trackNumber,
     discNumber: track.discNumber,
+    compilation: track.compilation,
     duration: track.duration,
   };
 }

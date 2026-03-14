@@ -25,6 +25,7 @@ export interface DisplayTrack {
   discNumber?: number;
   filePath?: string;
   artwork?: boolean;
+  compilation?: boolean;
   format?: string;
   bitrate?: number;
 }
@@ -44,6 +45,7 @@ export const AVAILABLE_FIELDS = [
   'discNumber',
   'filePath',
   'artwork',
+  'compilation',
   'format',
   'bitrate',
 ] as const;
@@ -70,6 +72,7 @@ export const FIELD_HEADERS: Record<FieldName, string> = {
   discNumber: 'Disc',
   filePath: 'File',
   artwork: 'Art',
+  compilation: 'Comp',
   format: 'Format',
   bitrate: 'Bitrate',
 };
@@ -89,6 +92,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<FieldName, number> = {
   discNumber: 6,
   filePath: 50,
   artwork: 3,
+  compilation: 4,
   format: 8,
   bitrate: 7,
 };
@@ -172,6 +176,8 @@ export function getFieldValue(track: DisplayTrack, field: FieldName): string {
       return track.filePath || '';
     case 'artwork':
       return track.artwork === true ? '\u2713' : track.artwork === false ? '\u2717' : '-';
+    case 'compilation':
+      return track.compilation === true ? '\u2713' : track.compilation === false ? '\u2717' : '-';
     case 'format':
       return track.format || '';
     case 'bitrate':
@@ -337,6 +343,8 @@ export interface ContentStats {
   tracks: number;
   albums: number;
   artists: number;
+  compilationAlbums: number;
+  compilationTracks: number;
   fileTypes: Record<string, number>;
 }
 
@@ -347,12 +355,19 @@ export function computeStats(tracks: DisplayTrack[]): ContentStats {
   const albums = new Set<string>();
   const artists = new Set<string>();
   const fileTypes: Record<string, number> = {};
+  const compilationAlbumSet = new Set<string>();
+  let compilationTracks = 0;
 
   for (const track of tracks) {
     const album = track.album || 'Unknown Album';
     const artist = track.artist || 'Unknown Artist';
     albums.add(album);
     artists.add(artist);
+
+    if (track.compilation === true) {
+      compilationTracks++;
+      compilationAlbumSet.add(album);
+    }
 
     if (track.format) {
       fileTypes[track.format] = (fileTypes[track.format] || 0) + 1;
@@ -363,6 +378,8 @@ export function computeStats(tracks: DisplayTrack[]): ContentStats {
     tracks: tracks.length,
     albums: albums.size,
     artists: artists.size,
+    compilationAlbums: compilationAlbumSet.size,
+    compilationTracks,
     fileTypes,
   };
 }
@@ -382,6 +399,12 @@ export function formatStatsText(stats: ContentStats, heading: string): string {
   lines.push(`  Tracks:  ${trackLabel}`);
   lines.push(`  Albums:  ${albumLabel}`);
   lines.push(`  Artists: ${artistLabel}`);
+
+  if (stats.compilationTracks > 0) {
+    const compAlbums = formatNumber(stats.compilationAlbums);
+    const compTracks = formatNumber(stats.compilationTracks);
+    lines.push(`  Compilations: ${compAlbums} albums (${compTracks} tracks)`);
+  }
 
   const typeEntries = Object.entries(stats.fileTypes).sort((a, b) => b[1] - a[1]);
   if (typeEntries.length > 0) {
@@ -404,13 +427,14 @@ export interface AlbumEntry {
   album: string;
   artist: string;
   tracks: number;
+  isCompilation: boolean;
 }
 
 /**
  * Aggregate tracks by album.
  */
 export function aggregateAlbums(tracks: DisplayTrack[]): AlbumEntry[] {
-  const map = new Map<string, { artist: string; count: number }>();
+  const map = new Map<string, { artist: string; count: number; isCompilation: boolean }>();
 
   for (const track of tracks) {
     const album = track.album || 'Unknown Album';
@@ -419,15 +443,18 @@ export function aggregateAlbums(tracks: DisplayTrack[]): AlbumEntry[] {
     const existing = map.get(key);
     if (existing) {
       existing.count++;
+      if (track.compilation === true) {
+        existing.isCompilation = true;
+      }
     } else {
-      map.set(key, { artist, count: 1 });
+      map.set(key, { artist, count: 1, isCompilation: track.compilation === true });
     }
   }
 
   const entries: AlbumEntry[] = [];
   for (const [key, val] of map) {
     const album = key.split('\0')[0] ?? '';
-    entries.push({ album, artist: val.artist, tracks: val.count });
+    entries.push({ album, artist: val.artist, tracks: val.count, isCompilation: val.isCompilation });
   }
 
   return entries.sort((a, b) => a.album.localeCompare(b.album));
@@ -441,16 +468,25 @@ export function formatAlbumsTable(albums: AlbumEntry[], heading: string): string
     return 'No albums found.';
   }
 
+  const hasCompilations = albums.some((a) => a.isCompilation);
   const albumWidth = Math.min(35, Math.max(5, ...albums.map((a) => a.album.length)));
   const artistWidth = Math.min(25, Math.max(6, ...albums.map((a) => a.artist.length)));
 
   const lines: string[] = [heading, ''];
-  lines.push(`  ${'ALBUM'.padEnd(albumWidth)}  ${'ARTIST'.padEnd(artistWidth)}  TRACKS`);
+  const headerLine = hasCompilations
+    ? `  ${'ALBUM'.padEnd(albumWidth)}  ${'ARTIST'.padEnd(artistWidth)}  ${'TRACKS'.padEnd(6)}  COMP`
+    : `  ${'ALBUM'.padEnd(albumWidth)}  ${'ARTIST'.padEnd(artistWidth)}  TRACKS`;
+  lines.push(headerLine);
 
   for (const entry of albums) {
     const album = truncate(entry.album, albumWidth).padEnd(albumWidth);
     const artist = truncate(entry.artist, artistWidth).padEnd(artistWidth);
-    lines.push(`  ${album}  ${artist}  ${entry.tracks}`);
+    if (hasCompilations) {
+      const comp = entry.isCompilation ? '\u2713' : '';
+      lines.push(`  ${album}  ${artist}  ${String(entry.tracks).padEnd(6)}  ${comp}`);
+    } else {
+      lines.push(`  ${album}  ${artist}  ${entry.tracks}`);
+    }
   }
 
   return lines.join('\n');

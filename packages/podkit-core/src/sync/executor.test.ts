@@ -284,6 +284,32 @@ describe('DefaultSyncExecutor - basic execution', () => {
     expect(mockDb.save.mock.calls.length).toBe(1);
   });
 
+  it('passes compilation flag to addTrack', async () => {
+    const executor = new DefaultSyncExecutor(deps);
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'copy',
+          source: createCollectionTrack('Artist', 'Song', 'Compilation Album', 'mp3', {
+            compilation: true,
+          }),
+        },
+      ],
+      estimatedTime: 1,
+      estimatedSize: 5000000,
+      warnings: [],
+    };
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan)) {
+      progress.push(p);
+    }
+
+    expect(mockDb.addTrack.mock.calls.length).toBe(1);
+    const trackInput = mockDb.addTrack.mock.calls[0]![0] as Record<string, unknown>;
+    expect(trackInput.compilation).toBe(true);
+  });
+
   it('executes transcode operation', async () => {
     const executor = new DefaultSyncExecutor(deps);
     const plan: SyncPlan = {

@@ -52,6 +52,7 @@ const CONFLICT_FIELDS: (keyof TrackMetadata)[] = [
   'year',
   'trackNumber',
   'discNumber',
+  'compilation',
 ];
 
 /**
@@ -92,8 +93,14 @@ function findConflictingFields(
   const conflicts: (keyof TrackMetadata)[] = [];
 
   for (const field of CONFLICT_FIELDS) {
-    const collectionValue = collection[field as keyof CollectionTrack];
-    const ipodValue = ipod[field as keyof IPodTrack];
+    let collectionValue = collection[field as keyof CollectionTrack];
+    let ipodValue = ipod[field as keyof IPodTrack];
+
+    // Normalize boolean fields: undefined/null and false are equivalent
+    if (field === 'compilation') {
+      collectionValue = collectionValue ?? false;
+      ipodValue = ipodValue ?? false;
+    }
 
     if (valuesDiffer(collectionValue, ipodValue)) {
       conflicts.push(field);

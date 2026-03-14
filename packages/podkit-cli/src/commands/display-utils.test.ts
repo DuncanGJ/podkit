@@ -20,6 +20,7 @@ import {
   AVAILABLE_FIELDS,
   type DisplayTrack,
   type FieldName,
+  type ContentStats,
 } from './display-utils.js';
 
 // =============================================================================
@@ -218,6 +219,23 @@ describe('getFieldValue', () => {
     it('returns dash for undefined', () => {
       const track = createTrack({ artwork: undefined });
       expect(getFieldValue(track, 'artwork')).toBe('-');
+    });
+  });
+
+  describe('compilation field', () => {
+    it('returns checkmark for true', () => {
+      const track = createTrack({ compilation: true });
+      expect(getFieldValue(track, 'compilation')).toBe('\u2713'); // ✓
+    });
+
+    it('returns X for false', () => {
+      const track = createTrack({ compilation: false });
+      expect(getFieldValue(track, 'compilation')).toBe('\u2717'); // ✗
+    });
+
+    it('returns dash for undefined', () => {
+      const track = createTrack({ compilation: undefined });
+      expect(getFieldValue(track, 'compilation')).toBe('-');
     });
   });
 
@@ -662,6 +680,8 @@ describe('computeStats', () => {
     expect(stats.tracks).toBe(0);
     expect(stats.albums).toBe(0);
     expect(stats.artists).toBe(0);
+    expect(stats.compilationAlbums).toBe(0);
+    expect(stats.compilationTracks).toBe(0);
     expect(Object.keys(stats.fileTypes)).toHaveLength(0);
   });
 
@@ -687,6 +707,29 @@ describe('computeStats', () => {
     const stats = computeStats(tracks);
     expect(stats.fileTypes).toEqual({ FLAC: 2, MP3: 1 });
   });
+
+  it('counts compilation albums and tracks', () => {
+    const tracks = [
+      createTrack({ album: 'Comp Album', compilation: true }),
+      createTrack({ album: 'Comp Album', compilation: true }),
+      createTrack({ album: 'Another Comp', compilation: true }),
+      createTrack({ album: 'Normal Album', compilation: false }),
+      createTrack({ album: 'No Flag Album' }),
+    ];
+    const stats = computeStats(tracks);
+    expect(stats.compilationTracks).toBe(3);
+    expect(stats.compilationAlbums).toBe(2);
+  });
+
+  it('returns zero compilation counts when no compilations exist', () => {
+    const tracks = [
+      createTrack({ album: 'Album A', compilation: false }),
+      createTrack({ album: 'Album B' }),
+    ];
+    const stats = computeStats(tracks);
+    expect(stats.compilationTracks).toBe(0);
+    expect(stats.compilationAlbums).toBe(0);
+  });
 });
 
 // =============================================================================
@@ -695,7 +738,14 @@ describe('computeStats', () => {
 
 describe('formatStatsText', () => {
   it('includes heading and counts', () => {
-    const stats = { tracks: 1247, albums: 98, artists: 45, fileTypes: { FLAC: 892, MP3: 280 } };
+    const stats: ContentStats = {
+      tracks: 1247,
+      albums: 98,
+      artists: 45,
+      compilationAlbums: 0,
+      compilationTracks: 0,
+      fileTypes: { FLAC: 892, MP3: 280 },
+    };
     const result = formatStatsText(stats, 'Music on TERAPOD:');
 
     expect(result).toContain('Music on TERAPOD:');
@@ -709,10 +759,45 @@ describe('formatStatsText', () => {
   });
 
   it('omits file types section when empty', () => {
-    const stats = { tracks: 5, albums: 2, artists: 1, fileTypes: {} };
+    const stats: ContentStats = {
+      tracks: 5,
+      albums: 2,
+      artists: 1,
+      compilationAlbums: 0,
+      compilationTracks: 0,
+      fileTypes: {},
+    };
     const result = formatStatsText(stats, 'Music:');
 
     expect(result).not.toContain('File Types:');
+  });
+
+  it('includes compilations line when compilations exist', () => {
+    const stats: ContentStats = {
+      tracks: 100,
+      albums: 10,
+      artists: 8,
+      compilationAlbums: 3,
+      compilationTracks: 25,
+      fileTypes: {},
+    };
+    const result = formatStatsText(stats, 'Music:');
+
+    expect(result).toContain('Compilations: 3 albums (25 tracks)');
+  });
+
+  it('omits compilations line when no compilations', () => {
+    const stats: ContentStats = {
+      tracks: 100,
+      albums: 10,
+      artists: 8,
+      compilationAlbums: 0,
+      compilationTracks: 0,
+      fileTypes: {},
+    };
+    const result = formatStatsText(stats, 'Music:');
+
+    expect(result).not.toContain('Compilations');
   });
 });
 
@@ -738,6 +823,7 @@ describe('aggregateAlbums', () => {
     expect(abbeyRoad).toBeDefined();
     expect(abbeyRoad!.tracks).toBe(2);
     expect(abbeyRoad!.artist).toBe('The Beatles');
+    expect(abbeyRoad!.isCompilation).toBe(false);
   });
 
   it('uses albumArtist over artist', () => {
@@ -757,6 +843,29 @@ describe('aggregateAlbums', () => {
     const albums = aggregateAlbums(tracks);
     expect(albums.map((a) => a.album)).toEqual(['Alpha', 'Middle', 'Zebra']);
   });
+
+  it('marks compilation albums when any track has compilation flag', () => {
+    const tracks = [
+      createTrack({ album: 'Hits', albumArtist: 'Various', compilation: true }),
+      createTrack({ album: 'Hits', albumArtist: 'Various', compilation: false }),
+      createTrack({ album: 'Normal', albumArtist: 'Artist' }),
+    ];
+    const albums = aggregateAlbums(tracks);
+
+    const hits = albums.find((a) => a.album === 'Hits');
+    expect(hits).toBeDefined();
+    expect(hits!.isCompilation).toBe(true);
+
+    const normal = albums.find((a) => a.album === 'Normal');
+    expect(normal).toBeDefined();
+    expect(normal!.isCompilation).toBe(false);
+  });
+
+  it('marks album as non-compilation when no tracks have compilation flag', () => {
+    const tracks = [createTrack({ album: 'Regular Album' })];
+    const albums = aggregateAlbums(tracks);
+    expect(albums[0]!.isCompilation).toBe(false);
+  });
 });
 
 // =============================================================================
@@ -769,7 +878,7 @@ describe('formatAlbumsTable', () => {
   });
 
   it('includes heading and column headers', () => {
-    const albums = [{ album: 'Test Album', artist: 'Test Artist', tracks: 10 }];
+    const albums = [{ album: 'Test Album', artist: 'Test Artist', tracks: 10, isCompilation: false }];
     const result = formatAlbumsTable(albums, 'Music on iPod:');
 
     expect(result).toContain('Music on iPod:');
@@ -778,6 +887,33 @@ describe('formatAlbumsTable', () => {
     expect(result).toContain('TRACKS');
     expect(result).toContain('Test Album');
     expect(result).toContain('10');
+  });
+
+  it('shows COMP column when compilations exist', () => {
+    const albums = [
+      { album: 'Comp Album', artist: 'Various', tracks: 12, isCompilation: true },
+      { album: 'Normal Album', artist: 'Artist', tracks: 8, isCompilation: false },
+    ];
+    const result = formatAlbumsTable(albums, 'Music:');
+
+    expect(result).toContain('COMP');
+    // Compilation album should have checkmark
+    const lines = result.split('\n');
+    const compLine = lines.find((l) => l.includes('Comp Album'));
+    expect(compLine).toContain('\u2713');
+    // Normal album should not have checkmark
+    const normalLine = lines.find((l) => l.includes('Normal Album'));
+    expect(normalLine).not.toContain('\u2713');
+  });
+
+  it('omits COMP column when no compilations exist', () => {
+    const albums = [
+      { album: 'Album A', artist: 'Artist A', tracks: 5, isCompilation: false },
+      { album: 'Album B', artist: 'Artist B', tracks: 3, isCompilation: false },
+    ];
+    const result = formatAlbumsTable(albums, 'Music:');
+
+    expect(result).not.toContain('COMP');
   });
 });
 

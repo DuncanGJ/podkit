@@ -263,6 +263,7 @@ export class SubsonicAdapter implements CollectionAdapter {
       year: song.year ?? album.year,
       trackNumber: song.track,
       discNumber: song.discNumber,
+      compilation: album.isCompilation ?? undefined,
       // Subsonic duration is in seconds, convert to milliseconds
       duration: song.duration !== undefined ? song.duration * 1000 : undefined,
 

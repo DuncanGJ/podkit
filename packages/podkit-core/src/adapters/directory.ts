@@ -248,6 +248,7 @@ export class DirectoryAdapter implements CollectionAdapter {
       year: common.year,
       trackNumber: common.track?.no ?? undefined,
       discNumber: common.disk?.no ?? undefined,
+      compilation: common.compilation ?? undefined,
       duration: format.duration ? Math.floor(format.duration * 1000) : undefined,
 
       // File info

@@ -36,6 +36,7 @@ export interface TrackMetadata {
   year?: number;
   trackNumber?: number;
   discNumber?: number;
+  compilation?: boolean;
   duration?: number; // milliseconds
 }
 
