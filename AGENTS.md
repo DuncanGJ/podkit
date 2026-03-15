@@ -35,7 +35,7 @@ bun run test                     # Run all tests (unit + integration)
 bun run test:unit                # Run unit tests only
 bun run test:integration         # Run integration tests only
 bun run test:e2e                 # Run E2E tests (dummy iPod)
-bun test packages/podkit-core    # Run tests for specific package
+bun run test --filter podkit-core # Run tests for specific package
 
 # Build
 bun run build                    # Build all packages for Node.js
