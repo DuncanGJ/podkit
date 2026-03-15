@@ -50,7 +50,7 @@ Sleep 500ms
 Enter
 Wait /❯/
 Sleep 500ms
-Type "podkit device add myipod ~/ipod"
+Type "podkit device add -d myipod --path ~/ipod"
 Sleep 500ms
 Enter
 Wait+Screen /Y.n/
@@ -87,7 +87,7 @@ Sleep 500ms
 Enter
 Wait /❯/
 Sleep 500ms
-Type "podkit collection add music main ~/media/music"
+Type "podkit collection add -t music -c main --path ~/media/music"
 Sleep 500ms
 Enter
 Wait /❯/
@@ -104,12 +104,12 @@ Sleep 500ms
 Enter
 Wait /❯/
 Sleep 500ms
-Type "podkit collection music main"
+Type "podkit collection music -c main"
 Sleep 500ms
 Enter
 Wait /❯/
 Sleep 2s
-Type "podkit collection music main --artists"
+Type "podkit collection music -c main --artists"
 Sleep 500ms
 Enter
 Wait /❯/
@@ -126,7 +126,7 @@ Sleep 500ms
 Enter
 Wait /❯/
 Sleep 500ms
-Type "podkit collection add video movies ~/media/videos"
+Type "podkit collection add -t video -c movies --path ~/media/videos"
 Sleep 500ms
 Enter
 Wait /❯/

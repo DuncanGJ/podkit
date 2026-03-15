@@ -90,14 +90,14 @@ You can set quality on a device when adding it or at any time afterward:
 
 ```bash
 # Set quality when adding a device
-podkit device add classic --audio-quality lossless --video-quality high
+podkit device add -d classic --audio-quality lossless --video-quality high
 
 # Change quality on an existing device
-podkit device set classic --quality lossless
-podkit device set nano --audio-quality medium --video-quality low
+podkit device set -d classic --quality lossless
+podkit device set -d nano --audio-quality medium --video-quality low
 
 # Clear a setting (reverts to global default)
-podkit device set classic --clear-audio-quality
+podkit device set -d classic --clear-audio-quality
 ```
 
 ## Sync-Time Overrides

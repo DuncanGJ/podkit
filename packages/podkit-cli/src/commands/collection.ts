@@ -6,16 +6,16 @@
  *
  * @example
  * ```bash
- * podkit collection                       # list all collections
- * podkit collection list                  # same as above
- * podkit collection list music            # list music collections only
- * podkit collection list video            # list video collections only
- * podkit collection add music <name> <path>   # add a music collection
- * podkit collection add video <name> <path>   # add a video collection
- * podkit collection remove <name>         # remove collection
- * podkit collection info <name>           # display collection details
- * podkit collection music [name]          # list tracks in music collection
- * podkit collection video [name]          # list videos in video collection
+ * podkit collection                                    # list all collections
+ * podkit collection list                               # same as above
+ * podkit collection list -t music                      # list music collections only
+ * podkit collection list -t video                      # list video collections only
+ * podkit collection add -t music -c <name> --path <p>  # add a music collection
+ * podkit collection add -t video -c <name> --path <p>  # add a video collection
+ * podkit collection remove -c <name>                   # remove collection
+ * podkit collection info -c <name>                     # display collection details
+ * podkit collection music [-c name]                    # list tracks in music collection
+ * podkit collection video [-c name]                    # list videos in video collection
  * ```
  */
 
@@ -177,7 +177,7 @@ function findCollection(name: string): {
 }
 
 /**
- * Resolve music collection from positional argument or default
+ * Resolve music collection from --collection flag or default
  */
 function resolveMusicCollectionArg(collectionName?: string):
   | { error: string }
@@ -203,7 +203,7 @@ function resolveMusicCollectionArg(collectionName?: string):
 }
 
 /**
- * Resolve video collection from positional argument or default
+ * Resolve video collection from --collection flag or default
  */
 function resolveVideoCollectionArg(collectionName?: string):
   | { error: string }
@@ -234,12 +234,13 @@ function resolveVideoCollectionArg(collectionName?: string):
 
 const listSubcommand = new Command('list')
   .description('list configured collections')
-  .argument('[type]', 'filter by type: music or video')
-  .action((type?: string) => {
+  .option('-t, --type <type>', 'filter by type: music or video')
+  .action((options: { type?: string }) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
 
     // Validate type if provided
+    const type = options.type;
     let filterType: CollectionType | undefined;
     if (type) {
       if (type !== 'music' && type !== 'video') {
@@ -266,12 +267,44 @@ const listSubcommand = new Command('list')
 
 const addSubcommand = new Command('add')
   .description('add a new collection')
-  .argument('<type>', 'collection type: music or video')
-  .argument('<name>', 'collection name (used as identifier)')
-  .argument('<path>', 'path to the collection directory')
-  .action(async (type: string, name: string, collectionPath: string) => {
+  .option('-t, --type <type>', 'collection type: music or video')
+  .option('-c, --collection <name>', 'collection name (used as identifier)')
+  .option('--path <path>', 'path to the collection directory')
+  .action(async (options: { type?: string; collection?: string; path?: string }) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
+    const type = options.type;
+    const name = options.collection;
+    const collectionPath = options.path;
+
+    // Validate required flags
+    if (!type) {
+      const error =
+        'Missing required --type flag. Usage: podkit collection add -t music -c <name> --path <path>';
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (!name) {
+      const error =
+        'Missing required --collection flag. Usage: podkit collection add -t music -c <name> --path <path>';
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (!collectionPath) {
+      const error =
+        'Missing required --path flag. Usage: podkit collection add -t music -c <name> --path <path>';
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
+      process.exitCode = 1;
+      return;
+    }
 
     // Validate type
     if (type !== 'music' && type !== 'video') {
@@ -380,11 +413,21 @@ const addSubcommand = new Command('add')
 
 const removeSubcommand = new Command('remove')
   .description('remove a collection')
-  .argument('<name>', 'collection name to remove')
+  .option('-c, --collection <name>', 'collection name to remove')
   .option('-y, --yes', 'skip confirmation prompt')
-  .action(async (name: string, options: { yes?: boolean }) => {
+  .action(async (options: { collection?: string; yes?: boolean }) => {
     const { globalOpts, config } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
+    const name = options.collection;
+
+    if (!name) {
+      const error = 'Missing required --collection flag. Usage: podkit collection remove -c <name>';
+      out.result<CollectionModifyOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
+      process.exitCode = 1;
+      return;
+    }
 
     // Find the collection
     const existing = findCollection(name);
@@ -488,10 +531,20 @@ const removeSubcommand = new Command('remove')
 
 const infoSubcommand = new Command('info')
   .description('display collection details')
-  .argument('<name>', 'collection name')
-  .action((name: string) => {
+  .option('-c, --collection <name>', 'collection name')
+  .action((options: { collection?: string }) => {
     const { globalOpts, config } = getContext();
+    const name = options.collection;
     const out = OutputContext.fromGlobalOpts(globalOpts);
+
+    if (!name) {
+      const error = 'Missing required --collection flag. Usage: podkit collection info -c <name>';
+      out.result<CollectionShowOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
+      process.exitCode = 1;
+      return;
+    }
 
     // Find the collection
     const existing = findCollection(name);
@@ -569,13 +622,14 @@ interface ContentListOptions {
 
 const musicSubcommand = new Command('music')
   .description('list music in a collection (shows stats by default)')
-  .argument('[name]', 'collection name (uses default if omitted)')
+  .option('-c, --collection <name>', 'collection name (uses default if omitted)')
   .option('--tracks', 'list all tracks')
   .option('--albums', 'list albums with track counts')
   .option('--artists', 'list artists with album/track counts')
   .option('--format <fmt>', 'output format: table, json, csv', 'table')
   .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
-  .action(async (name: string | undefined, options: ContentListOptions) => {
+  .action(async (options: ContentListOptions & { collection?: string }) => {
+    const name = options.collection;
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
@@ -725,13 +779,14 @@ const musicSubcommand = new Command('music')
 
 const videoSubcommand = new Command('video')
   .description('list videos in a collection (shows stats by default)')
-  .argument('[name]', 'collection name (uses default if omitted)')
+  .option('-c, --collection <name>', 'collection name (uses default if omitted)')
   .option('--tracks', 'list all tracks')
   .option('--albums', 'list albums with track counts')
   .option('--artists', 'list artists with album/track counts')
   .option('--format <fmt>', 'output format: table, json, csv', 'table')
   .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
-  .action(async (name: string | undefined, options: ContentListOptions) => {
+  .action(async (options: ContentListOptions & { collection?: string }) => {
+    const name = options.collection;
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
@@ -869,14 +924,28 @@ export interface CollectionDefaultOutput {
 
 const defaultSubcommand = new Command('default')
   .description('set or show the default collection')
-  .argument('<type>', 'collection type: music or video')
-  .argument('[name]', 'collection name (omit to show current default, use --clear to unset)')
+  .option('-t, --type <type>', 'collection type: music or video')
+  .option(
+    '-c, --collection <name>',
+    'collection name (omit to show current default, use --clear to unset)'
+  )
   .option('--clear', 'clear the default collection for this type')
-  .action(async (type: string, name: string | undefined, options: { clear?: boolean }) => {
+  .action(async (options: { type?: string; collection?: string; clear?: boolean }) => {
     const { globalOpts, config } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
+    const type = options.type;
+    const name = options.collection;
 
-    // Validate type
+    // Validate type (required)
+    if (!type) {
+      const error =
+        'Missing required --type flag. Usage: podkit collection default -t music [-c name]';
+      out.result<CollectionDefaultOutput>({ success: false, error }, () =>
+        out.error(`Error: ${error}`)
+      );
+      process.exitCode = 1;
+      return;
+    }
     if (type !== 'music' && type !== 'video') {
       const error = `Invalid type '${type}'. Must be 'music' or 'video'.`;
       out.result<CollectionDefaultOutput>({ success: false, error }, () =>

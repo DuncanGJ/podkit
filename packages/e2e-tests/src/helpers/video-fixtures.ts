@@ -203,7 +203,7 @@ export async function areVideoFixturesAvailable(): Promise<boolean> {
  * const sourceDir = await createVideoSourceDir();
  * try {
  *   const configPath = await createTempConfig(sourceDir); // video collection
- *   const result = await runCli(['--config', configPath, 'sync', 'video', ...]);
+ *   const result = await runCli(['--config', configPath, 'sync', '--type', 'video', ...]);
  * } finally {
  *   await cleanupVideoSourceDir(sourceDir);
  * }
@@ -273,7 +273,7 @@ export async function cleanupVideoSourceDir(dir: string): Promise<void> {
  * ```typescript
  * await withVideoSourceDir(async (sourceDir) => {
  *   const configPath = await createTempConfig(sourceDir); // video collection
- *   const result = await runCli(['--config', configPath, 'sync', 'video', ...]);
+ *   const result = await runCli(['--config', configPath, 'sync', '--type', 'video', ...]);
  *   expect(result.exitCode).toBe(0);
  * });
  * ```

@@ -97,22 +97,22 @@ video = "movies"
 
 ```bash
 # Sync all video collections
-podkit sync video
+podkit sync -t video
 
 # Sync a specific collection
-podkit sync video -c shows
+podkit sync -t video -c shows
 
 # Preview changes
-podkit sync video --dry-run
+podkit sync -t video --dry-run
 
 # Remove videos no longer in source
-podkit sync video --delete
+podkit sync -t video --delete
 
 # Override quality for this sync
-podkit sync video --video-quality medium
+podkit sync -t video --video-quality medium
 
 # Sync to a specific device (by name or mount path)
-podkit sync video --device classic
+podkit sync -t video -d classic
 ```
 
 ## Listing Video

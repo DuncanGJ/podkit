@@ -5,17 +5,17 @@
  *
  * @example
  * ```bash
- * podkit device                  # list configured devices
- * podkit device add <name>       # detect and add iPod
- * podkit device remove <name>    # remove from config
- * podkit device info [name]      # config + live status
- * podkit device music [name]     # list music on device
- * podkit device video [name]     # list video on device
- * podkit device clear [name]     # clear all content
- * podkit device reset [name]     # reset database
- * podkit device eject [name]     # eject device
- * podkit device mount [name]     # mount device
- * podkit device init [name]      # initialize iPod database
+ * podkit device                       # list configured devices
+ * podkit device add -d <name>         # detect and add iPod
+ * podkit device remove -d <name>      # remove from config
+ * podkit device info [-d name]        # config + live status
+ * podkit device music [-d name]       # list music on device
+ * podkit device video [-d name]       # list video on device
+ * podkit device clear [-d name]       # clear all content
+ * podkit device reset [-d name]       # reset database
+ * podkit device eject [-d name]       # eject device
+ * podkit device mount [-d name]       # mount device
+ * podkit device init [-d name]        # initialize iPod database
  * ```
  */
 import { Command } from 'commander';
@@ -139,13 +139,13 @@ type DeviceArgResult =
     };
 
 /**
- * Resolve device from CLI arguments
+ * Resolve device from CLI arguments (global --device flag or default)
  */
-function resolveDeviceArg(positionalName?: string): DeviceArgResult {
+function resolveDeviceArg(): DeviceArgResult {
   const { config, globalOpts } = getContext();
 
   const cliArg = parseCliDeviceArg(globalOpts.device, config);
-  const result = resolveEffectiveDevice(cliArg, positionalName, config);
+  const result = resolveEffectiveDevice(cliArg, undefined, config);
 
   if (!result.success) {
     return { error: result.error };
@@ -472,7 +472,7 @@ const listSubcommand = new Command('list')
 
     if (deviceNames.length === 0) {
       out.result<DeviceListOutput>({ success: true, devices: [], defaultDevice: undefined }, () =>
-        out.print("No devices configured. Run 'podkit device add <name>' to add one.")
+        out.print("No devices configured. Run 'podkit device add -d <name>' to add one.")
       );
       return;
     }
@@ -573,8 +573,7 @@ interface AddOptions {
 
 const addSubcommand = new Command('add')
   .description('detect connected iPod and add to config')
-  .argument('<name>', 'name for this device configuration')
-  .argument('[path]', 'explicit path to iPod mount point')
+  .option('--path <path>', 'explicit path to iPod mount point')
   .option('-y, --yes', 'skip confirmation prompts')
   .option(
     '--quality <preset>',
@@ -587,10 +586,20 @@ const addSubcommand = new Command('add')
   .option('--video-quality <preset>', 'video quality (overrides --quality): max, high, medium, low')
   .option('--artwork', 'sync artwork to this device')
   .option('--no-artwork', 'do not sync artwork to this device')
-  .action(async (name: string, explicitPath: string | undefined, options: AddOptions) => {
+  .action(async (options: AddOptions & { path?: string }) => {
     const { globalOpts, configResult } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
+    const name = globalOpts.device;
+    const explicitPath = options.path;
     const autoConfirm = options.yes ?? false;
+
+    // Require --device flag
+    if (!name) {
+      const error = 'Missing required --device flag. Usage: podkit device add -d <name>';
+      out.result<DeviceAddOutput>({ success: false, error }, () => out.error(error));
+      process.exitCode = 1;
+      return;
+    }
 
     // Validate device name
     if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(name)) {
@@ -870,7 +879,9 @@ const addSubcommand = new Command('add')
           }
           out.newline();
           out.print('Next steps:');
-          out.print('  podkit collection add <path>   # Add your music library');
+          out.print(
+            '  podkit collection add -t music -c <name> --path <path>   # Add your music library'
+          );
           out.print(`  podkit sync                    # Sync to this device`);
         }
       );
@@ -883,8 +894,8 @@ const addSubcommand = new Command('add')
       out.result<DeviceAddOutput>({ success: false, error }, () => {
         out.error(error);
         out.newline();
-        out.error('Usage: podkit device add <name> <path>');
-        out.error('Example: podkit device add myipod /Volumes/IPOD');
+        out.error('Usage: podkit device add -d <name> --path <path>');
+        out.error('Example: podkit device add -d myipod --path /Volumes/IPOD');
       });
       process.exitCode = 1;
       return;
@@ -901,7 +912,7 @@ const addSubcommand = new Command('add')
         out.error('Make sure your iPod is connected.');
         out.newline();
         out.error('Or specify a path explicitly:');
-        out.error(`  podkit device add ${name} /path/to/ipod`);
+        out.error(`  podkit device add -d ${name} --path /path/to/ipod`);
       });
       process.exitCode = 1;
       return;
@@ -919,7 +930,7 @@ const addSubcommand = new Command('add')
           out.newline();
           for (const ipod of ipods) {
             const path = ipod.mountPoint ?? ipod.identifier;
-            out.error(`  podkit device add ${name} ${path}`);
+            out.error(`  podkit device add -d ${name} --path ${path}`);
             out.error(`    ${ipod.volumeName || '(unnamed)'} - ${formatBytes(ipod.size)}`);
             out.newline();
           }
@@ -969,7 +980,7 @@ const addSubcommand = new Command('add')
               out.error(line);
             }
             out.newline();
-            out.error(`Run:  ${bold('sudo')} podkit device add ${name}`);
+            out.error(`Run:  ${bold('sudo')} podkit device add -d ${name}`);
           }
         );
         process.exitCode = 1;
@@ -1185,7 +1196,9 @@ const addSubcommand = new Command('add')
         }
         out.newline();
         out.print('Next steps:');
-        out.print('  podkit collection add <path>   # Add your music library');
+        out.print(
+          '  podkit collection add -t music -c <name> --path <path>   # Add your music library'
+        );
         out.print(`  podkit sync                    # Sync to this device`);
       }
     );
@@ -1197,11 +1210,18 @@ const addSubcommand = new Command('add')
 
 const removeSubcommand = new Command('remove')
   .description('remove a device from config')
-  .argument('<name>', 'name of the device to remove')
   .option('--confirm', 'skip confirmation prompt')
-  .action(async (name: string, options: { confirm?: boolean }) => {
+  .action(async (options: { confirm?: boolean }) => {
     const { config, globalOpts, configResult } = getContext();
+    const name = globalOpts.device;
     const out = OutputContext.fromGlobalOpts(globalOpts);
+
+    if (!name) {
+      const error = 'Missing required --device flag. Usage: podkit device remove -d <name>';
+      out.result<DeviceRemoveOutput>({ success: false, error }, () => out.error(error));
+      process.exitCode = 1;
+      return;
+    }
 
     const devices = config.devices || {};
     const defaultDevice = config.defaults?.device;
@@ -1264,12 +1284,11 @@ const removeSubcommand = new Command('remove')
 
 const infoSubcommand = new Command('info')
   .description('display device configuration and live status')
-  .argument('[name]', 'device name (uses default if omitted)')
-  .action(async (name?: string) => {
+  .action(async () => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
 
-    const resolved = resolveDeviceArg(name);
+    const resolved = resolveDeviceArg();
     if ('error' in resolved) {
       out.result<DeviceInfoOutput>({ success: false, error: resolved.error }, () =>
         out.error(resolved.error)
@@ -1496,13 +1515,12 @@ interface MusicVideoOptions {
 
 const musicSubcommand = new Command('music')
   .description('list music on device (shows stats by default)')
-  .argument('[name]', 'device name (uses default if omitted)')
   .option('--tracks', 'list all tracks')
   .option('--albums', 'list albums with track counts')
   .option('--artists', 'list artists with album/track counts')
   .option('--format <fmt>', 'output format: table, json, csv', 'table')
   .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
-  .action(async (name: string | undefined, options: MusicVideoOptions) => {
+  .action(async (options: MusicVideoOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
@@ -1529,7 +1547,7 @@ const musicSubcommand = new Command('music')
       return;
     }
 
-    const resolved = resolveDeviceArg(name);
+    const resolved = resolveDeviceArg();
     if ('error' in resolved) {
       outputError(resolved.error);
       return;
@@ -1648,13 +1666,12 @@ const musicSubcommand = new Command('music')
 
 const videoSubcommand = new Command('video')
   .description('list video content on device (shows stats by default)')
-  .argument('[name]', 'device name (uses default if omitted)')
   .option('--tracks', 'list all tracks')
   .option('--albums', 'list albums with track counts')
   .option('--artists', 'list artists with album/track counts')
   .option('--format <fmt>', 'output format: table, json, csv', 'table')
   .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
-  .action(async (name: string | undefined, options: MusicVideoOptions) => {
+  .action(async (options: MusicVideoOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const format = out.isJson ? 'json' : options.format;
@@ -1681,7 +1698,7 @@ const videoSubcommand = new Command('video')
       return;
     }
 
-    const resolved = resolveDeviceArg(name);
+    const resolved = resolveDeviceArg();
     if ('error' in resolved) {
       outputError(resolved.error);
       return;
@@ -1805,7 +1822,6 @@ interface ClearOptions {
 
 const clearSubcommand = new Command('clear')
   .description('remove content from the iPod (all, music only, or video only)')
-  .argument('[name]', 'device name (uses default if omitted)')
   .option('--confirm', 'skip confirmation prompt (for scripts)')
   .option('--dry-run', 'show what would be removed without removing')
   .option(
@@ -1813,11 +1829,11 @@ const clearSubcommand = new Command('clear')
     'content type to clear: "music", "video", or "all" (default: all)',
     'all'
   )
-  .action(async (name: string | undefined, options: ClearOptions) => {
+  .action(async (options: ClearOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
 
-    const resolved = resolveDeviceArg(name);
+    const resolved = resolveDeviceArg();
     if ('error' in resolved) {
       out.result<DeviceClearOutput>({ success: false, error: resolved.error }, () =>
         out.error(resolved.error)
@@ -2050,15 +2066,14 @@ const resetSubcommand = new Command('reset')
   .description(
     'recreate iPod database from scratch (note: does not delete orphaned audio files in iPod_Control/Music/; use "device clear --type all" first to remove all content)'
   )
-  .argument('[name]', 'device name (uses default if omitted)')
   .option('-y, --yes', 'skip confirmation prompt')
   .option('--dry-run', 'show what would happen without making changes')
-  .action(async (name: string | undefined, options: ResetOptions) => {
+  .action(async (options: ResetOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const autoConfirm = options.yes ?? false;
 
-    const resolved = resolveDeviceArg(name);
+    const resolved = resolveDeviceArg();
     if ('error' in resolved) {
       out.result<DeviceResetOutput>({ success: false, error: resolved.error }, () =>
         out.error(resolved.error)
@@ -2234,14 +2249,13 @@ interface EjectOptions {
 
 const ejectSubcommand = new Command('eject')
   .description('safely unmount an iPod device')
-  .argument('[name]', 'device name (uses default if omitted)')
   .option('-f, --force', 'force unmount even if device is busy')
-  .action(async (name: string | undefined, options: EjectOptions) => {
+  .action(async (options: EjectOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const force = options.force ?? false;
 
-    const resolved = resolveDeviceArg(name);
+    const resolved = resolveDeviceArg();
     if ('error' in resolved) {
       out.result<DeviceEjectOutput>({ success: false, error: resolved.error }, () =>
         out.error(resolved.error)
@@ -2359,16 +2373,15 @@ interface MountOptions {
 
 const mountSubcommand = new Command('mount')
   .description('mount an iPod device')
-  .argument('[name]', 'device name (uses default if omitted)')
   .option('--disk <identifier>', 'disk identifier (e.g., /dev/disk4s2)')
   .option('--dry-run', 'show mount command without executing')
-  .action(async (name: string | undefined, options: MountOptions) => {
+  .action(async (options: MountOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const explicitDisk = options.disk;
     const dryRun = options.dryRun ?? false;
 
-    const resolved = resolveDeviceArg(name);
+    const resolved = resolveDeviceArg();
     if ('error' in resolved && !explicitDisk) {
       out.result<DeviceMountOutput>({ success: false, error: resolved.error }, () =>
         out.error(resolved.error)
@@ -2459,7 +2472,7 @@ const mountSubcommand = new Command('mount')
             out.error('  podkit device mount --disk /dev/disk4s2');
             out.newline();
             out.error('Or register an iPod first:');
-            out.error('  podkit device add <name>');
+            out.error('  podkit device add -d <name>');
           }
         );
         process.exitCode = 1;
@@ -2574,15 +2587,14 @@ interface InitOptions {
 
 const initSubcommand = new Command('init')
   .description('initialize iPod database on a device')
-  .argument('[name]', 'device name (uses default if omitted)')
   .option('-f, --force', 'overwrite existing database')
   .option('-y, --yes', 'skip confirmation prompt')
-  .action(async (name: string | undefined, options: InitOptions) => {
+  .action(async (options: InitOptions) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const autoConfirm = options.yes ?? false;
 
-    const resolved = resolveDeviceArg(name);
+    const resolved = resolveDeviceArg();
     if ('error' in resolved) {
       out.result<DeviceInitOutput>({ success: false, error: resolved.error }, () =>
         out.error(resolved.error)
@@ -2722,7 +2734,6 @@ interface SetOptions {
 
 const setSubcommand = new Command('set')
   .description('update device settings (quality, artwork)')
-  .argument('<name>', 'device name')
   .option(
     '--quality <preset>',
     'transcoding quality preset: lossless, max, high, medium, low (and CBR variants)'
@@ -2738,9 +2749,18 @@ const setSubcommand = new Command('set')
   .option('--clear-audio-quality', 'remove audio quality setting (use global default)')
   .option('--clear-video-quality', 'remove video quality setting (use global default)')
   .option('--clear-artwork', 'remove artwork setting (use global default)')
-  .action(async (name: string, options: SetOptions) => {
+  .action(async (options: SetOptions) => {
     const { config, globalOpts, configResult } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
+    const name = globalOpts.device;
+
+    if (!name) {
+      const error =
+        'Missing required --device flag. Usage: podkit device set -d <name> --quality <preset>';
+      out.result<DeviceSetOutput>({ success: false, error }, () => out.error(error));
+      process.exitCode = 1;
+      return;
+    }
 
     const devices = config.devices || {};
     if (!(name in devices)) {
@@ -2850,10 +2870,10 @@ const setSubcommand = new Command('set')
 
 const defaultSubcommand = new Command('default')
   .description('set or clear the default device')
-  .argument('[name]', 'device name (omit to show current default, use --clear to unset)')
   .option('--clear', 'clear the default device')
-  .action(async (name: string | undefined, options: { clear?: boolean }) => {
+  .action(async (options: { clear?: boolean }) => {
     const { config, globalOpts, configResult } = getContext();
+    const name = globalOpts.device;
     const out = OutputContext.fromGlobalOpts(globalOpts);
 
     if (options.clear) {

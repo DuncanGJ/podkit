@@ -43,7 +43,7 @@ describe('resolveNamedEntity', () => {
         defaultName: undefined,
         requestedName: 'terapod',
         entityType: 'device',
-        addCommand: 'podkit device add <name>',
+        addCommand: 'podkit device add -d <name>',
       });
 
       expect(result.success).toBe(true);
@@ -59,7 +59,7 @@ describe('resolveNamedEntity', () => {
         defaultName: undefined,
         requestedName: 'unknown',
         entityType: 'device',
-        addCommand: 'podkit device add <name>',
+        addCommand: 'podkit device add -d <name>',
       });
 
       expect(result.success).toBe(false);
@@ -77,7 +77,7 @@ describe('resolveNamedEntity', () => {
         defaultName: 'nanopod',
         requestedName: undefined,
         entityType: 'device',
-        addCommand: 'podkit device add <name>',
+        addCommand: 'podkit device add -d <name>',
       });
 
       expect(result.success).toBe(true);
@@ -92,7 +92,7 @@ describe('resolveNamedEntity', () => {
         defaultName: 'nanopod',
         requestedName: 'terapod',
         entityType: 'device',
-        addCommand: 'podkit device add <name>',
+        addCommand: 'podkit device add -d <name>',
       });
 
       expect(result.success).toBe(true);
@@ -109,14 +109,14 @@ describe('resolveNamedEntity', () => {
         defaultName: undefined,
         requestedName: undefined,
         entityType: 'device',
-        addCommand: 'podkit device add <name>',
-        defaultCommand: 'podkit device default <name>',
+        addCommand: 'podkit device add -d <name>',
+        defaultCommand: 'podkit device default -d <name>',
       });
 
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toContain('No default device set');
-        expect(result.error).toContain('podkit device default <name>');
+        expect(result.error).toContain('podkit device default -d <name>');
       }
     });
 
@@ -126,13 +126,13 @@ describe('resolveNamedEntity', () => {
         defaultName: undefined,
         requestedName: undefined,
         entityType: 'device',
-        addCommand: 'podkit device add <name>',
+        addCommand: 'podkit device add -d <name>',
       });
 
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toContain('No devices configured');
-        expect(result.error).toContain('podkit device add <name>');
+        expect(result.error).toContain('podkit device add -d <name>');
       }
     });
   });

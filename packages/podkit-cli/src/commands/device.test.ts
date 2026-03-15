@@ -121,18 +121,21 @@ describe('device command', () => {
   });
 
   describe('additional command structure', () => {
-    it('add subcommand requires name argument', () => {
+    it('add subcommand has --path option', () => {
       const addCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'add');
-      const nameArg = addCmd?.registeredArguments.find((arg) => arg.name() === 'name');
-      expect(nameArg).toBeDefined();
-      expect(nameArg?.required).toBe(true);
+      const pathOption = addCmd?.options.find((opt) => opt.long === '--path');
+      expect(pathOption).toBeDefined();
     });
 
-    it('remove subcommand requires name argument', () => {
+    it('add subcommand uses global --device for name', () => {
+      const addCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'add');
+      // No positional name argument — uses global --device flag
+      expect(addCmd?.registeredArguments).toHaveLength(0);
+    });
+
+    it('remove subcommand uses global --device for name', () => {
       const removeCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'remove');
-      const nameArg = removeCmd?.registeredArguments.find((arg) => arg.name() === 'name');
-      expect(nameArg).toBeDefined();
-      expect(nameArg?.required).toBe(true);
+      expect(removeCmd?.registeredArguments).toHaveLength(0);
     });
 
     it('remove subcommand has --confirm option', () => {
@@ -141,18 +144,14 @@ describe('device command', () => {
       expect(confirmOption).toBeDefined();
     });
 
-    it('info subcommand has optional name argument', () => {
+    it('info subcommand uses global --device for name', () => {
       const infoCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'info');
-      const nameArg = infoCmd?.registeredArguments.find((arg) => arg.name() === 'name');
-      expect(nameArg).toBeDefined();
-      expect(nameArg?.required).toBe(false);
+      expect(infoCmd?.registeredArguments).toHaveLength(0);
     });
 
-    it('clear subcommand has optional name argument', () => {
+    it('clear subcommand uses global --device for name', () => {
       const clearCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'clear');
-      const nameArg = clearCmd?.registeredArguments.find((arg) => arg.name() === 'name');
-      expect(nameArg).toBeDefined();
-      expect(nameArg?.required).toBe(false);
+      expect(clearCmd?.registeredArguments).toHaveLength(0);
     });
 
     it('clear subcommand has --confirm option', () => {
@@ -173,11 +172,9 @@ describe('device command', () => {
       expect(typeOption).toBeDefined();
     });
 
-    it('reset subcommand has optional name argument', () => {
+    it('reset subcommand uses global --device for name', () => {
       const resetCmd = deviceCommand.commands.find((cmd) => cmd.name() === 'reset');
-      const nameArg = resetCmd?.registeredArguments.find((arg) => arg.name() === 'name');
-      expect(nameArg).toBeDefined();
-      expect(nameArg?.required).toBe(false);
+      expect(resetCmd?.registeredArguments).toHaveLength(0);
     });
 
     it('reset subcommand has --yes option', () => {

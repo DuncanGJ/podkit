@@ -16,13 +16,13 @@ podkit transcodes lossless files (FLAC, WAV, ALAC) to AAC. The default is `high`
 podkit sync --quality medium
 
 # Set quality when adding a device
-podkit device add nano --quality medium --no-artwork
+podkit device add -d nano --quality medium --no-artwork
 
 # Change quality on an existing device
-podkit device set classic --audio-quality lossless --video-quality high
+podkit device set -d classic --audio-quality lossless --video-quality high
 
 # Clear device quality (use global default instead)
-podkit device set classic --clear-quality
+podkit device set -d classic --clear-quality
 ```
 
 | Preset | Bitrate | Best for |
@@ -66,8 +66,8 @@ To clear everything from a device:
 
 ```bash
 podkit device clear              # Remove all content
-podkit device clear music        # Remove only music
-podkit device clear video        # Remove only video
+podkit device clear --type music  # Remove only music
+podkit device clear --type video # Remove only video
 ```
 
 ## Syncing Specific Collections
@@ -75,9 +75,9 @@ podkit device clear video        # Remove only video
 If you have multiple collections, you can sync them selectively:
 
 ```bash
-podkit sync music                # Sync only music (skip video)
-podkit sync video                # Sync only video (skip music)
-podkit sync music -c main        # Sync a specific collection
+podkit sync -t music             # Sync only music (skip video)
+podkit sync -t video             # Sync only video (skip music)
+podkit sync -t music -c main     # Sync a specific collection
 ```
 
 ## Setting Defaults
@@ -86,13 +86,13 @@ Set the default device and collections so you don't need to specify them every t
 
 ```bash
 # Set default device
-podkit device default classic
+podkit device default -d classic
 
 # Set default music collection
-podkit collection default music main
+podkit collection default -t music -c main
 
 # Set default video collection
-podkit collection default video movies
+podkit collection default -t video -c movies
 ```
 
 ## Syncing to Different Devices
@@ -100,8 +100,8 @@ podkit collection default video movies
 If you have multiple iPods registered:
 
 ```bash
-podkit sync --device nano        # Sync to a specific device
-podkit device info classic       # Check status of a specific device
+podkit sync -d nano              # Sync to a specific device
+podkit device info -d classic     # Check status of a specific device
 ```
 
 See [Managing Devices](/user-guide/devices) for setting up per-device quality and defaults.

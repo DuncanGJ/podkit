@@ -55,19 +55,19 @@ These content types are on the [roadmap](/roadmap/). Vote and comment on the dis
 
 ```bash
 # Sync all music collections
-podkit sync music
+podkit sync -t music
 
 # Sync a specific collection
-podkit sync music -c main
+podkit sync -t music -c main
 
 # Preview changes
-podkit sync music --dry-run
+podkit sync -t music --dry-run
 
 # Remove tracks no longer in source
-podkit sync music --delete
+podkit sync -t music --delete
 
 # Override quality for this sync
-podkit sync music --quality medium
+podkit sync -t music --quality medium
 ```
 
 ## Listing Music

@@ -39,9 +39,10 @@ describe('podkit device music', () => {
       const result = await runCli([
         '--config',
         '/nonexistent/config.toml',
+        '--device',
+        'nonexistent-device',
         'device',
         'music',
-        'nonexistent-device',
       ]);
 
       expect(result.exitCode).toBe(1);

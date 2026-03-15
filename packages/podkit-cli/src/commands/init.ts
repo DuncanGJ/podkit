@@ -25,7 +25,7 @@ export const CONFIG_TEMPLATE = `# podkit configuration
 # path = "/path/to/movies"
 
 # Devices
-# Run 'podkit device add <name>' to auto-detect and add your iPod
+# Run 'podkit device add -d <name>' to auto-detect and add your iPod
 # Or manually configure:
 # [devices.ipod]
 # volumeUuid = "YOUR-UUID-HERE"
@@ -116,7 +116,7 @@ export function formatSuccessMessage(configPath: string): string {
     'Next steps:',
     `  1. Edit ${configPath} to set your music source directory`,
     '  2. Connect your iPod',
-    '  3. Run: podkit device add <name>  (register your iPod)',
+    '  3. Run: podkit device add -d <name>  (register your iPod)',
     '  4. Run: podkit device info',
     '  5. Run: podkit sync --dry-run',
   ];

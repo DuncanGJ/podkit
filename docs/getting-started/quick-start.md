@@ -28,7 +28,7 @@ This creates `~/.config/podkit/config.toml` — the central place where podkit s
 Register a local music directory:
 
 ```bash
-podkit collection add music main /path/to/your/music
+podkit collection add -t music -c main --path /path/to/your/music
 ```
 
 podkit scans this directory for audio files (FLAC, MP3, M4A, WAV, and more) and reads their metadata. Since this is your first music collection, it's automatically set as the default.
@@ -43,7 +43,7 @@ You can also sync from a **Navidrome** or other Subsonic-compatible server — s
 2. Register it with podkit:
 
 ```bash
-podkit device add myipod
+podkit device add -d myipod
 ```
 
 podkit auto-detects the connected iPod and saves its identity to your config. Since this is your first device, it's set as the default.

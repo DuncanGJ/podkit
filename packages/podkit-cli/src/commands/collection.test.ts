@@ -19,12 +19,11 @@ describe('collection command', () => {
       expect(listCmd?.description()).toContain('list');
     });
 
-    it('list subcommand accepts optional type argument', () => {
+    it('list subcommand has optional --type flag', () => {
       const listCmd = collectionCommand.commands.find((cmd) => cmd.name() === 'list');
       expect(listCmd).toBeDefined();
-      const typeArg = listCmd?.registeredArguments.find((arg) => arg.name() === 'type');
-      expect(typeArg).toBeDefined();
-      expect(typeArg?.required).toBe(false);
+      const typeOption = listCmd?.options.find((opt) => opt.long === '--type');
+      expect(typeOption).toBeDefined();
     });
 
     it('has add subcommand', () => {
@@ -33,21 +32,21 @@ describe('collection command', () => {
       expect(addCmd?.description()).toContain('add');
     });
 
-    it('add subcommand requires type, name, and path arguments', () => {
+    it('add subcommand has --type, --collection, and --path options', () => {
       const addCmd = collectionCommand.commands.find((cmd) => cmd.name() === 'add');
       expect(addCmd).toBeDefined();
 
-      const typeArg = addCmd?.registeredArguments.find((arg) => arg.name() === 'type');
-      expect(typeArg).toBeDefined();
-      expect(typeArg?.required).toBe(true);
+      const typeOption = addCmd?.options.find((opt) => opt.long === '--type');
+      expect(typeOption).toBeDefined();
 
-      const nameArg = addCmd?.registeredArguments.find((arg) => arg.name() === 'name');
-      expect(nameArg).toBeDefined();
-      expect(nameArg?.required).toBe(true);
+      const collectionOption = addCmd?.options.find((opt) => opt.long === '--collection');
+      expect(collectionOption).toBeDefined();
 
-      const pathArg = addCmd?.registeredArguments.find((arg) => arg.name() === 'path');
-      expect(pathArg).toBeDefined();
-      expect(pathArg?.required).toBe(true);
+      const pathOption = addCmd?.options.find((opt) => opt.long === '--path');
+      expect(pathOption).toBeDefined();
+
+      // No positional arguments
+      expect(addCmd?.registeredArguments).toHaveLength(0);
     });
 
     it('has remove subcommand', () => {
@@ -56,13 +55,12 @@ describe('collection command', () => {
       expect(removeCmd?.description()).toContain('remove');
     });
 
-    it('remove subcommand requires name argument', () => {
+    it('remove subcommand has --collection option', () => {
       const removeCmd = collectionCommand.commands.find((cmd) => cmd.name() === 'remove');
       expect(removeCmd).toBeDefined();
 
-      const nameArg = removeCmd?.registeredArguments.find((arg) => arg.name() === 'name');
-      expect(nameArg).toBeDefined();
-      expect(nameArg?.required).toBe(true);
+      const collectionOption = removeCmd?.options.find((opt) => opt.long === '--collection');
+      expect(collectionOption).toBeDefined();
     });
 
     it('remove subcommand has --yes option', () => {
@@ -79,13 +77,12 @@ describe('collection command', () => {
       expect(infoCmd?.description()).toContain('detail');
     });
 
-    it('info subcommand requires name argument', () => {
+    it('info subcommand has --collection option', () => {
       const infoCmd = collectionCommand.commands.find((cmd) => cmd.name() === 'info');
       expect(infoCmd).toBeDefined();
 
-      const nameArg = infoCmd?.registeredArguments.find((arg) => arg.name() === 'name');
-      expect(nameArg).toBeDefined();
-      expect(nameArg?.required).toBe(true);
+      const collectionOption = infoCmd?.options.find((opt) => opt.long === '--collection');
+      expect(collectionOption).toBeDefined();
     });
 
     it('has music subcommand', () => {
@@ -94,13 +91,12 @@ describe('collection command', () => {
       expect(musicCmd?.description()).toContain('music');
     });
 
-    it('music subcommand has optional name argument', () => {
+    it('music subcommand has optional --collection flag', () => {
       const musicCmd = collectionCommand.commands.find((cmd) => cmd.name() === 'music');
       expect(musicCmd).toBeDefined();
 
-      const nameArg = musicCmd?.registeredArguments.find((arg) => arg.name() === 'name');
-      expect(nameArg).toBeDefined();
-      expect(nameArg?.required).toBe(false);
+      const collectionOption = musicCmd?.options.find((opt) => opt.long === '--collection');
+      expect(collectionOption).toBeDefined();
     });
 
     it('has video subcommand', () => {
@@ -109,13 +105,12 @@ describe('collection command', () => {
       expect(videoCmd?.description()).toContain('video');
     });
 
-    it('video subcommand has optional name argument', () => {
+    it('video subcommand has optional --collection flag', () => {
       const videoCmd = collectionCommand.commands.find((cmd) => cmd.name() === 'video');
       expect(videoCmd).toBeDefined();
 
-      const nameArg = videoCmd?.registeredArguments.find((arg) => arg.name() === 'name');
-      expect(nameArg).toBeDefined();
-      expect(nameArg?.required).toBe(false);
+      const collectionOption = videoCmd?.options.find((opt) => opt.long === '--collection');
+      expect(collectionOption).toBeDefined();
     });
   });
 

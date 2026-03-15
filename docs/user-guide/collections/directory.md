@@ -69,7 +69,7 @@ podkit sync -c vinyl-rips
 You can add a directory collection without manually editing the config file:
 
 ```bash
-podkit collection add music main /path/to/your/music
+podkit collection add -t music -c main --path /path/to/your/music
 ```
 
 This writes the `[music.main]` section to your config file automatically. If it is the first music collection, it is also set as the default.

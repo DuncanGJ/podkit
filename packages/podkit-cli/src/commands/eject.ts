@@ -6,7 +6,7 @@
  * @example
  * ```bash
  * podkit eject                    # Eject default device
- * podkit eject terapod            # Eject named device
+ * podkit eject -d terapod         # Eject named device
  * podkit eject --force            # Force unmount if busy
  * ```
  */
@@ -36,16 +36,15 @@ interface EjectOptions {
 
 export const ejectCommand = new Command('eject')
   .description('safely unmount an iPod device (shortcut for "device eject")')
-  .argument('[name]', 'device name (uses default if omitted)')
   .option('-f, --force', 'force unmount even if device is busy')
-  .action(async (name: string | undefined, options: EjectOptions) => {
+  .action(async (options: EjectOptions) => {
     const { config, globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const force = options.force ?? false;
 
-    // Resolve device from --device flag, positional argument, or default
+    // Resolve device from --device flag or default
     const cliDeviceArg = parseCliDeviceArg(globalOpts.device, config);
-    const deviceResult = resolveEffectiveDevice(cliDeviceArg, name, config);
+    const deviceResult = resolveEffectiveDevice(cliDeviceArg, undefined, config);
 
     if (!deviceResult.success) {
       out.result<EjectOutput>({ success: false, error: deviceResult.error }, () =>

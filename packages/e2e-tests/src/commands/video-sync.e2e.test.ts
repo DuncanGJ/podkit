@@ -1,5 +1,5 @@
 /**
- * E2E tests for video sync via `podkit sync video`.
+ * E2E tests for video sync via `podkit sync -t video`.
  *
  * Tests video sync operations including dry-run, quality presets,
  * video type detection, and device compatibility.
@@ -67,7 +67,7 @@ video = "main"
 let tempConfigPaths: string[] = [];
 let tempSourceDirs: string[] = [];
 
-describe('podkit sync video', () => {
+describe('podkit sync -t video', () => {
   let fixturesAvailable: boolean;
 
   beforeAll(async () => {
@@ -100,6 +100,7 @@ describe('podkit sync video', () => {
           '--config',
           '/nonexistent/config.toml',
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -119,6 +120,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -134,6 +136,7 @@ describe('podkit sync video', () => {
         '--config',
         '/nonexistent/config.toml',
         'sync',
+        '--type',
         'video',
         '--json',
       ]);
@@ -161,6 +164,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -192,6 +196,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -221,6 +226,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -249,6 +255,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -285,6 +292,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -318,6 +326,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -353,6 +362,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -386,6 +396,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -416,6 +427,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,
@@ -447,6 +459,7 @@ describe('podkit sync video', () => {
           '--config',
           configPath,
           'sync',
+          '--type',
           'video',
           '--device',
           target.path,

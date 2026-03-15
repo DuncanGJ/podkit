@@ -14,7 +14,7 @@ The `podkit device reset` command recreates the iPod database from scratch. This
 podkit device reset
 
 # Reset a specific device
-podkit device reset classic
+podkit device reset -d classic
 ```
 
 ## What Reset Does
@@ -49,7 +49,7 @@ Use [clear](/user-guide/devices/clearing) if you only need to remove tracks. Use
 For iPods that have no database at all (blank filesystem or severely corrupted), use `podkit device init`:
 
 ```bash
-podkit device init classic
+podkit device init -d classic
 ```
 
 This creates the required iPod directory structure and a fresh iTunesDB. Use this when the iPod has been manually formatted or has never been initialized.

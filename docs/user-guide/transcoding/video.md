@@ -112,7 +112,7 @@ ffprobe -v error -show_format -show_streams input.mkv
 ffmpeg -v verbose -i input.mkv -t 60 -c:v libx264 test.m4v
 
 # Run with debug logging
-podkit sync video --dry-run -vvv
+podkit sync -t video --dry-run -vvv
 ```
 
 ## See Also

@@ -23,9 +23,9 @@ export interface ResolveNamedEntityOptions<T> {
   requestedName: string | undefined;
   /** Entity type for error messages (e.g., "device", "music collection") */
   entityType: string;
-  /** Command to run if no entities configured (e.g., "podkit device add <name>") */
+  /** Command to run if no entities configured (e.g., "podkit device add -d <name>") */
   addCommand: string;
-  /** Command to set default (e.g., "podkit device default <name>") */
+  /** Command to set default (e.g., "podkit device default -d <name>") */
   defaultCommand?: string;
 }
 
@@ -44,7 +44,7 @@ export interface ResolveNamedEntityOptions<T> {
  *   defaultName: config.defaults?.device,
  *   requestedName: 'terapod',
  *   entityType: 'device',
- *   addCommand: 'podkit device add <name>',
+ *   addCommand: 'podkit device add -d <name>',
  * });
  *
  * if (result.success) {

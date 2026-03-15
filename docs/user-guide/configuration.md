@@ -65,7 +65,7 @@ For details on each source type, see:
 Devices are named iPods registered in your config. The easiest way to add one is with a connected iPod:
 
 ```bash
-podkit device add myipod
+podkit device add -d myipod
 ```
 
 This auto-detects the device and writes the config entry:

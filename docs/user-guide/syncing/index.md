@@ -24,17 +24,17 @@ When you run `podkit sync`, podkit:
 podkit sync
 
 # Sync only music
-podkit sync music
+podkit sync -t music
 
 # Sync only video
-podkit sync video
+podkit sync -t video
 
 # Sync a specific collection
-podkit sync music -c main
+podkit sync -t music -c main
 
 # Sync to a specific device (by name or mount path)
-podkit sync --device nano
-podkit sync --device /Volumes/NANO
+podkit sync -d nano
+podkit sync -d /Volumes/NANO
 ```
 
 ## Preview with Dry Run

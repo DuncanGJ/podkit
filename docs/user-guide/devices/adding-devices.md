@@ -13,16 +13,16 @@ The easiest way to register a device is to plug it in and let podkit detect it:
 
 ```bash
 # With the iPod mounted, auto-detect and register
-podkit device add classic
+podkit device add -d classic
 
 # Specify mount point explicitly
-podkit device add classic /Volumes/IPOD
+podkit device add -d classic --path /Volumes/IPOD
 
 # Add with quality settings
-podkit device add nano --quality medium --no-artwork
+podkit device add -d nano --quality medium --no-artwork
 
 # Add with separate audio/video quality
-podkit device add classic --audio-quality lossless --video-quality high
+podkit device add -d classic --audio-quality lossless --video-quality high
 ```
 
 podkit reads the volume UUID and name from the mounted filesystem and adds the device to your config file. The first device added is automatically set as the default.
@@ -33,16 +33,16 @@ After adding a device, you can update its settings with `podkit device set`:
 
 ```bash
 # Set quality on an existing device
-podkit device set classic --quality lossless
+podkit device set -d classic --quality lossless
 
 # Set audio and video quality separately
-podkit device set nano --audio-quality medium --video-quality low
+podkit device set -d nano --audio-quality medium --video-quality low
 
 # Disable artwork
-podkit device set nano --no-artwork
+podkit device set -d nano --no-artwork
 
 # Reset a setting to use the global default
-podkit device set classic --clear-quality
+podkit device set -d classic --clear-quality
 ```
 
 ## Manual Configuration
@@ -85,7 +85,7 @@ The `volumeUuid` uniquely identifies the device regardless of which port or moun
 To unregister a device:
 
 ```bash
-podkit device remove classic
+podkit device remove -d classic
 ```
 
 This removes the device entry from your config file. It does not modify anything on the iPod itself.

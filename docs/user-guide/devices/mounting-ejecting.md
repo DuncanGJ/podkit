@@ -26,7 +26,7 @@ If a registered device is not mounted (e.g. you dismissed the macOS dialog, or i
 podkit device mount
 
 # Mount a specific device
-podkit device mount classic
+podkit device mount -d classic
 ```
 
 podkit identifies the device by its `volumeUuid` and mounts it to the expected mount point.
@@ -40,7 +40,7 @@ Always eject your iPod before disconnecting the cable to avoid database corrupti
 podkit device eject
 
 # Eject a specific device
-podkit device eject nano
+podkit device eject -d nano
 ```
 
 Ejecting flushes all pending writes and unmounts the volume.
@@ -60,7 +60,7 @@ This is convenient for a plug-sync-unplug workflow.
 
 iFlash-modified iPods use SD cards in place of the original hard drive. macOS refuses to automatically mount large FAT32 volumes above an undocumented size threshold, so these devices often don't mount on their own.
 
-When you run `podkit device add myipod` without specifying a path, podkit scans for both mounted and unmounted devices. If it finds an unmounted iFlash device, it will:
+When you run `podkit device add -d myipod` without specifying a path, podkit scans for both mounted and unmounted devices. If it finds an unmounted iFlash device, it will:
 
 1. Assess the device (block size, capacity, USB model) before attempting anything
 2. Show you what it found
@@ -84,7 +84,7 @@ iFlash confirmed by:
 macOS refuses to mount large FAT32 volumes through its normal mechanisms.
 Elevated privileges are required to mount this device directly.
 
-Run:  sudo podkit device add myipod
+Run:  sudo podkit device add -d myipod
 ```
 
 Re-running with `sudo` uses `mount -t msdos` directly, which bypasses macOS's automount restrictions.

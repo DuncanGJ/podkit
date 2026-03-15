@@ -33,9 +33,11 @@ describe('podkit device add', () => {
         const result = await runCli([
           '--config',
           configPath,
+          '--device',
+          'testipod',
           'device',
           'add',
-          'testipod',
+          '--path',
           target.path,
           '--yes',
         ]);
@@ -58,7 +60,17 @@ describe('podkit device add', () => {
           device: { name: string; trackCount: number };
           saved: boolean;
           isDefault: boolean;
-        }>(['--config', configPath, '--json', 'device', 'add', 'testipod', target.path]);
+        }>([
+          '--config',
+          configPath,
+          '--json',
+          '--device',
+          'testipod',
+          'device',
+          'add',
+          '--path',
+          target.path,
+        ]);
 
         expect(result.exitCode).toBe(0);
         expect(json).not.toBeNull();
@@ -73,7 +85,17 @@ describe('podkit device add', () => {
       await withTarget(async (target) => {
         await writeFile(configPath, '# podkit config\n');
 
-        await runCli(['--config', configPath, 'device', 'add', 'firstipod', target.path, '--yes']);
+        await runCli([
+          '--config',
+          configPath,
+          '--device',
+          'firstipod',
+          'device',
+          'add',
+          '--path',
+          target.path,
+          '--yes',
+        ]);
 
         const config = await readFile(configPath, 'utf-8');
         expect(config).toContain('[defaults]');
@@ -88,9 +110,11 @@ describe('podkit device add', () => {
         const result = await runCli([
           '--config',
           configPath,
+          '--device',
+          '123invalid',
           'device',
           'add',
-          '123invalid',
+          '--path',
           target.path,
           '--yes',
         ]);
@@ -114,9 +138,11 @@ volumeName = "test"
         const result = await runCli([
           '--config',
           configPath,
+          '--device',
+          'existing',
           'device',
           'add',
-          'existing',
+          '--path',
           target.path,
           '--yes',
         ]);
@@ -142,9 +168,11 @@ volumeName = "test"
       const result = await runCli([
         '--config',
         configPath,
+        '--device',
+        'newipod',
         'device',
         'add',
-        'newipod',
+        '--path',
         uninitDir,
         '--yes',
       ]);
@@ -164,7 +192,17 @@ volumeName = "test"
         success: boolean;
         initialized: boolean;
         device: { modelName: string };
-      }>(['--config', configPath, '--json', 'device', 'add', 'newipod', uninitDir]);
+      }>([
+        '--config',
+        configPath,
+        '--json',
+        '--device',
+        'newipod',
+        'device',
+        'add',
+        '--path',
+        uninitDir,
+      ]);
 
       expect(result.exitCode).toBe(0);
       expect(json).not.toBeNull();
@@ -181,9 +219,11 @@ volumeName = "test"
       const result = await runCli([
         '--config',
         configPath,
+        '--device',
+        'badipod',
         'device',
         'add',
-        'badipod',
+        '--path',
         '/nonexistent/path',
         '--yes',
       ]);
@@ -225,12 +265,11 @@ volumeName = "Test iPod"
       const result = await runCli([
         '--config',
         configPath,
-        'device',
-        'reset',
-        'testipod',
-        '--yes',
         '--device',
         target.path,
+        'device',
+        'reset',
+        '--yes',
       ]);
 
       expect(result.exitCode).toBe(0);
@@ -258,17 +297,7 @@ volumeName = "Test iPod"
         mountPoint: string;
         modelName: string;
         tracksRemoved: number;
-      }>([
-        '--config',
-        configPath,
-        '--json',
-        'device',
-        'reset',
-        'testipod',
-        '--yes',
-        '--device',
-        target.path,
-      ]);
+      }>(['--config', configPath, '--json', '--device', target.path, 'device', 'reset', '--yes']);
 
       expect(result.exitCode).toBe(0);
       expect(json).not.toBeNull();
@@ -291,12 +320,11 @@ volumeName = "Test iPod"
       const result = await runCli([
         '--config',
         configPath,
-        'device',
-        'reset',
-        'testipod',
-        '--dry-run',
         '--device',
         target.path,
+        'device',
+        'reset',
+        '--dry-run',
       ]);
 
       expect(result.exitCode).toBe(0);
@@ -327,12 +355,11 @@ volumeName = "Test iPod"
         '--config',
         configPath,
         '--json',
-        'device',
-        'reset',
-        'testipod',
-        '--dry-run',
         '--device',
         target.path,
+        'device',
+        'reset',
+        '--dry-run',
       ]);
 
       expect(result.exitCode).toBe(0);
@@ -349,9 +376,10 @@ volumeName = "Test iPod"
       const result = await runCli([
         '--config',
         configPath,
+        '--device',
+        'nonexistent',
         'device',
         'reset',
-        'nonexistent',
         '--yes',
       ]);
 
@@ -377,12 +405,11 @@ volumeName = "Uninitialized iPod"
       const result = await runCli([
         '--config',
         configPath,
-        'device',
-        'reset',
-        'uninitipod',
-        '--yes',
         '--device',
         uninitDir,
+        'device',
+        'reset',
+        '--yes',
       ]);
 
       expect(result.exitCode).toBe(0);
@@ -409,12 +436,11 @@ volumeName = "Uninitialized iPod"
       const result = await runCli([
         '--config',
         configPath,
-        'device',
-        'reset',
-        'uninitipod',
-        '--dry-run',
         '--device',
         uninitDir,
+        'device',
+        'reset',
+        '--dry-run',
       ]);
 
       expect(result.exitCode).toBe(0);
@@ -452,12 +478,11 @@ volumeName = "Empty iPod"
     const result = await runCli([
       '--config',
       configPath,
-      'device',
-      'init',
-      'emptyipod',
-      '--yes',
       '--device',
       uninitDir,
+      'device',
+      'init',
+      '--yes',
     ]);
 
     expect(result.exitCode).toBe(0);
@@ -480,11 +505,10 @@ volumeName = "Test iPod"
       const result = await runCli([
         '--config',
         configPath,
-        'device',
-        'init',
-        'testipod',
         '--device',
         target.path,
+        'device',
+        'init',
       ]);
 
       expect(result.exitCode).toBe(1);
@@ -506,13 +530,12 @@ volumeName = "Test iPod"
       const result = await runCli([
         '--config',
         configPath,
-        'device',
-        'init',
-        'testipod',
-        '--force',
-        '--yes',
         '--device',
         target.path,
+        'device',
+        'init',
+        '--force',
+        '--yes',
       ]);
 
       expect(result.exitCode).toBe(0);
@@ -537,17 +560,7 @@ volumeName = "New iPod"
       device: string;
       mountPoint: string;
       modelName: string;
-    }>([
-      '--config',
-      configPath,
-      '--json',
-      'device',
-      'init',
-      'newipod',
-      '--yes',
-      '--device',
-      uninitDir,
-    ]);
+    }>(['--config', configPath, '--json', '--device', uninitDir, 'device', 'init', '--yes']);
 
     expect(result.exitCode).toBe(0);
     expect(json).not.toBeNull();

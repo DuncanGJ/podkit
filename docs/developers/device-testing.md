@@ -119,7 +119,7 @@ IPOD_TARGET=real IPOD_MOUNT=/Volumes/IPOD bun test
 
 ### What to Verify
 
-1. **Registration**: `podkit device add myipod /Volumes/IPOD` registers the device
+1. **Registration**: `podkit device add -d myipod --path /Volumes/IPOD` registers the device
 2. **Info**: `podkit device info` shows correct model/generation
 3. **Sync**: `podkit sync` transfers files successfully
 4. **Playback**: Manual verification that content plays

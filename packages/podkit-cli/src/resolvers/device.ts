@@ -41,8 +41,8 @@ export function resolveDevice(
     defaultName: config.defaults?.device,
     requestedName: deviceName,
     entityType: 'device',
-    addCommand: 'podkit device add <name>',
-    defaultCommand: 'podkit device default <name>',
+    addCommand: 'podkit device add -d <name>',
+    defaultCommand: 'podkit device default -d <name>',
   });
 }
 
@@ -271,7 +271,7 @@ export async function resolveDevicePath(options: DevicePathOptions): Promise<Dev
   // No device configured
   return {
     source: 'none',
-    error: 'No iPod configured. Run: podkit device add <name>',
+    error: 'No iPod configured. Run: podkit device add -d <name>',
   };
 }
 
@@ -290,7 +290,7 @@ export function formatDevicePathError(result: DevicePathResult): string {
       }
       return 'iPod not found';
     case 'none':
-      return 'No iPod configured. Run: podkit device add <name>';
+      return 'No iPod configured. Run: podkit device add -d <name>';
     default:
       return 'Device not found';
   }

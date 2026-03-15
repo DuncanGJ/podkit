@@ -14,7 +14,7 @@ The `podkit device clear` command removes content from an iPod without recreatin
 podkit device clear
 
 # Clear a specific device
-podkit device clear classic
+podkit device clear -d classic
 ```
 
 ## Clearing Specific Content Types

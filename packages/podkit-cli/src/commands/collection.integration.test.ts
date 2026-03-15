@@ -507,6 +507,7 @@ music = "test"
       configPath,
       'collection',
       'music',
+      '-c',
       'nonexistent-collection',
       '-q',
     ]);

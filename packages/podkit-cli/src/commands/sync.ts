@@ -12,12 +12,13 @@
  * @example
  * ```bash
  * podkit sync                            # Sync all defaults (music + video)
- * podkit sync music                      # Sync music only
- * podkit sync video                      # Sync video only
+ * podkit sync -t music                   # Sync music only
+ * podkit sync -t video                   # Sync video only
+ * podkit sync -t music -t video          # Sync multiple types
+ * podkit sync -t music,video             # Comma-separated types
  * podkit sync -c main                    # Sync collection named "main" (both namespaces)
- * podkit sync -c main music              # Sync music collection named "main"
+ * podkit sync -t music -c main           # Sync music collection named "main"
  * podkit sync -d terapod                 # Sync to device named "terapod"
- * podkit sync music -c main              # Sync music collection named "main"
  * podkit sync --dry-run                  # Preview changes
  * podkit sync --delete                   # Remove orphaned tracks
  * podkit sync --quality medium           # Use medium quality preset
@@ -78,6 +79,7 @@ type SyncType = 'music' | 'video';
  * Sync command options
  */
 interface SyncOptions {
+  type?: string[];
   dryRun?: boolean;
   quality?: QualityPreset;
   audioQuality?: QualityPreset;
@@ -1190,9 +1192,21 @@ async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoSyncResu
 // Main Sync Command
 // =============================================================================
 
+/**
+ * Collect repeatable -t/--type values, splitting comma-separated entries.
+ */
+function collectTypes(value: string, previous: string[]): string[] {
+  return [...previous, ...value.split(',').map((v) => v.trim().toLowerCase())];
+}
+
 export const syncCommand = new Command('sync')
   .description('sync music and/or video collections to iPod')
-  .argument('[type]', 'sync type: music, video, or all (default: all)')
+  .option(
+    '-t, --type <type>',
+    'sync type: music, video (repeatable, default: all)',
+    collectTypes,
+    [] as string[]
+  )
   .option('-c, --collection <name>', 'collection name to sync (searches music and video)')
   .option('-n, --dry-run', 'show what would be synced without making changes')
   .option(
@@ -1216,7 +1230,7 @@ export const syncCommand = new Command('sync')
   .option('--skip-upgrades', 'skip file-replacement upgrades for changed source files')
   .option('--delete', 'remove tracks from iPod not in source')
   .option('--eject', 'eject iPod after successful sync')
-  .action(async (typeArg: string | undefined, options: SyncOptions) => {
+  .action(async (options: SyncOptions) => {
     const { config, globalOpts, configResult } = getContext();
     const startTime = Date.now();
     const out = OutputContext.fromGlobalOpts(globalOpts);
@@ -1232,23 +1246,22 @@ export const syncCommand = new Command('sync')
     });
 
     // ----- Validate type argument -----
-    let syncType: SyncType | undefined;
-    if (typeArg) {
-      const normalizedType = typeArg.toLowerCase();
-      if (normalizedType === 'music' || normalizedType === 'video') {
-        syncType = normalizedType;
-      } else if (normalizedType !== 'all') {
-        out.result(
-          errorOutput(`Invalid sync type: ${typeArg}. Valid values: music, video, all`),
-          () => {
-            out.error(`Invalid sync type: ${typeArg}`);
-            out.error('Valid values: music, video, all');
-          }
-        );
+    const typeArgs = options.type ?? [];
+    let syncTypes: SyncType[] = [];
+    for (const t of typeArgs) {
+      if (t === 'music' || t === 'video') {
+        if (!syncTypes.includes(t)) syncTypes.push(t);
+      } else if (t !== 'all') {
+        out.result(errorOutput(`Invalid sync type: ${t}. Valid values: music, video`), () => {
+          out.error(`Invalid sync type: ${t}`);
+          out.error('Valid values: music, video');
+        });
         process.exitCode = 1;
         return;
       }
     }
+    // If no types specified or 'all' was included, sync everything
+    const syncType: SyncType | undefined = syncTypes.length === 1 ? syncTypes[0] : undefined;
 
     // ----- Resolve device -----
     const cliDeviceArg = parseCliDeviceArg(globalOpts.device, config);

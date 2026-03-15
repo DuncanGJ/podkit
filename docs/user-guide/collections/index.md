@@ -43,10 +43,10 @@ Music and video collections are synced together by default, or independently:
 podkit sync
 
 # Sync only music
-podkit sync music
+podkit sync -t music
 
 # Sync a specific collection
-podkit sync music -c main
+podkit sync -t music -c main
 ```
 
 ## Adding Collections
@@ -55,7 +55,7 @@ Use the CLI to add a new collection:
 
 ```bash
 # Add a directory source
-podkit collection add music main /path/to/your/music
+podkit collection add -t music -c main --path /path/to/your/music
 
 # Add a Subsonic source (configure in config file)
 ```
@@ -72,10 +72,10 @@ music = "main"
 video = "movies"
 ```
 
-With defaults set, `podkit sync music` syncs the `main` music collection automatically. You can always override with `-c`:
+With defaults set, `podkit sync -t music` syncs the `main` music collection automatically. You can always override with `-c`:
 
 ```bash
-podkit sync music -c navidrome
+podkit sync -t music -c navidrome
 ```
 
 If you only have one collection of a given type, it's used automatically — no default needed.

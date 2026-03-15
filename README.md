@@ -51,10 +51,10 @@ Platform support: **macOS** and **Linux**. Windows is [on the roadmap](https://g
 podkit init
 
 # Add your music collection
-podkit collection add music main ~/Music/library
+podkit collection add -t music -c main --path ~/Music/library
 
 # Connect iPod and register it
-podkit device add myipod
+podkit device add -d myipod
 
 # Preview what would be synced
 podkit sync --dry-run

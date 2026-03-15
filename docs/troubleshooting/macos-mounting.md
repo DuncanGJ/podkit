@@ -27,7 +27,7 @@ These signals mean that even `diskutil mount` fails — it uses the same macOS a
 
 ## Using `podkit device add`
 
-When you run `podkit device add <name>` without specifying a path, podkit scans for both mounted and unmounted devices. If it finds an unmounted iFlash device, it assesses it and explains what it found before attempting to mount:
+When you run `podkit device add -d <name>` without specifying a path, podkit scans for both mounted and unmounted devices. If it finds an unmounted iFlash device, it assesses it and explains what it found before attempting to mount:
 
 ```
 Scanning for attached iPods...
@@ -48,13 +48,13 @@ iFlash confirmed by:
 macOS refuses to mount large FAT32 volumes through its normal mechanisms.
 Elevated privileges are required to mount this device directly.
 
-Run:  sudo podkit device add myipod
+Run:  sudo podkit device add -d myipod
 ```
 
 Re-run with `sudo` to mount and register the device in one step:
 
 ```bash
-sudo podkit device add myipod
+sudo podkit device add -d myipod
 ```
 
 Once the device is registered, use `podkit mount` for subsequent mounts (see below).

@@ -310,11 +310,10 @@ volumeName = "Test iPod"
         const result = await runCli([
           '--config',
           configPath,
-          'device',
-          'reset',
-          'testipod',
           '--device',
           target.path,
+          'device',
+          'reset',
           '--dry-run',
         ]);
 
@@ -346,11 +345,10 @@ volumeName = "New iPod"
       const result = await runCli([
         '--config',
         configPath,
-        'device',
-        'init',
-        'newipod',
         '--device',
         uninitDir,
+        'device',
+        'init',
         '--yes',
       ]);
 

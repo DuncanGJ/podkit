@@ -71,9 +71,9 @@ function calculateEffectiveSettings(source, preset, device) {
 
 ```bash
 # Unified sync command
-podkit sync video                    # sync default video collection
-podkit sync video -c movies          # sync specific collection
-podkit sync video --video-quality medium
+podkit sync -t video                 # sync default video collection
+podkit sync -t video -c movies       # sync specific collection
+podkit sync -t video --video-quality medium
 podkit sync                          # sync both music and video
 ```
 

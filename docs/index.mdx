@@ -64,13 +64,13 @@ Other install methods are available — see the [Installation guide](/getting-st
 
 ```bash
 # Add your music (or Navidrome — see docs)
-podkit collection add music main ~/Music/library
+podkit collection add -t music -c main --path ~/Music/library
 
 # Add a video collection
-podkit collection add video movies ~/Movies
+podkit collection add -t video -c movies --path ~/Movies
 
 # Register your iPod
-podkit device add myipod
+podkit device add -d myipod
 
 # Mount, sync, and eject
 podkit device mount

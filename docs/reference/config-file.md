@@ -125,7 +125,7 @@ path = "/path/to/movies"
 
 ## Devices
 
-Each device is defined under `[devices.<name>]`. Use `podkit device add <name>` to auto-detect and register a connected iPod.
+Each device is defined under `[devices.<name>]`. Use `podkit device add -d <name>` to auto-detect and register a connected iPod.
 
 ```toml
 [devices.classic]

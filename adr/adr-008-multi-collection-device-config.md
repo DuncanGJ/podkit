@@ -80,20 +80,20 @@ device = "terapod"
 ```bash
 # Unified sync command
 podkit sync                          # sync all defaults
-podkit sync music                    # sync default music only
-podkit sync video                    # sync default video only
+podkit sync -t music                 # sync default music only
+podkit sync -t video                 # sync default video only
 podkit sync -c <name>                # sync matching collections
-podkit sync --device <name|path>     # sync to specific device
+podkit sync -d <name|path>           # sync to specific device
 
 # Device management
 podkit device                        # list configured devices
-podkit device add <name>             # detect connected iPod
+podkit device add -d <name>          # detect connected iPod
 podkit device info <name>            # show device details
 
 # Collection management
 podkit collection                    # list all collections
 podkit collection music              # list music collections
-podkit collection add music <name> <path>
+podkit collection add -t music -c <name> --path <path>
 ```
 
 ### Backwards Compatibility

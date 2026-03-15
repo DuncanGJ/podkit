@@ -48,7 +48,7 @@ export function resolveMusicCollection(
     defaultName: config.defaults?.music,
     requestedName: collectionName,
     entityType: 'music collection',
-    addCommand: 'podkit collection add music <name> <path>',
+    addCommand: 'podkit collection add -t music -c <name> --path <path>',
   });
 }
 
@@ -80,7 +80,7 @@ export function resolveVideoCollection(
     defaultName: config.defaults?.video,
     requestedName: collectionName,
     entityType: 'video collection',
-    addCommand: 'podkit collection add video <name> <path>',
+    addCommand: 'podkit collection add -t video -c <name> --path <path>',
   });
 }
 

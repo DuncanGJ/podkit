@@ -6,7 +6,7 @@
  * @example
  * ```bash
  * podkit mount                     # Mount default device
- * podkit mount terapod             # Mount named device
+ * podkit mount -d terapod          # Mount named device
  * podkit mount --disk /dev/disk4s2    # Explicit disk identifier
  * podkit mount --dry-run           # Show mount command without executing
  * ```
@@ -39,20 +39,19 @@ interface MountOptions {
 
 export const mountCommand = new Command('mount')
   .description('mount an iPod device (shortcut for "device mount")')
-  .argument('[name]', 'device name (uses default if omitted)')
   .option('--disk <identifier>', 'disk identifier (e.g., /dev/disk4s2)')
   .option('--dry-run', 'show mount command without executing')
-  .action(async (name: string | undefined, options: MountOptions) => {
+  .action(async (options: MountOptions) => {
     const { config, globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
     const explicitDisk = options.disk;
     const dryRun = options.dryRun ?? false;
 
-    // Resolve device from positional argument or default
+    // Resolve device from --device flag or default
     // Note: explicitDisk (--disk option) bypasses named device resolution
     // Mount's --disk is for disk identifier (e.g., /dev/disk4s2), not mount point
-    const cliDeviceArg = parseCliDeviceArg(undefined, config); // Don't use globalOpts.device here
-    const deviceResult = resolveEffectiveDevice(cliDeviceArg, name, config);
+    const cliDeviceArg = parseCliDeviceArg(globalOpts.device, config);
+    const deviceResult = resolveEffectiveDevice(cliDeviceArg, undefined, config);
 
     // If explicit device identifier provided, we don't need a named device
     if (!deviceResult.success && !explicitDisk) {
@@ -146,7 +145,7 @@ export const mountCommand = new Command('mount')
             out.error('  podkit mount --disk /dev/disk4s2');
             out.newline();
             out.error('Or register an iPod first:');
-            out.error('  podkit device add <name>');
+            out.error('  podkit device add -d <name>');
           }
         );
         process.exitCode = 1;

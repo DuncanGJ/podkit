@@ -13,7 +13,7 @@ These options work with all commands:
 
 | Option | Description |
 |--------|-------------|
-| `--device <name\|path>` | Device name from config, or path to iPod mount point |
+| `-d, --device <name\|path>` | Device name from config, or path to iPod mount point |
 | `--config <path>` | Path to config file (default: `~/.config/podkit/config.toml`) |
 | `-v, --verbose` | Increase verbosity (stackable: `-v`, `-vv`, `-vvv`) |
 | `-q, --quiet` | Suppress non-essential output |
@@ -66,19 +66,14 @@ podkit init --path ~/my-podkit-config.toml
 Sync music and/or video collections to an iPod.
 
 ```bash
-podkit sync [type] [options]
+podkit sync [options]
 ```
-
-### Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `[type]` | Content type: `music`, `video`, or omit for both |
 
 ### Options
 
 | Option | Description |
 |--------|-------------|
+| `-t, --type <type>` | Content type: `music` or `video` (repeatable; omit for both) |
 | `-c, --collection <name>` | Collection name to sync (searches both music and video) |
 | `-n, --dry-run` | Show what would be synced without making changes |
 | `--quality <preset>` | Unified quality preset for audio and video: `max`, `high`, `medium`, `low` (also accepts audio-only values like `lossless`, `*-cbr` which only affect audio) |
@@ -98,19 +93,22 @@ podkit sync [type] [options]
 podkit sync --dry-run
 
 # Sync music only
-podkit sync music
+podkit sync -t music
 
 # Sync video only
-podkit sync video
+podkit sync -t video
+
+# Sync multiple types explicitly
+podkit sync -t music -t video
 
 # Sync a specific collection
 podkit sync -c jazz
 
 # Sync music collection named "main"
-podkit sync music -c main
+podkit sync -t music -c main
 
 # Sync to a specific device
-podkit sync --device myipod
+podkit sync -d myipod
 
 # Sync with lower quality to save space
 podkit sync --quality medium
@@ -132,6 +130,8 @@ podkit sync --no-artwork
 
 Device management commands. Running `podkit device` with no subcommand lists all configured devices.
 
+All device subcommands use the global `-d, --device` flag to specify the device name or path.
+
 ```bash
 podkit device [subcommand] [options]
 ```
@@ -149,16 +149,12 @@ podkit device list
 Detect a connected iPod and add it to the config.
 
 ```bash
-podkit device add <name> [path]
+podkit device add -d <name> [options]
 ```
-
-| Argument | Description |
-|----------|-------------|
-| `<name>` | Name for this device configuration |
-| `[path]` | Explicit path to iPod mount point (auto-detected if omitted) |
 
 | Option | Description |
 |--------|-------------|
+| `--path <path>` | Explicit path to iPod mount point (auto-detected if omitted) |
 | `-y, --yes` | Skip confirmation prompts |
 | `--quality <preset>` | Set transcoding quality: `lossless`, `max`, `high`, `medium`, `low` (and CBR variants) |
 | `--audio-quality <preset>` | Set audio quality (overrides `--quality`) |
@@ -167,16 +163,16 @@ podkit device add <name> [path]
 
 ```bash
 # Auto-detect connected iPod
-podkit device add classic
+podkit device add -d classic
 
 # Specify mount point explicitly
-podkit device add classic /Volumes/IPOD
+podkit device add -d classic --path /Volumes/IPOD
 
 # Add with quality settings
-podkit device add nano --quality medium --no-artwork
+podkit device add -d nano --quality medium --no-artwork
 
 # Add with specific audio quality
-podkit device add classic --audio-quality lossless --video-quality high
+podkit device add -d classic --audio-quality lossless --video-quality high
 ```
 
 ### `podkit device remove`
@@ -184,7 +180,7 @@ podkit device add classic --audio-quality lossless --video-quality high
 Remove a device from the config.
 
 ```bash
-podkit device remove <name>
+podkit device remove -d <name>
 ```
 
 | Option | Description |
@@ -196,7 +192,7 @@ podkit device remove <name>
 Update settings on an existing device.
 
 ```bash
-podkit device set <name> [options]
+podkit device set -d <name> [options]
 ```
 
 | Option | Description |
@@ -212,16 +208,16 @@ podkit device set <name> [options]
 
 ```bash
 # Set quality on a device
-podkit device set classic --quality lossless
+podkit device set -d classic --quality lossless
 
 # Set audio and video quality separately
-podkit device set nano --audio-quality medium --video-quality low
+podkit device set -d nano --audio-quality medium --video-quality low
 
 # Disable artwork
-podkit device set nano --no-artwork
+podkit device set -d nano --no-artwork
 
 # Reset to global defaults
-podkit device set classic --clear-quality --clear-artwork
+podkit device set -d classic --clear-quality --clear-artwork
 ```
 
 ### `podkit device default`
@@ -229,7 +225,7 @@ podkit device set classic --clear-quality --clear-artwork
 Set or show the default device.
 
 ```bash
-podkit device default [name]
+podkit device default [-d <name>]
 ```
 
 | Option | Description |
@@ -241,7 +237,7 @@ podkit device default [name]
 podkit device default
 
 # Set default device
-podkit device default classic
+podkit device default -d classic
 
 # Clear the default
 podkit device default --clear
@@ -252,19 +248,15 @@ podkit device default --clear
 Display device configuration and live status (storage, track count, model).
 
 ```bash
-podkit device info [name]
+podkit device info [-d <name>]
 ```
-
-| Argument | Description |
-|----------|-------------|
-| `[name]` | Device name (uses default if omitted) |
 
 ```bash
 # Show default device info
 podkit device info
 
 # Show info for a named device
-podkit device info classic
+podkit device info -d classic
 ```
 
 ### `podkit device music`
@@ -272,7 +264,7 @@ podkit device info classic
 Show music on an iPod. By default, displays summary stats (track/album/artist counts and file type breakdown).
 
 ```bash
-podkit device music [name] [options]
+podkit device music [-d <name>] [options]
 ```
 
 | Option | Description |
@@ -307,7 +299,7 @@ podkit device music --tracks --fields title,artist,album,genre,year
 Show video content on an iPod. By default, displays summary stats.
 
 ```bash
-podkit device video [name] [options]
+podkit device video [-d <name>] [options]
 ```
 
 | Option | Description |
@@ -323,7 +315,7 @@ podkit device video [name] [options]
 Remove content from the iPod.
 
 ```bash
-podkit device clear [name] [options]
+podkit device clear [-d <name>] [options]
 ```
 
 | Option | Description |
@@ -348,7 +340,7 @@ podkit device clear --confirm
 Reset the iPod database. This erases all tracks and recreates the database from scratch.
 
 ```bash
-podkit device reset [name] [options]
+podkit device reset [-d <name>] [options]
 ```
 
 | Option | Description |
@@ -361,7 +353,7 @@ podkit device reset [name] [options]
 Safely unmount an iPod device.
 
 ```bash
-podkit device eject [name] [options]
+podkit device eject [-d <name>] [options]
 ```
 
 | Option | Description |
@@ -373,7 +365,7 @@ podkit device eject [name] [options]
 Mount an iPod device.
 
 ```bash
-podkit device mount [name] [options]
+podkit device mount [-d <name>] [options]
 ```
 
 | Option | Description |
@@ -386,7 +378,7 @@ podkit device mount [name] [options]
 podkit device mount
 
 # Mount by name
-podkit device mount classic
+podkit device mount -d classic
 
 # Mount using disk identifier
 podkit device mount --disk /dev/disk4s2
@@ -400,7 +392,7 @@ podkit device mount --dry-run
 Initialize an iPod database on a device. Use this for blank or corrupted iPods.
 
 ```bash
-podkit device init [name] [options]
+podkit device init [-d <name>] [options]
 ```
 
 | Option | Description |
@@ -421,19 +413,19 @@ podkit collection [subcommand] [options]
 List configured collections.
 
 ```bash
-podkit collection list [type]
+podkit collection list [-t <type>]
 ```
 
-| Argument | Description |
-|----------|-------------|
-| `[type]` | Filter by type: `music` or `video` |
+| Option | Description |
+|--------|-------------|
+| `-t, --type <type>` | Filter by type: `music` or `video` |
 
 ```bash
 # List all collections
 podkit collection list
 
 # List only music collections
-podkit collection list music
+podkit collection list -t music
 ```
 
 ### `podkit collection add`
@@ -441,21 +433,21 @@ podkit collection list music
 Add a new collection to the config.
 
 ```bash
-podkit collection add <type> <name> <path>
+podkit collection add -t <type> -c <name> --path <path>
 ```
 
-| Argument | Description |
-|----------|-------------|
-| `<type>` | Collection type: `music` or `video` |
-| `<name>` | Collection name (letters, numbers, hyphens, underscores) |
-| `<path>` | Path to the collection directory |
+| Option | Description |
+|--------|-------------|
+| `-t, --type <type>` | Collection type: `music` or `video` |
+| `-c, --collection <name>` | Collection name (letters, numbers, hyphens, underscores) |
+| `--path <path>` | Path to the collection directory |
 
 ```bash
 # Add a music collection
-podkit collection add music main /Volumes/Media/music
+podkit collection add -t music -c main --path /Volumes/Media/music
 
 # Add a video collection
-podkit collection add video movies /Volumes/Media/movies
+podkit collection add -t video -c movies --path /Volumes/Media/movies
 ```
 
 ### `podkit collection remove`
@@ -463,11 +455,12 @@ podkit collection add video movies /Volumes/Media/movies
 Remove a collection from the config.
 
 ```bash
-podkit collection remove <name>
+podkit collection remove -c <name>
 ```
 
 | Option | Description |
 |--------|-------------|
+| `-c, --collection <name>` | Collection name to remove |
 | `-y, --yes` | Skip confirmation prompt |
 
 ### `podkit collection default`
@@ -475,30 +468,27 @@ podkit collection remove <name>
 Set or show the default collection for a type.
 
 ```bash
-podkit collection default <type> [name]
+podkit collection default -t <type> [-c <name>]
 ```
-
-| Argument | Description |
-|----------|-------------|
-| `<type>` | Collection type: `music` or `video` |
-| `[name]` | Collection name (omit to show current default) |
 
 | Option | Description |
 |--------|-------------|
+| `-t, --type <type>` | Collection type: `music` or `video` |
+| `-c, --collection <name>` | Collection name (omit to show current default) |
 | `--clear` | Clear the default for this type |
 
 ```bash
 # Show default music collection
-podkit collection default music
+podkit collection default -t music
 
 # Set default music collection
-podkit collection default music main
+podkit collection default -t music -c main
 
 # Set default video collection
-podkit collection default video movies
+podkit collection default -t video -c movies
 
 # Clear default
-podkit collection default music --clear
+podkit collection default -t music --clear
 ```
 
 ### `podkit collection info`
@@ -506,7 +496,7 @@ podkit collection default music --clear
 Display collection details.
 
 ```bash
-podkit collection info <name>
+podkit collection info -c <name>
 ```
 
 ### `podkit collection music`
@@ -514,11 +504,12 @@ podkit collection info <name>
 Show music in a collection. By default, displays summary stats (track/album/artist counts and file type breakdown). Scans the source directory or Subsonic server.
 
 ```bash
-podkit collection music [name] [options]
+podkit collection music [-c <name>] [options]
 ```
 
 | Option | Description |
 |--------|-------------|
+| `-c, --collection <name>` | Collection name (uses default if omitted) |
 | `--tracks` | List all tracks (detailed view) |
 | `--albums` | List albums with track counts |
 | `--artists` | List artists with album/track counts |
@@ -530,11 +521,12 @@ podkit collection music [name] [options]
 Show videos in a collection. By default, displays summary stats.
 
 ```bash
-podkit collection video [name] [options]
+podkit collection video [-c <name>] [options]
 ```
 
 | Option | Description |
 |--------|-------------|
+| `-c, --collection <name>` | Collection name (uses default if omitted) |
 | `--tracks` | List all tracks (detailed view) |
 | `--albums` | List albums with track counts |
 | `--artists` | List artists with album/track counts |
@@ -546,7 +538,7 @@ podkit collection video [name] [options]
 Safely unmount an iPod device. This is a shortcut for `podkit device eject`.
 
 ```bash
-podkit eject [name] [options]
+podkit eject [-d <name>] [options]
 ```
 
 | Option | Description |
@@ -558,7 +550,7 @@ podkit eject [name] [options]
 podkit eject
 
 # Eject named device
-podkit eject classic
+podkit eject -d classic
 
 # Force eject
 podkit eject --force
@@ -569,7 +561,7 @@ podkit eject --force
 Mount an iPod device. This is a shortcut for `podkit device mount`.
 
 ```bash
-podkit mount [name] [options]
+podkit mount [-d <name>] [options]
 ```
 
 | Option | Description |

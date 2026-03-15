@@ -34,7 +34,7 @@ In this example, `classic` is a high-capacity iPod that gets the best quality au
 Set the default device via the CLI:
 
 ```bash
-podkit device default classic
+podkit device default -d classic
 ```
 
 Or in your config file's `[defaults]` section:
@@ -60,7 +60,7 @@ Use `--device` (or `-d`) to target a specific device by its config name:
 podkit sync --device nano
 
 # Show device info
-podkit device info classic
+podkit device info -d classic
 
 # List all registered devices
 podkit device list
