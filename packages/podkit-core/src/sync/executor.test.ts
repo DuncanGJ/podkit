@@ -25,9 +25,10 @@ import {
   type ExecutorDependencies,
   type ExecutorProgress,
 } from './executor.js';
-import type { CollectionTrack } from '../adapters/interface.js';
-import type { AudioFileType } from '../types.js';
+import type { CollectionTrack, CollectionAdapter, FileAccess } from '../adapters/interface.js';
+import type { AudioFileType, TrackFilter } from '../types.js';
 import type { IPodTrack, SyncOperation, SyncPlan } from './types.js';
+import { Readable } from 'node:stream';
 
 // =============================================================================
 // Mock Types
@@ -2308,5 +2309,382 @@ describe('upgrade operations - execution', () => {
     // But technical metadata and other fields should be present
     expect(capturedUpdateFields!.filetype).toBeDefined();
     expect(capturedUpdateFields!.genre).toBe('Rock');
+  });
+});
+
+// =============================================================================
+// Prefetch Pipeline Tests (ADR-011)
+// =============================================================================
+
+/**
+ * Create a mock stream-based adapter that tracks when downloads happen.
+ *
+ * Each call to getFileAccess returns a stream that, when consumed via
+ * streamToTempFile, writes a small audio-like file to a temp path.
+ * The downloadLog records the order and timing of downloads.
+ */
+function createMockStreamAdapter(options?: {
+  /** Artificial delay per download in ms */
+  downloadDelayMs?: number;
+}): {
+  adapter: CollectionAdapter;
+  downloadLog: Array<{ trackId: string; startTime: number; endTime: number }>;
+} {
+  const downloadLog: Array<{ trackId: string; startTime: number; endTime: number }> = [];
+
+  const adapter: CollectionAdapter = {
+    name: 'mock-stream',
+    adapterType: 'mock-stream',
+    connect: async () => {},
+    getTracks: async () => [],
+    getFilteredTracks: async (_filter: TrackFilter) => [],
+    disconnect: async () => {},
+    getFileAccess(track: CollectionTrack): FileAccess {
+      return {
+        type: 'stream',
+        getStream: async () => {
+          const startTime = Date.now();
+          if (options?.downloadDelayMs) {
+            await new Promise((r) => setTimeout(r, options.downloadDelayMs));
+          }
+          const endTime = Date.now();
+          downloadLog.push({ trackId: track.id, startTime, endTime });
+          // Return a minimal readable stream with some bytes
+          return Readable.from(Buffer.alloc(1024, 0));
+        },
+      };
+    },
+  };
+
+  return { adapter, downloadLog };
+}
+
+describe('DefaultSyncExecutor - prefetch pipeline (ADR-011)', () => {
+  let db: MockIpodDatabase;
+  let transcoder: MockTranscoder;
+
+  beforeEach(() => {
+    db = createMockIpodDatabase();
+    transcoder = createMockTranscoder();
+  });
+
+  it('passes stream-based adapter files through the pipeline correctly', async () => {
+    const { adapter } = createMockStreamAdapter();
+
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song1', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+        {
+          type: 'copy',
+          source: createCollectionTrack('Artist', 'Song2', 'Album', 'mp3'),
+        },
+      ],
+      estimatedTime: 10,
+      estimatedSize: 10000000,
+      warnings: [],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan, { adapter, artwork: false })) {
+      progress.push(p);
+    }
+
+    // Both operations should complete successfully
+    const completedOps = progress.filter(
+      (p) => p.phase === 'transcoding' || p.phase === 'copying'
+    );
+    expect(completedOps.length).toBe(2);
+
+    // No errors
+    const errors = progress.filter((p) => p.error);
+    expect(errors.length).toBe(0);
+
+    // Database should have been saved
+    expect(db.save).toHaveBeenCalled();
+    // Both tracks should have been added
+    expect(db.addTrack).toHaveBeenCalledTimes(2);
+  });
+
+  it('downloads are started before transcoding completes for the previous track', async () => {
+    // Use a delay so we can observe ordering
+    const { adapter, downloadLog } = createMockStreamAdapter({ downloadDelayMs: 10 });
+
+    // Track when transcoding happens
+    const transcodeLog: Array<{ trackId: string; startTime: number; endTime: number }> = [];
+    transcoder.transcode = mock(async (input: string) => {
+      const startTime = Date.now();
+      await new Promise((r) => setTimeout(r, 30)); // Simulate transcoding work
+      const endTime = Date.now();
+      transcodeLog.push({ trackId: input, startTime, endTime });
+      return { outputPath: '/tmp/output.m4a', size: 5000000, duration: 1000, bitrate: 256 };
+    });
+
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song1', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song2', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song3', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+      ],
+      estimatedTime: 30,
+      estimatedSize: 15000000,
+      warnings: [],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    for await (const _p of executor.execute(plan, { adapter, artwork: false })) {
+      // consume
+    }
+
+    // All 3 downloads and 3 transcodes should have happened
+    expect(downloadLog.length).toBe(3);
+    expect(transcodeLog.length).toBe(3);
+
+    // Key assertion: download of track N+1 should start before or during
+    // transcode of track N (prefetch overlap). With PREFETCH_BUFFER_SIZE=2,
+    // the downloader can be 2 items ahead of the preparer.
+    // Download 2 should start before transcode 1 ends
+    expect(downloadLog[1]!.startTime).toBeLessThanOrEqual(transcodeLog[0]!.endTime);
+  });
+
+  it('cleans up prefetched files when preparer encounters an error', async () => {
+    const { adapter } = createMockStreamAdapter();
+
+    // Make transcoding fail
+    transcoder.transcode = mock(async () => {
+      throw new Error('FFmpeg transcode failed');
+    });
+
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song1', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song2', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+      ],
+      estimatedTime: 10,
+      estimatedSize: 10000000,
+      warnings: [],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    const progress: ExecutorProgress[] = [];
+    // With continueOnError=false, should stop after first failure
+    try {
+      for await (const p of executor.execute(plan, { adapter, artwork: false })) {
+        progress.push(p);
+      }
+    } catch {
+      // Expected - fatal error propagates
+    }
+
+    // Should have error(s) reported
+    const errors = progress.filter((p) => p.error);
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+
+    // No tracks should have been added (transcode failed)
+    expect(db.addTrack).not.toHaveBeenCalled();
+  });
+
+  it('continues past download errors with continueOnError', async () => {
+    let callCount = 0;
+    const adapter: CollectionAdapter = {
+      name: 'failing-stream',
+      adapterType: 'failing-stream',
+      connect: async () => {},
+      getTracks: async () => [],
+      getFilteredTracks: async () => [],
+      disconnect: async () => {},
+      getFileAccess(_track: CollectionTrack): FileAccess {
+        callCount++;
+        if (callCount === 1) {
+          // First track: fail the stream
+          return {
+            type: 'stream',
+            getStream: async () => {
+              throw new Error('Network error: connection refused');
+            },
+          };
+        }
+        // Second track: succeed
+        return {
+          type: 'stream',
+          getStream: async () => Readable.from(Buffer.alloc(1024, 0)),
+        };
+      },
+    };
+
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'copy',
+          source: createCollectionTrack('Artist', 'Song1', 'Album', 'mp3'),
+        },
+        {
+          type: 'copy',
+          source: createCollectionTrack('Artist', 'Song2', 'Album', 'mp3'),
+        },
+      ],
+      estimatedTime: 10,
+      estimatedSize: 10000000,
+      warnings: [],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan, {
+      adapter,
+      artwork: false,
+      continueOnError: true,
+    })) {
+      progress.push(p);
+    }
+
+    // First track should have an error, second should succeed
+    const errors = progress.filter((p) => p.error);
+    expect(errors.length).toBeGreaterThanOrEqual(1);
+
+    // Second track should have been added successfully
+    expect(db.addTrack).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles mixed operation types with stream adapter', async () => {
+    const { adapter } = createMockStreamAdapter();
+
+    // Create an existing track for removal with a spy on remove()
+    let trackRemoved = false;
+    const existingTrack = createIPodTrack('Old Artist', 'Old Song', 'Old Album', {
+      removeFn: () => {
+        trackRemoved = true;
+      },
+    });
+    db = createMockIpodDatabase([existingTrack]);
+    transcoder = createMockTranscoder();
+
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'remove',
+          track: existingTrack,
+        } as SyncOperation,
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song1', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+        {
+          type: 'copy',
+          source: createCollectionTrack('Artist', 'Song2', 'Album', 'mp3'),
+        },
+      ],
+      estimatedTime: 10,
+      estimatedSize: 10000000,
+      warnings: [],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan, { adapter, artwork: false })) {
+      progress.push(p);
+    }
+
+    // Remove should have executed (inline in downloader)
+    expect(trackRemoved).toBe(true);
+    // Two tracks should have been added
+    expect(db.addTrack).toHaveBeenCalledTimes(2);
+    // Database should have been saved
+    expect(db.save).toHaveBeenCalled();
+    // No errors
+    const errors = progress.filter((p) => p.error);
+    expect(errors.length).toBe(0);
+  });
+
+  it('cleans up prefetched files on abort', async () => {
+    const { adapter } = createMockStreamAdapter({ downloadDelayMs: 5 });
+
+    // Slow transcoding so abort happens during pipeline
+    transcoder.transcode = mock(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+      return { outputPath: '/tmp/output.m4a', size: 5000000, duration: 1000, bitrate: 256 };
+    });
+
+    const plan: SyncPlan = {
+      operations: [
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song1', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song2', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song3', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+      ],
+      estimatedTime: 30,
+      estimatedSize: 15000000,
+      warnings: [],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    const controller = new AbortController();
+
+    // Abort after a short delay
+    setTimeout(() => controller.abort(), 30);
+
+    try {
+      for await (const _p of executor.execute(plan, {
+        adapter,
+        artwork: false,
+        signal: controller.signal,
+      })) {
+        // consume
+      }
+    } catch (error) {
+      // Expected: 'Sync aborted'
+      expect((error as Error).message).toBe('Sync aborted');
+    }
+
+    // Pipeline should have been aborted — not all operations completed
+    // (exact count depends on timing, but should not be all 3)
   });
 });

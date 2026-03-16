@@ -237,6 +237,7 @@ These decisions are documented in ADRs — read the full ADR for context:
 | Collection sources | Adapter pattern | [ADR-004](adr/adr-004-collection-sources.md) |
 | Test environments | gpod-tool + temp directories | [ADR-005](adr/adr-005-test-ipod-environment.md) |
 | Video transcoding | FFmpeg with H.264/M4V output | [ADR-006](adr/adr-006-video-transcoding.md) |
+| Sync prefetch pipeline | Three-stage pipeline for remote sources | [ADR-011](adr/adr-011-prefetch-pipeline.md) |
 
 ## Testing
 

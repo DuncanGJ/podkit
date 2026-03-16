@@ -56,7 +56,7 @@ Keychain and secret manager integration is on the [roadmap](/roadmap/). Vote and
 1. Connect to the Subsonic server using the API
 2. Fetch the complete catalog (paginating through albums)
 3. Extract track metadata from the API response
-4. During sync, stream audio directly from the server
+4. During sync, download audio files from the server with prefetching (files are downloaded ahead of transcoding so network I/O overlaps with CPU work)
 5. Transcode as needed and copy to iPod
 
 ## Supported Servers
@@ -79,7 +79,7 @@ See [Sound Check](/user-guide/syncing/sound-check) for more details.
 ## Limitations
 
 - **No playlist sync** (yet) - only tracks are synced
-- **Fresh fetch each sync** - no local catalog caching
+- **Fresh catalog fetch each sync** - the track catalog is re-fetched from the server on every sync (audio files are downloaded on-demand and pipelined efficiently)
 - **Single server per collection** - create multiple collections for multiple servers
 
 ## Example with Multiple Servers

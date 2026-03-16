@@ -209,10 +209,10 @@ flowchart TD
         p2 --> p3["Create operations"] --> p4["Return SyncPlan"]
     end
     subgraph exec["4. Execute (if not dry-run)"]
-        e1["Transcode if needed"] --> e2["Extract artwork"]
-        e2 --> e3["Add track to iPod"]
-        e3 --> e4["Copy file + set artwork"]
-        e4 --> e5["Save iPod database"]
+        e0["Download/resolve file<br/>(pipelined for remote)"] --> e1["Transcode if needed"]
+        e1 --> e2["Add track to iPod"]
+        e2 --> e3["Copy file + set artwork"]
+        e3 --> e4["Save iPod database"]
     end
     subgraph fin["5. Finalize"]
         f1["Report summary"] --> f2["Close database"]
@@ -221,6 +221,8 @@ flowchart TD
 
     init --> diff --> plan --> exec --> fin
 ```
+
+The executor uses a three-stage pipeline architecture to maximize throughput. For remote sources (e.g., Subsonic), file downloads are pipelined ahead of transcoding via a bounded prefetch queue, so network I/O overlaps with CPU work. For local sources, file resolution is instant and the pipeline collapses to two stages (prepare + transfer). See [ADR-011](/developers/adr/adr-011-prefetch-pipeline) for the design rationale.
 
 ### Track Matching Algorithm
 

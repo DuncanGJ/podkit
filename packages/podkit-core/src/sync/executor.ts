@@ -6,6 +6,14 @@
  * - copy: Add track to iPod directly
  * - remove: Remove track from iPod database
  *
+ * Uses a three-stage pipeline architecture (see ADR-011):
+ * 1. Downloader: resolves file access (downloads for remote sources)
+ * 2. Preparer: transcodes/prepares files (CPU-bound)
+ * 3. Consumer: transfers to iPod (USB I/O)
+ *
+ * For remote sources, file downloads are pipelined ahead of transcoding
+ * so network I/O overlaps with CPU work.
+ *
  * Features:
  * - Progress reporting via async iterator
  * - Dry-run mode (simulate without writing)
@@ -239,8 +247,24 @@ export interface PreparedFile {
   downloadedSourcePath?: string;
 }
 
-/** Default pipeline buffer size (number of prepared files to buffer) */
+/** Default pipeline buffer size (number of prepared files to buffer between preparer and consumer) */
 const PIPELINE_BUFFER_SIZE = 3;
+
+/** Number of files to download ahead of the transcoder (for remote sources) */
+const PREFETCH_BUFFER_SIZE = 2;
+
+/**
+ * A file that has been downloaded/resolved but not yet transcoded/prepared.
+ *
+ * Used in the three-stage pipeline to decouple downloading (network I/O)
+ * from transcoding (CPU work) for remote sources.
+ */
+interface PrefetchedFile {
+  /** The sync operation this file is for */
+  operation: Extract<SyncOperation, { type: 'transcode' | 'copy' | 'upgrade' }>;
+  /** Resolved file access (local path or downloaded temp path) */
+  fileAccess: ResolvedFileAccess;
+}
 
 // =============================================================================
 // Helper Functions
@@ -536,13 +560,16 @@ export class DefaultSyncExecutor implements SyncExecutor {
   }
 
   /**
-   * Execute a sync plan using a pipeline architecture.
+   * Execute a sync plan using a three-stage pipeline architecture.
    *
-   * Transcoding and USB transfer happen in parallel:
-   * - Producer: prepares files (transcode to temp, or identify copy source)
+   * Three stages run concurrently:
+   * - Downloader: resolves file access, downloading from remote sources
+   * - Preparer: transcodes/prepares files (CPU-bound FFmpeg work)
    * - Consumer: transfers files to iPod (USB I/O bound)
    *
-   * This keeps the USB bus saturated during transcoding.
+   * For remote sources (Subsonic), downloads are pipelined ahead of
+   * transcoding so network I/O overlaps with CPU work. For local sources,
+   * file resolution is instant and the pipeline collapses to two stages.
    *
    * In dry-run mode, operations are simulated without making actual changes.
    *
@@ -662,11 +689,20 @@ export class DefaultSyncExecutor implements SyncExecutor {
   }
 
   /**
-   * Execute sync plan using pipeline architecture.
+   * Execute sync plan using a three-stage pipeline architecture.
    *
-   * Producer prepares files (transcode/copy) and pushes to transfer queue.
-   * Consumer transfers files to iPod and yields progress.
-   * Remove/update-metadata operations execute inline in producer.
+   * Stage 1 (Downloader): Downloads/resolves files from adapters (network I/O)
+   * Stage 2 (Preparer): Transcodes/prepares files (CPU-bound FFmpeg)
+   * Stage 3 (Consumer): Transfers files to iPod (USB I/O)
+   *
+   * For remote sources (e.g., Subsonic), the downloader fetches files ahead
+   * of the preparer so network I/O overlaps with CPU work. For local sources,
+   * file resolution is instant and the prefetch queue fills immediately,
+   * collapsing the pipeline to two effective stages.
+   *
+   * Remove/update-metadata operations execute inline in the downloader.
+   *
+   * See ADR-011 for design rationale.
    */
   private async *executePipeline(
     plan: SyncPlan,
@@ -679,14 +715,15 @@ export class DefaultSyncExecutor implements SyncExecutor {
     signal?: AbortSignal
   ): AsyncIterable<ExecutorProgress> {
     const total = plan.operations.length;
+    const prefetchQueue = new AsyncQueue<PrefetchedFile>(PREFETCH_BUFFER_SIZE);
     const transferQueue = new AsyncQueue<PreparedFile>(PIPELINE_BUFFER_SIZE);
 
-    // Shared state between producer and consumer
+    // Shared state across all stages
     let bytesProcessed = 0;
     let completed = 0;
     let failed = 0;
     let inlineCompleted = 0;
-    let producerError: Error | undefined;
+    let fatalError: Error | undefined;
     let abortRequested = false;
 
     // Track errors for yielding
@@ -695,72 +732,30 @@ export class DefaultSyncExecutor implements SyncExecutor {
       error: Error;
       attempts: number;
     }
-    const producerFailures: FailedOperation[] = [];
+    const pipelineFailures: FailedOperation[] = [];
 
     // Track completed inline operations (remove/update-metadata) for yielding
     const inlineCompletions: SyncOperation[] = [];
 
-    // Producer: prepare files and handle inline operations
-    const producer = async () => {
+    // Helper to get source from file operations
+    const getFileOperationSource = (
+      operation: Extract<SyncOperation, { type: 'transcode' | 'copy' | 'upgrade' }>
+    ): CollectionTrack => operation.source;
+
+    // Stage 1: Downloader — resolve file access (download for remote, instant for local)
+    const downloader = async () => {
       for (const operation of plan.operations) {
-        // Check for abort
-        if (signal?.aborted || abortRequested) {
-          break;
-        }
+        if (signal?.aborted || abortRequested) break;
 
         try {
-          if (operation.type === 'transcode') {
-            const result = await this.prepareWithRetry(
-              () => this.prepareTranscode(operation, transcodeDir, adapter, signal),
-              operation,
-              retryConfig
-            );
-            if (result.value) {
-              await transferQueue.push(result.value);
-            } else {
-              // Prepare failed after retries
-              producerFailures.push({ operation, error: result.error, attempts: result.attempts });
-              failed++;
-              if (!continueOnError) {
-                producerError = result.error;
-                abortRequested = true;
-                break;
-              }
-            }
-          } else if (operation.type === 'copy') {
-            const result = await this.prepareWithRetry(
-              () => this.prepareCopy(operation, adapter),
-              operation,
-              retryConfig
-            );
-            if (result.value) {
-              await transferQueue.push(result.value);
-            } else {
-              producerFailures.push({ operation, error: result.error, attempts: result.attempts });
-              failed++;
-              if (!continueOnError) {
-                producerError = result.error;
-                abortRequested = true;
-                break;
-              }
-            }
-          } else if (operation.type === 'upgrade') {
-            const result = await this.prepareWithRetry(
-              () => this.prepareUpgrade(operation, transcodeDir, adapter, signal),
-              operation,
-              retryConfig
-            );
-            if (result.value) {
-              await transferQueue.push(result.value);
-            } else {
-              producerFailures.push({ operation, error: result.error, attempts: result.attempts });
-              failed++;
-              if (!continueOnError) {
-                producerError = result.error;
-                abortRequested = true;
-                break;
-              }
-            }
+          if (
+            operation.type === 'transcode' ||
+            operation.type === 'copy' ||
+            operation.type === 'upgrade'
+          ) {
+            const source = getFileOperationSource(operation);
+            const fileAccess = await getTrackFilePath(source, adapter);
+            await prefetchQueue.push({ operation, fileAccess });
           } else if (operation.type === 'remove') {
             await this.executeRemove(operation);
             inlineCompletions.push(operation);
@@ -772,27 +767,114 @@ export class DefaultSyncExecutor implements SyncExecutor {
           }
         } catch (error) {
           const err = error instanceof Error ? error : new Error(String(error));
-          producerFailures.push({ operation, error: err, attempts: 0 });
+          pipelineFailures.push({ operation, error: err, attempts: 0 });
           failed++;
           if (!continueOnError) {
-            producerError = err;
+            fatalError = err;
             abortRequested = true;
             break;
           }
         }
       }
+      prefetchQueue.close();
+    };
+
+    // Stage 2: Preparer — transcode/prepare files using pre-resolved file access
+    const preparer = async () => {
+      for await (const prefetched of prefetchQueue) {
+        if (signal?.aborted || abortRequested) {
+          // Clean up prefetched file we won't process
+          if (prefetched.fileAccess.isDownloaded) {
+            await rm(prefetched.fileAccess.path, { force: true }).catch(() => {});
+          }
+          break;
+        }
+
+        const { operation, fileAccess } = prefetched;
+
+        try {
+          let result:
+            | { value: PreparedFile; error?: undefined; attempts: number }
+            | { value: null; error: Error; attempts: number };
+
+          if (operation.type === 'transcode') {
+            result = await this.prepareWithRetry(
+              () =>
+                this.prepareTranscode(operation, transcodeDir, adapter, signal, fileAccess),
+              operation,
+              retryConfig
+            );
+          } else if (operation.type === 'copy') {
+            result = await this.prepareWithRetry(
+              () => this.prepareCopy(operation, adapter, fileAccess),
+              operation,
+              retryConfig
+            );
+          } else {
+            // upgrade
+            result = await this.prepareWithRetry(
+              () =>
+                this.prepareUpgrade(operation, transcodeDir, adapter, signal, fileAccess),
+              operation,
+              retryConfig
+            );
+          }
+
+          if (result.value) {
+            await transferQueue.push(result.value);
+          } else {
+            pipelineFailures.push({
+              operation,
+              error: result.error,
+              attempts: result.attempts,
+            });
+            failed++;
+            // Clean up downloaded file on prepare failure
+            if (fileAccess.isDownloaded) {
+              await rm(fileAccess.path, { force: true }).catch(() => {});
+            }
+            if (!continueOnError) {
+              fatalError = result.error;
+              abortRequested = true;
+              break;
+            }
+          }
+        } catch (error) {
+          const err = error instanceof Error ? error : new Error(String(error));
+          pipelineFailures.push({ operation, error: err, attempts: 0 });
+          failed++;
+          // Clean up downloaded file on unexpected error
+          if (fileAccess.isDownloaded) {
+            await rm(fileAccess.path, { force: true }).catch(() => {});
+          }
+          if (!continueOnError) {
+            fatalError = err;
+            abortRequested = true;
+            break;
+          }
+        }
+      }
+
+      // Clean up any remaining prefetched files on abort
+      if (abortRequested) {
+        for await (const remaining of prefetchQueue) {
+          if (remaining.fileAccess.isDownloaded) {
+            await rm(remaining.fileAccess.path, { force: true }).catch(() => {});
+          }
+        }
+      }
+
       transferQueue.close();
     };
 
-    // Start producer in background
-    const producerPromise = producer();
+    // Start stages 1 and 2 in background
+    const downloaderPromise = downloader();
+    const preparerPromise = preparer();
 
-    // Consumer: transfer files and yield progress
+    // Stage 3: Consumer — transfer files to iPod and yield progress
     for await (const prepared of transferQueue) {
       // Check for abort - but drain queue on abort (don't waste transcoded files)
       if (signal?.aborted) {
-        // On abort, still transfer remaining items in queue (drain)
-        // but stop after this batch
         abortRequested = true;
       }
 
@@ -853,8 +935,8 @@ export class DefaultSyncExecutor implements SyncExecutor {
       }
     }
 
-    // Yield progress for producer failures (errors that happened during prepare phase)
-    for (const failure of producerFailures) {
+    // Yield progress for pipeline failures (errors from download or prepare phase)
+    for (const failure of pipelineFailures) {
       const categorizedError = createCategorizedError(
         failure.error,
         failure.operation,
@@ -890,17 +972,17 @@ export class DefaultSyncExecutor implements SyncExecutor {
       };
     }
 
-    // Wait for producer to finish
-    await producerPromise;
+    // Wait for all stages to finish
+    await Promise.all([downloaderPromise, preparerPromise]);
 
     // If aborted, throw after draining (we finished transferring queued files)
     if (signal?.aborted) {
       throw new Error('Sync aborted');
     }
 
-    // If producer had a fatal error, throw it
-    if (producerError && !continueOnError) {
-      throw producerError;
+    // If a stage had a fatal error, throw it
+    if (fatalError && !continueOnError) {
+      throw fatalError;
     }
 
     // Save database after all operations
@@ -1291,12 +1373,13 @@ export class DefaultSyncExecutor implements SyncExecutor {
     operation: Extract<SyncOperation, { type: 'transcode' }>,
     transcodeDir: string,
     adapter?: CollectionAdapter,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    prefetchedAccess?: ResolvedFileAccess
   ): Promise<PreparedFile> {
     const { source, preset: presetRef } = operation;
 
-    // Resolve file access (may download from remote source)
-    const fileAccess = await getTrackFilePath(source, adapter);
+    // Use pre-resolved file access from prefetch, or resolve now (legacy/fallback)
+    const fileAccess = prefetchedAccess ?? (await getTrackFilePath(source, adapter));
     const inputPath = fileAccess.path;
 
     // Generate output path in temp directory
@@ -1330,12 +1413,13 @@ export class DefaultSyncExecutor implements SyncExecutor {
    */
   private async prepareCopy(
     operation: Extract<SyncOperation, { type: 'copy' }>,
-    adapter?: CollectionAdapter
+    adapter?: CollectionAdapter,
+    prefetchedAccess?: ResolvedFileAccess
   ): Promise<PreparedFile> {
     const { source } = operation;
 
-    // Resolve file access (may download from remote source)
-    const fileAccess = await getTrackFilePath(source, adapter);
+    // Use pre-resolved file access from prefetch, or resolve now (legacy/fallback)
+    const fileAccess = prefetchedAccess ?? (await getTrackFilePath(source, adapter));
     const sourcePath = fileAccess.path;
 
     // Get actual file size
@@ -1381,7 +1465,8 @@ export class DefaultSyncExecutor implements SyncExecutor {
     operation: Extract<SyncOperation, { type: 'upgrade' }>,
     transcodeDir: string,
     adapter?: CollectionAdapter,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    prefetchedAccess?: ResolvedFileAccess
   ): Promise<PreparedFile> {
     if (operation.preset) {
       // Needs transcoding — delegate to prepareTranscode using a synthetic transcode op
@@ -1390,7 +1475,13 @@ export class DefaultSyncExecutor implements SyncExecutor {
         source: operation.source,
         preset: operation.preset,
       };
-      const prepared = await this.prepareTranscode(transcodeOp, transcodeDir, adapter, signal);
+      const prepared = await this.prepareTranscode(
+        transcodeOp,
+        transcodeDir,
+        adapter,
+        signal,
+        prefetchedAccess
+      );
       return { ...prepared, operation };
     } else {
       // Copy directly — delegate to prepareCopy using a synthetic copy op
@@ -1398,7 +1489,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
         type: 'copy',
         source: operation.source,
       };
-      const prepared = await this.prepareCopy(copyOp, adapter);
+      const prepared = await this.prepareCopy(copyOp, adapter, prefetchedAccess);
       return { ...prepared, operation };
     }
   }
