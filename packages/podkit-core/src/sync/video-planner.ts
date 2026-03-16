@@ -117,13 +117,17 @@ export interface VideoPlanSummary {
 const DEFAULT_QUALITY_PRESET: VideoQualityPreset = 'high';
 
 /**
- * Estimated transcoding speed factor
+ * Estimated transcoding speed factor (multiples of realtime)
  *
- * A factor of 0.5 means transcoding takes about 2x the video duration.
- * With hardware acceleration, this could be 1.0 or higher (faster than realtime).
+ * Software: x264 at iPod resolution (~640x480) on modern CPUs typically
+ * achieves 5-10x realtime. Using 5x as a conservative estimate.
+ *
+ * Hardware: VideoToolbox on Apple Silicon achieves 20-30x+ realtime for
+ * iPod-resolution H.264. At these speeds, USB 2.0 transfer (~2.5 MB/s)
+ * is always the bottleneck, so the hardware factor rarely matters.
  */
-const TRANSCODE_SPEED_FACTOR_SOFTWARE = 0.5;
-const TRANSCODE_SPEED_FACTOR_HARDWARE = 1.5;
+const TRANSCODE_SPEED_FACTOR_SOFTWARE = 5;
+const TRANSCODE_SPEED_FACTOR_HARDWARE = 25;
 
 /**
  * M4V container overhead in bytes
@@ -271,16 +275,19 @@ export function calculateVideoOperationSize(
  * Calculate estimated time for a video operation.
  *
  * Used by the audio planner to handle video operations in mixed plans.
+ * Assumes hardware acceleration is available (the default).
  */
 export function calculateVideoOperationTime(
   operation: Extract<SyncOperation, { type: 'video-transcode' | 'video-copy' | 'video-remove' }>
 ): number {
   switch (operation.type) {
     case 'video-transcode': {
-      // Video transcoding is slow - estimate based on duration
       const duration = operation.source.duration ?? 3600;
-      // Assume ~0.5x realtime for video transcoding + transfer
-      return duration * 2;
+      const size = calculateVideoOperationSize(operation);
+      // Transcode and transfer are pipelined; use whichever is slower
+      const transcodeTime = estimateTranscodeTime(duration, true);
+      const transferTime = estimateTransferTime(size);
+      return Math.max(transcodeTime, transferTime);
     }
     case 'video-copy': {
       // Video copy is transfer-limited
