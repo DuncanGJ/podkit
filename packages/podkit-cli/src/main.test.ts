@@ -30,6 +30,7 @@ describe('podkit-cli commands', () => {
   it('eject command is defined with correct name', () => {
     expect(ejectCommand.name()).toBe('eject');
     expect(ejectCommand.description()).toContain('unmount');
+    expect(ejectCommand.alias()).toBe('unmount');
   });
 
   it('mount command is defined with correct name', () => {

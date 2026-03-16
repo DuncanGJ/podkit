@@ -43,6 +43,8 @@ podkit device eject
 podkit device eject -d nano
 ```
 
+`unmount` is an alias for `eject` — `podkit unmount` and `podkit device unmount` work identically.
+
 Ejecting flushes all pending writes and unmounts the volume.
 
 ### Auto-eject after sync

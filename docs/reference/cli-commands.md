@@ -354,7 +354,7 @@ podkit device reset [-d <name>] [options]
 
 ### `podkit device eject`
 
-Safely unmount an iPod device.
+Safely unmount an iPod device. Also available as `podkit device unmount`.
 
 ```bash
 podkit device eject [-d <name>] [options]
@@ -539,7 +539,7 @@ podkit collection video [-c <name>] [options]
 
 ## `podkit eject`
 
-Safely unmount an iPod device. This is a shortcut for `podkit device eject`.
+Safely unmount an iPod device. This is a shortcut for `podkit device eject`. Also available as `podkit unmount`.
 
 ```bash
 podkit eject [-d <name>] [options]

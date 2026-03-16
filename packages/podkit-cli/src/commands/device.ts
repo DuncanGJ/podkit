@@ -2277,6 +2277,7 @@ interface EjectOptions {
 }
 
 const ejectSubcommand = new Command('eject')
+  .alias('unmount')
   .description('safely unmount an iPod device')
   .option('-f, --force', 'force unmount even if device is busy')
   .action(async (options: EjectOptions) => {
