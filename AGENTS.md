@@ -427,6 +427,16 @@ bun run demo    # Build demo binary + record GIF
 
 See [packages/demo/README.md](packages/demo/README.md) for full details.
 
+## Shell Completions
+
+The `podkit completions` command generates shell completion scripts (zsh, bash) by walking the Commander.js command tree at runtime. Completions are **auto-generated from the actual CLI structure** — there is no static completion file to maintain.
+
+**Impact on CLI changes:**
+
+- Adding or removing commands, subcommands, or options requires **no changes** to the completions system. The generator reads the Commander.js program tree dynamically, so new commands automatically appear in completions.
+- If you introduce a Commander.js pattern the generator doesn't handle (e.g. custom argument completions with dynamic values like device names from config), you'll need to update the generation logic in `packages/podkit-cli/src/commands/completions.ts`.
+- The generator currently handles: subcommands, aliases, short/long options, flag arguments, and `argChoices`. Test with `podkit completions zsh | head -40` after CLI changes to spot-check.
+
 ## Code Conventions
 
 - TypeScript strict mode

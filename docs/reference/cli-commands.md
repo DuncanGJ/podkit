@@ -33,6 +33,7 @@ These options work with all commands:
 | [`podkit collection`](#podkit-collection) | Collection management commands |
 | [`podkit eject`](#podkit-eject) | Safely eject iPod (shortcut for `device eject`) |
 | [`podkit mount`](#podkit-mount) | Mount an iPod (shortcut for `device mount`) |
+| [`podkit completions`](#podkit-completions) | Generate shell completion scripts |
 
 ## `podkit init`
 
@@ -581,6 +582,85 @@ podkit mount
 
 # Mount using disk identifier
 podkit mount --disk /dev/disk4s2
+```
+
+## `podkit completions`
+
+Generate and install shell completion scripts for tab completion support. The completions are generated from the actual CLI command tree, so they stay in sync automatically.
+
+### `podkit completions install`
+
+Detect your shell and show setup instructions. This is the easiest way to get started.
+
+```bash
+podkit completions install
+```
+
+| Option | Description |
+|--------|-------------|
+| `--append` | Append the setup lines to your shell config file automatically |
+| `--alias <command>` | Create a dev shell function wrapping this command (e.g. `"bun run podkit"`) |
+| `--name <name>` | Name for the dev function (default: `pk`) |
+
+The `install` subcommand detects your shell from `$SHELL` and finds the correct config file:
+
+| Shell | Config file |
+|-------|------------|
+| zsh | `~/.zshrc` |
+| bash (macOS) | `~/.bash_profile` |
+| bash (Linux) | `~/.bashrc` |
+
+```bash
+# Show what to add and where
+podkit completions install
+
+# Do it automatically
+podkit completions install --append
+
+# Development: create a "pk" function wrapping bun run (with completions)
+podkit completions install --alias "bun run podkit"
+
+# Development: use a custom function name
+podkit completions install --alias "bun run podkit" --name podkit-dev
+```
+
+### `podkit completions zsh`
+
+Print the zsh completion script to stdout.
+
+```bash
+podkit completions zsh
+```
+
+### `podkit completions bash`
+
+Print the bash completion script to stdout.
+
+```bash
+podkit completions bash
+```
+
+### Examples
+
+```bash
+# Quickest setup — auto-detect shell and append to config
+podkit completions install --append
+
+# See what would be added first
+podkit completions install
+
+# Development — creates "pk" as a shorthand for "bun run podkit" with completions
+# (doesn't shadow the "podkit" binary, so both work side by side)
+podkit completions install --alias "bun run podkit"
+podkit completions install --alias "bun run podkit" --append
+
+# Activate in current shell session (temporary)
+source <(podkit completions zsh)
+
+# Test completions after setup
+podkit <TAB>          # Shows: init sync device collection eject mount
+podkit sync --<TAB>   # Shows: --dry-run --quality --filter ...
+podkit device <TAB>   # Shows: list add remove set info music video ...
 ```
 
 ## Display Fields

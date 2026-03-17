@@ -5,6 +5,7 @@ import { deviceCommand } from './commands/device.js';
 import { collectionCommand } from './commands/collection.js';
 import { ejectCommand } from './commands/eject.js';
 import { mountCommand } from './commands/mount.js';
+import { completionsCommand } from './commands/completions.js';
 
 describe('podkit-cli commands', () => {
   it('init command is defined with correct name', () => {
@@ -36,6 +37,11 @@ describe('podkit-cli commands', () => {
   it('mount command is defined with correct name', () => {
     expect(mountCommand.name()).toBe('mount');
     expect(mountCommand.description()).toContain('mount');
+  });
+
+  it('completions command is defined with correct name', () => {
+    expect(completionsCommand.name()).toBe('completions');
+    expect(completionsCommand.description()).toContain('completion');
   });
 
   it('sync command has expected options', () => {

@@ -12,6 +12,7 @@ import { deviceCommand } from './commands/device.js';
 import { collectionCommand } from './commands/collection.js';
 import { ejectCommand } from './commands/eject.js';
 import { mountCommand } from './commands/mount.js';
+import { completionsCommand } from './commands/completions.js';
 import { loadConfig, DEFAULT_CONFIG_PATH } from './config/index.js';
 import type { GlobalOptions } from './config/index.js';
 import { setContext } from './context.js';
@@ -83,5 +84,8 @@ program.addCommand(collectionCommand);
 // Root shortcuts (delegate to device subcommands)
 program.addCommand(ejectCommand);
 program.addCommand(mountCommand);
+
+// Utility commands
+program.addCommand(completionsCommand);
 
 program.parse();
