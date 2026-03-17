@@ -54,6 +54,7 @@ These features are on the roadmap but not yet scheduled. Votes and comments help
 
 | Feature | Description | Discussion |
 |---------|-------------|------------|
+| **iTunes / Apple Music** | Sync music from an iTunes or Apple Music library | [#35](https://github.com/jvgomg/podkit/discussions/35) |
 | **Plex** | Sync music from Plex media servers | [#6](https://github.com/jvgomg/podkit/discussions/6) |
 | **Jellyfin** | Sync music from Jellyfin media servers | [#7](https://github.com/jvgomg/podkit/discussions/7) |
 

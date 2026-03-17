@@ -157,6 +157,7 @@ Keep this table updated when creating or closing discussions.
 | 25 | Play count and scrobble sync | Library Sync | Later |
 | 32 | Sound Check (volume normalization) support | Library Sync | Later |
 | 34 | Rockbox and non-iTunesDB device support | Device Support | Later |
+| 35 | iTunes / Apple Music library source | Collection Sources | Later |
 
 ## Documentation
 
@@ -170,7 +171,7 @@ These files contain callouts or links to specific discussions. When a feature's 
 | `docs/feedback.md` | General guidance | Rarely changes |
 | `docs/user-guide/syncing/music.md` | #2 Podcasts, #3 Audiobooks, #4 Music Videos | Callout at line ~50 |
 | `docs/user-guide/syncing/video.md` | #4 Music Videos, #5 Video Podcasts | Callout at line ~42 |
-| `docs/user-guide/collections/additional-sources.md` | #6 Plex, #7 Jellyfin | Inline links + "Request a Source" section |
+| `docs/user-guide/collections/additional-sources.md` | #35 iTunes/Apple Music, #6 Plex, #7 Jellyfin | Inline links + "Request a Source" section |
 | `docs/user-guide/collections/subsonic.md` | #11 Keychain/secret manager | Callout at line ~50 |
 | `docs/user-guide/devices/mounting-ejecting.md` | #9 Linux mount/eject | Callout at line ~61 |
 | `docs/user-guide/devices/formatting.md` | #10 Device formatting | Caution block at line ~8 |

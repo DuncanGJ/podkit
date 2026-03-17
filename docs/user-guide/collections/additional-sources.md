@@ -9,6 +9,10 @@ podkit currently supports [directory](/user-guide/collections/directory) and [Su
 
 ## Planned Sources
 
+### iTunes / Apple Music
+
+Support for using an [iTunes or Apple Music](https://www.apple.com/apple-music/) library as a collection source is planned. This would read your existing library database to discover tracks, metadata, playlists, and artwork — no need to restructure your files or set up a media server. Vote or comment on the [discussion](https://github.com/jvgomg/podkit/discussions/35).
+
 ### Plex
 
 Support for syncing music from [Plex](https://www.plex.tv/) media servers is planned. This would allow you to sync your Plex music library directly to your iPod without needing local files. Vote or comment on the [discussion](https://github.com/jvgomg/podkit/discussions/6).
@@ -19,7 +23,7 @@ Support for [Jellyfin](https://jellyfin.org/) media servers is also planned. Lik
 
 ## Request a Source
 
-If there's a music source you'd like to see supported, [start a discussion on GitHub](https://github.com/jvgomg/podkit/discussions/new?category=ideas) describing the source and your use case. You can also vote on planned sources: [Plex](https://github.com/jvgomg/podkit/discussions/6), [Jellyfin](https://github.com/jvgomg/podkit/discussions/7).
+If there's a music source you'd like to see supported, [start a discussion on GitHub](https://github.com/jvgomg/podkit/discussions/new?category=ideas) describing the source and your use case. You can also vote on planned sources: [iTunes / Apple Music](https://github.com/jvgomg/podkit/discussions/35), [Plex](https://github.com/jvgomg/podkit/discussions/6), [Jellyfin](https://github.com/jvgomg/podkit/discussions/7).
 
 ## Build Your Own
 
