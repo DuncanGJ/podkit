@@ -29,7 +29,7 @@ podkit preserves all standard metadata through syncing and transcoding:
 - **Core fields:** Title, artist, album, album artist
 - **Track info:** Track number, disc number, year, genre, composer
 - **Technical info:** Duration, bitrate, sample rate
-- **Album artwork:** Embedded artwork is synced to the iPod
+- **Album artwork:** Embedded artwork is synced to the iPod (see [Artwork](/user-guide/syncing/artwork))
 
 ### Track Matching
 

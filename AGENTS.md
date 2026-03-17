@@ -110,9 +110,11 @@ Read these documents based on what you're working on:
 | iPod internals | [docs/devices/ipod-internals.md](docs/devices/ipod-internals.md) |
 | Troubleshooting | [docs/troubleshooting/](docs/troubleshooting/) |
 | Compilation albums | [docs/user-guide/syncing/compilation-albums.md](docs/user-guide/syncing/compilation-albums.md) |
+| Artwork | [docs/user-guide/syncing/artwork.md](docs/user-guide/syncing/artwork.md) |
 | Sound Check | [docs/user-guide/syncing/sound-check.md](docs/user-guide/syncing/sound-check.md) |
 | Track upgrades | [docs/user-guide/syncing/upgrades.md](docs/user-guide/syncing/upgrades.md) |
 | Clean Artists | [docs/reference/clean-artists.md](docs/reference/clean-artists.md) |
+| Sync tags | [docs/reference/sync-tags.md](docs/reference/sync-tags.md) |
 | Demo GIF package | [packages/demo/README.md](packages/demo/README.md) |
 | Package READMEs | `packages/*/README.md` |
 | Feature requests | [agents/feature-requests.md](agents/feature-requests.md) |
@@ -485,6 +487,30 @@ bunx changeset
 4. CI builds binaries for 4 platforms and creates a GitHub Release with tarballs (`.github/workflows/release.yml`)
 5. Homebrew formula is auto-updated with new version and checksums
 6. Users get the update via `brew upgrade podkit`
+
+### Reviewing and Improving a Release PR
+
+Before merging a Version Packages PR, add a hand-written release summary above the auto-generated changelog. This makes the release accessible to users who follow the project. The audience is primarily CLI end users, but they're also interested in the technical side of how the tool is built.
+
+**Workflow:**
+
+1. **Read all pending changesets** in `.changeset/*.md` and the current PR body (`gh pr view`)
+2. **Group changes by theme** — identify major features, breaking changes, performance/UX improvements, and bug fixes
+3. **Draft a release summary** to prepend above the auto-generated changelog:
+   - **Intro paragraph** — friendly, acknowledges the size and nature of the release. If there are breaking changes and the project is pre-v1, note that explicitly
+   - **Highlights** — major features with 1-2 sentence descriptions and inline links to the published docs site (`https://jvgomg.github.io/podkit/...`)
+   - **Breaking Changes** — each breaking item called out clearly with before/after code examples and migration steps
+   - **Under the Hood** — technical engineering wins told in an engaging, light-hearted way. Communicate the value to users (e.g., "the 'high' preset was quietly producing ~44 kbps instead of ~256 kbps" rather than dry technical details). Bugs that were tricky or surprising make for good storytelling here
+   - **Quality of Life** — smaller UX fixes in a bullet list
+   - Wrap the existing auto-generated changelog in a `<details>` block at the bottom
+4. **Check for doc gaps** — if new features don't have dedicated doc pages, create them before the release. New docs should be linked from the release summary
+5. **Update the PR body** via `gh pr edit`
+
+**Tone guidelines:**
+- Conversational and enthusiastic but not over-the-top
+- Focus on what changes mean for the user's experience, not just what was implemented
+- For bug fixes, be light-hearted about tricky issues and communicate the user-facing impact
+- Include links to relevant docs pages so users can learn more
 
 ## Entry Points
 

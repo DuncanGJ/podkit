@@ -2,7 +2,7 @@
 title: Track Upgrades
 description: How podkit detects and upgrades improved source files during sync.
 sidebar:
-  order: 5
+  order: 6
 ---
 
 When you improve your music collection — replacing MP3s with lossless files, adding artwork, or fixing metadata — podkit detects these changes and upgrades the tracks on your iPod automatically. Play counts, star ratings, and playlist membership are preserved.
@@ -93,6 +93,10 @@ This re-transcodes all lossless-source tracks while preserving play counts, rati
 Like other file-replacement upgrades, preset changes are suppressed by `--skip-upgrades`.
 
 ## Artwork Change Detection
+
+:::tip
+For a complete guide to artwork syncing — including how to disable artwork, differences between directory and Subsonic sources, and Navidrome placeholder filtering — see [Artwork](/user-guide/syncing/artwork).
+:::
 
 By default, podkit detects when artwork is **added** to a previously bare track — but not when existing artwork is **replaced** with a different image. To detect changed artwork, use the `--check-artwork` flag:
 
@@ -211,6 +215,7 @@ When upgrades are skipped, dry-run still reports available upgrades so you can s
 
 ## See Also
 
+- [Artwork](/user-guide/syncing/artwork) — Artwork syncing, change detection, and configuration
 - [Music Syncing](/user-guide/syncing/music) — How music syncing works
 - [Sound Check](/user-guide/syncing/sound-check) — Volume normalization
 - [Config File Reference](/reference/config-file) — `skipUpgrades` option
