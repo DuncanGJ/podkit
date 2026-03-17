@@ -505,6 +505,11 @@ Before merging a Version Packages PR, add a hand-written release summary above t
    - Wrap the existing auto-generated changelog in a `<details>` block at the bottom
 4. **Check for doc gaps** — if new features don't have dedicated doc pages, create them before the release. New docs should be linked from the release summary
 5. **Update the PR body** via `gh pr edit`
+6. **Review feature discussions** — cross-reference the release contents against open GitHub Discussions (see [agents/feature-requests.md](agents/feature-requests.md) for the registry). For any feature that shipped in this release:
+   - Apply the `released` label to the discussion
+   - Update the Status section in the discussion body to say **Released** with a link to the relevant docs
+   - Post a comment summarizing what shipped and linking to the docs page
+   - Discuss with the user before closing discussions — some may prefer to keep them open for follow-up feedback
 
 **Tone guidelines:**
 - Conversational and enthusiastic but not over-the-top
