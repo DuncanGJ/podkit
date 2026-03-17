@@ -522,6 +522,21 @@ function planUpdateOperations(
   for (const updateTrack of tracks) {
     const { reason } = updateTrack;
 
+    // artwork-updated needs source file access (to re-extract artwork bytes) but does NOT
+    // replace the audio file. Route it as an upgrade operation so the executor can access
+    // the source, but without a preset (no transcode/copy needed).
+    // artwork-removed is similar — metadata-only, removes artwork from iPod track.
+    if (reason === 'artwork-updated' || reason === 'artwork-removed') {
+      operations.push({
+        type: 'upgrade',
+        source: updateTrack.source,
+        target: updateTrack.ipod,
+        reason: reason as UpgradeReason,
+        // No preset — audio file is not replaced
+      });
+      continue;
+    }
+
     // Check if this is a file-replacement upgrade
     if (isFileReplacementUpgrade(reason)) {
       const category = categorizeSource(updateTrack.source);
@@ -589,6 +604,14 @@ export function calculateOperationSize(operation: SyncOperation): number {
       return estimateCopySize(operation.source);
     }
     case 'upgrade': {
+      // artwork-updated only transfers artwork bytes (~200KB), not the whole track
+      if (operation.reason === 'artwork-updated') {
+        return 200 * 1024;
+      }
+      // artwork-removed is metadata-only (no file transfer)
+      if (operation.reason === 'artwork-removed') {
+        return 0;
+      }
       // Upgrades replace a file, so estimate based on preset (transcode) or source (copy)
       if (operation.preset) {
         const duration = operation.source.duration ?? 240000;
@@ -626,6 +649,14 @@ function calculateOperationTime(operation: SyncOperation): number {
       return estimateTransferTime(size);
     }
     case 'upgrade': {
+      // artwork-updated is nearly instant (small artwork data, no audio transfer)
+      if (operation.reason === 'artwork-updated') {
+        return 0.1;
+      }
+      // artwork-removed is instant (metadata-only)
+      if (operation.reason === 'artwork-removed') {
+        return 0.01;
+      }
       // Upgrade time is similar to transcode/copy — based on transfer size
       const size = calculateOperationSize(operation);
       return estimateTransferTime(size);
@@ -719,8 +750,14 @@ export function createPlan(diff: SyncDiff, options: PlanOptions = {}): SyncPlan 
   // Plan remove operations (if enabled)
   const removeOperations = planRemoveOperations(diff.toRemove, removeOrphans);
 
+  // Filter out artwork upgrades when artwork is disabled — they would be no-ops
+  const artworkEnabled = options.artworkEnabled ?? true;
+  const effectiveUpdates = artworkEnabled
+    ? diff.toUpdate
+    : diff.toUpdate.filter((u) => u.reason !== 'artwork-updated' && u.reason !== 'artwork-removed');
+
   // Plan update/upgrade operations for metadata changes and file replacements
-  const updateResult = planUpdateOperations(diff.toUpdate, config, deviceSupportsAlac);
+  const updateResult = planUpdateOperations(effectiveUpdates, config, deviceSupportsAlac);
 
   // Combine and order operations
   const allOperations = [...addResult.operations, ...removeOperations, ...updateResult.operations];

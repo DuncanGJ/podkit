@@ -1,0 +1,505 @@
+/**
+ * E2E tests for artwork sync tag scenarios using directory sources.
+ *
+ * Tests the artwork lifecycle: progressive hash writes, artwork-removed,
+ * artwork-added, artwork-updated detection, baseline establishment via
+ * --force-sync-tags, and artwork hash preservation across preset changes.
+ *
+ * These tests use directory sources (no Docker needed). They require:
+ * - Audio fixtures (test/fixtures/audio/)
+ * - metaflac (for stripping/adding FLAC artwork)
+ * - ffmpeg (for generating replacement artwork images)
+ */
+
+import { describe, it, expect, beforeAll } from 'bun:test';
+import { mkdtemp, rm, copyFile, writeFile } from 'node:fs/promises';
+import { execSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runCliJson } from '../helpers/cli-runner';
+import { withTarget } from '../targets';
+import { areFixturesAvailable, getTrackPath, Tracks, type AlbumDir } from '../helpers/fixtures';
+
+import type { SyncOutput } from 'podkit/types';
+
+// =============================================================================
+// Prerequisite Checks
+// =============================================================================
+
+function isMetaflacAvailable(): boolean {
+  try {
+    execSync('which metaflac', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isFfmpegAvailable(): boolean {
+  try {
+    execSync('which ffmpeg', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// =============================================================================
+// Test Fixture Helpers
+// =============================================================================
+
+interface TrackDef {
+  source: { album: AlbumDir; filename: string };
+}
+
+const TRACKS_WITH_ARTWORK: TrackDef[] = [
+  { source: Tracks.HARMONY },
+  { source: Tracks.VIBRATO },
+  { source: Tracks.TREMOLO },
+];
+
+/**
+ * Copy fixture tracks to a temp directory for safe modification.
+ */
+async function createTempCollection(tracks: TrackDef[]): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'podkit-artwork-'));
+  for (const track of tracks) {
+    const srcPath = getTrackPath(track.source.album, track.source.filename);
+    const destPath = join(dir, track.source.filename);
+    await copyFile(srcPath, destPath);
+  }
+  return dir;
+}
+
+/**
+ * Create a config file pointing at a directory source.
+ */
+async function createTestConfig(
+  sourceDir: string,
+  configDir: string,
+  quality = 'high'
+): Promise<string> {
+  const configPath = join(configDir, 'config.toml');
+  const content = `[music.default]
+path = "${sourceDir}"
+
+quality = "${quality}"
+
+[defaults]
+music = "default"
+`;
+  await writeFile(configPath, content);
+  return configPath;
+}
+
+/**
+ * Strip all artwork from FLAC files in a directory.
+ */
+function stripArtwork(dir: string, filenames: string[]): void {
+  for (const filename of filenames) {
+    const path = join(dir, filename);
+    execSync(`metaflac --remove --block-type=PICTURE "${path}"`, { stdio: 'ignore' });
+  }
+}
+
+/**
+ * Embed artwork into a FLAC file.
+ */
+function embedArtwork(flacPath: string, imagePath: string): void {
+  execSync(`metaflac --import-picture-from="${imagePath}" "${flacPath}"`, { stdio: 'ignore' });
+}
+
+/**
+ * Generate a solid-color JPEG image for test artwork.
+ */
+function generateTestImage(outputPath: string, color = 'red'): void {
+  execSync(
+    `ffmpeg -y -f lavfi -i color=c=${color}:s=500x500:d=1 -frames:v 1 "${outputPath}"`,
+    { stdio: 'ignore' }
+  );
+}
+
+const FLAC_FILENAMES = ['01-harmony.flac', '02-vibrato.flac', '03-tremolo.flac'];
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+describe('artwork sync tags (directory source)', () => {
+  let fixturesAvailable = false;
+  let metaflacAvailable = false;
+  let ffmpegAvailable = false;
+
+  beforeAll(async () => {
+    fixturesAvailable = await areFixturesAvailable();
+    metaflacAvailable = isMetaflacAvailable();
+    ffmpegAvailable = isFfmpegAvailable();
+  });
+
+  function canRun(): boolean {
+    return fixturesAvailable && metaflacAvailable && ffmpegAvailable;
+  }
+
+  function skipReason(): string | null {
+    if (!fixturesAvailable) return 'fixtures not available';
+    if (!metaflacAvailable) return 'metaflac not available';
+    if (!ffmpegAvailable) return 'ffmpeg not available';
+    return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Test 1: Progressive artwork hash write (no --check-artwork needed)
+  // ---------------------------------------------------------------------------
+  it('progressive sync writes artwork hashes without --check-artwork', async () => {
+    if (!canRun()) {
+      console.log(`Skipping: ${skipReason()}`);
+      return;
+    }
+
+    await withTarget(async (target) => {
+      const configDir = await mkdtemp(join(tmpdir(), 'podkit-config-'));
+      let collectionDir: string | undefined;
+
+      try {
+        collectionDir = await createTempCollection(TRACKS_WITH_ARTWORK);
+        const configPath = await createTestConfig(collectionDir, configDir, 'high');
+
+        // First sync: tracks have embedded artwork, so transferArtwork() runs
+        // and writes art= into the sync tag progressively
+        const { result: result1 } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--json',
+        ]);
+        expect(result1.exitCode).toBe(0);
+        expect((await target.getTracks()).length).toBe(3);
+
+        // Second sync with --check-artwork --dry-run: should show 0 updates
+        // because art= was already written during the first sync
+        const { result: result2, json: json2 } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path,
+          '--check-artwork', '--dry-run', '--json',
+        ]);
+        expect(result2.exitCode).toBe(0);
+        expect(json2?.plan?.tracksToAdd).toBe(0);
+        expect(json2?.plan?.tracksToUpdate).toBe(0);
+      } finally {
+        if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
+        await rm(configDir, { recursive: true, force: true });
+      }
+    });
+  }, 120000);
+
+  // ---------------------------------------------------------------------------
+  // Test 2: artwork-removed detection
+  // ---------------------------------------------------------------------------
+  it('detects artwork-removed when artwork is stripped from source files', async () => {
+    if (!canRun()) {
+      console.log(`Skipping: ${skipReason()}`);
+      return;
+    }
+
+    await withTarget(async (target) => {
+      const configDir = await mkdtemp(join(tmpdir(), 'podkit-config-'));
+      let collectionDir: string | undefined;
+
+      try {
+        // Sync tracks that have artwork
+        collectionDir = await createTempCollection(TRACKS_WITH_ARTWORK);
+        const configPath = await createTestConfig(collectionDir, configDir, 'high');
+
+        const { result: result1 } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--json',
+        ]);
+        expect(result1.exitCode).toBe(0);
+        expect((await target.getTracks()).length).toBe(3);
+
+        // Strip artwork from all FLAC files in the temp collection
+        stripArtwork(collectionDir, FLAC_FILENAMES);
+
+        // Dry-run: should detect artwork-removed
+        const { result: dryResult, json: dryJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--dry-run', '--json',
+        ]);
+        expect(dryResult.exitCode).toBe(0);
+        expect(dryJson?.plan?.tracksToUpdate).toBeGreaterThan(0);
+
+        const breakdown = dryJson?.plan?.updateBreakdown as Record<string, number | undefined> | undefined;
+        expect(breakdown?.['artwork-removed']).toBeGreaterThan(0);
+
+        // Actually sync the removal
+        const { result: syncResult, json: syncJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--json',
+        ]);
+        expect(syncResult.exitCode).toBe(0);
+        expect(syncJson?.success).toBe(true);
+
+        // Verify idempotency after removal
+        const { result: idempResult, json: idempJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--dry-run', '--json',
+        ]);
+        expect(idempResult.exitCode).toBe(0);
+        expect(idempJson?.plan?.tracksToAdd).toBe(0);
+        expect(idempJson?.plan?.tracksToUpdate).toBe(0);
+      } finally {
+        if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
+        await rm(configDir, { recursive: true, force: true });
+      }
+    });
+  }, 180000);
+
+  // ---------------------------------------------------------------------------
+  // Test 3: artwork-added detection
+  // ---------------------------------------------------------------------------
+  it('detects artwork-added when artwork is embedded into a previously bare track', async () => {
+    if (!canRun()) {
+      console.log(`Skipping: ${skipReason()}`);
+      return;
+    }
+
+    await withTarget(async (target) => {
+      const configDir = await mkdtemp(join(tmpdir(), 'podkit-config-'));
+      let collectionDir: string | undefined;
+
+      try {
+        // Start with DUAL_TONE which has no artwork
+        collectionDir = await createTempCollection([{ source: Tracks.DUAL_TONE }]);
+        const configPath = await createTestConfig(collectionDir, configDir, 'high');
+
+        // Sync: track has no artwork
+        const { result: result1 } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--json',
+        ]);
+        expect(result1.exitCode).toBe(0);
+        expect((await target.getTracks()).length).toBe(1);
+
+        // Generate and embed artwork into the temp copy
+        const coverPath = join(collectionDir, 'cover.jpg');
+        generateTestImage(coverPath, 'blue');
+        embedArtwork(join(collectionDir, Tracks.DUAL_TONE.filename), coverPath);
+
+        // Dry-run: should detect artwork-added
+        const { result: dryResult, json: dryJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--dry-run', '--json',
+        ]);
+        expect(dryResult.exitCode).toBe(0);
+        expect(dryJson?.plan?.tracksToUpdate).toBeGreaterThan(0);
+
+        const breakdown = dryJson?.plan?.updateBreakdown as Record<string, number | undefined> | undefined;
+        expect(breakdown?.['artwork-added']).toBeGreaterThan(0);
+      } finally {
+        if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
+        await rm(configDir, { recursive: true, force: true });
+      }
+    });
+  }, 120000);
+
+  // ---------------------------------------------------------------------------
+  // Test 4: artwork-updated via directory source
+  // ---------------------------------------------------------------------------
+  it('detects artwork-updated when artwork changes in source files', async () => {
+    if (!canRun()) {
+      console.log(`Skipping: ${skipReason()}`);
+      return;
+    }
+
+    await withTarget(async (target) => {
+      const configDir = await mkdtemp(join(tmpdir(), 'podkit-config-'));
+      let collectionDir: string | undefined;
+
+      try {
+        // Sync tracks with original artwork and --check-artwork to establish baselines
+        collectionDir = await createTempCollection(TRACKS_WITH_ARTWORK);
+        const configPath = await createTestConfig(collectionDir, configDir, 'high');
+
+        const { result: result1 } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--check-artwork', '--json',
+        ]);
+        expect(result1.exitCode).toBe(0);
+        expect((await target.getTracks()).length).toBe(3);
+
+        // Replace artwork with a different image
+        const newCoverPath = join(collectionDir, 'cover-replacement.jpg');
+        generateTestImage(newCoverPath, 'red');
+
+        for (const filename of FLAC_FILENAMES) {
+          const trackPath = join(collectionDir, filename);
+          execSync(
+            `metaflac --remove --block-type=PICTURE "${trackPath}" && metaflac --import-picture-from="${newCoverPath}" "${trackPath}"`,
+            { stdio: 'ignore' }
+          );
+        }
+
+        // Dry-run with --check-artwork: should detect artwork-updated
+        const { result: dryResult, json: dryJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--check-artwork', '--dry-run', '--json',
+        ]);
+        expect(dryResult.exitCode).toBe(0);
+        expect(dryJson?.plan?.tracksToUpdate).toBeGreaterThan(0);
+
+        const breakdown = dryJson?.plan?.updateBreakdown as Record<string, number | undefined> | undefined;
+        expect(breakdown?.['artwork-updated']).toBeGreaterThan(0);
+
+        // Actually sync the artwork update
+        const { result: syncResult, json: syncJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--check-artwork', '--json',
+        ]);
+        expect(syncResult.exitCode).toBe(0);
+        expect(syncJson?.success).toBe(true);
+
+        // Verify idempotency
+        const { result: idempResult, json: idempJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--check-artwork', '--dry-run', '--json',
+        ]);
+        expect(idempResult.exitCode).toBe(0);
+        expect(idempJson?.plan?.tracksToUpdate).toBe(0);
+      } finally {
+        if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
+        await rm(configDir, { recursive: true, force: true });
+      }
+    });
+  }, 180000);
+
+  // ---------------------------------------------------------------------------
+  // Test 5: --force-sync-tags --check-artwork establishes baselines
+  // ---------------------------------------------------------------------------
+  it('--force-sync-tags --check-artwork establishes artwork baselines', async () => {
+    if (!canRun()) {
+      console.log(`Skipping: ${skipReason()}`);
+      return;
+    }
+
+    await withTarget(async (target) => {
+      const configDir = await mkdtemp(join(tmpdir(), 'podkit-config-'));
+      let collectionDir: string | undefined;
+
+      try {
+        collectionDir = await createTempCollection(TRACKS_WITH_ARTWORK);
+        const configPath = await createTestConfig(collectionDir, configDir, 'high');
+
+        // Sync normally (without --check-artwork) — art= hash may or may not be written
+        const { result: result1 } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--json',
+        ]);
+        expect(result1.exitCode).toBe(0);
+
+        // Run --force-sync-tags --check-artwork to establish baselines
+        const { result: forceResult } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path,
+          '--force-sync-tags', '--check-artwork', '--json',
+        ]);
+        expect(forceResult.exitCode).toBe(0);
+
+        // Dry-run with --check-artwork: should show 0 updates (baselines established)
+        const { result: verifyResult, json: verifyJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path,
+          '--check-artwork', '--dry-run', '--json',
+        ]);
+        expect(verifyResult.exitCode).toBe(0);
+        expect(verifyJson?.plan?.tracksToUpdate).toBe(0);
+
+        // Now change artwork in the temp dir
+        const newCoverPath = join(collectionDir, 'cover-new.jpg');
+        generateTestImage(newCoverPath, 'green');
+
+        for (const filename of FLAC_FILENAMES) {
+          const trackPath = join(collectionDir, filename);
+          execSync(
+            `metaflac --remove --block-type=PICTURE "${trackPath}" && metaflac --import-picture-from="${newCoverPath}" "${trackPath}"`,
+            { stdio: 'ignore' }
+          );
+        }
+
+        // Dry-run with --check-artwork: should now detect artwork-updated
+        const { result: changeResult, json: changeJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path,
+          '--check-artwork', '--dry-run', '--json',
+        ]);
+        expect(changeResult.exitCode).toBe(0);
+        expect(changeJson?.plan?.tracksToUpdate).toBeGreaterThan(0);
+
+        const breakdown = changeJson?.plan?.updateBreakdown as Record<string, number | undefined> | undefined;
+        expect(breakdown?.['artwork-updated']).toBeGreaterThan(0);
+      } finally {
+        if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
+        await rm(configDir, { recursive: true, force: true });
+      }
+    });
+  }, 180000);
+
+  // ---------------------------------------------------------------------------
+  // Test 6: Artwork hash survives preset change re-transcode
+  // ---------------------------------------------------------------------------
+  it('artwork hash survives preset change re-transcode', async () => {
+    if (!canRun()) {
+      console.log(`Skipping: ${skipReason()}`);
+      return;
+    }
+
+    await withTarget(async (target) => {
+      const configDir = await mkdtemp(join(tmpdir(), 'podkit-config-'));
+      let collectionDir: string | undefined;
+
+      try {
+        collectionDir = await createTempCollection(TRACKS_WITH_ARTWORK);
+        const configPath = await createTestConfig(collectionDir, configDir, 'high');
+
+        // Sync at high quality with --check-artwork (writes quality=high + art=HASH)
+        const { result: result1 } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--check-artwork', '--json',
+        ]);
+        expect(result1.exitCode).toBe(0);
+
+        // Change to low quality
+        await createTestConfig(collectionDir, configDir, 'low');
+
+        // Dry-run: should show preset-downgrade
+        const { result: dryResult, json: dryJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--quality', 'low', '--dry-run', '--json',
+        ]);
+        expect(dryResult.exitCode).toBe(0);
+        expect(dryJson?.plan?.tracksToUpdate).toBe(3);
+
+        const dryBreakdown = dryJson?.plan?.updateBreakdown as Record<string, number | undefined> | undefined;
+        expect(dryBreakdown?.['preset-downgrade']).toBe(3);
+
+        // Actually sync at low quality
+        const { result: syncResult } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path, '--quality', 'low', '--json',
+        ]);
+        expect(syncResult.exitCode).toBe(0);
+
+        // Dry-run with --check-artwork at low quality: should show 0 updates
+        // (artwork hash survived the preset change re-transcode)
+        const { result: idempResult, json: idempJson } = await runCliJson<SyncOutput>([
+          '--config', configPath,
+          'sync', '--device', target.path,
+          '--quality', 'low', '--check-artwork', '--dry-run', '--json',
+        ]);
+        expect(idempResult.exitCode).toBe(0);
+        expect(idempJson?.plan?.tracksToAdd).toBe(0);
+        expect(idempJson?.plan?.tracksToUpdate).toBe(0);
+      } finally {
+        if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
+        await rm(configDir, { recursive: true, force: true });
+      }
+    });
+  }, 180000);
+});

@@ -5,9 +5,10 @@
 set -e
 cd "$(dirname "$0")"
 
-# Create a simple cover image (100x100 gradient)
-echo "Creating cover art..."
-ffmpeg -y -f lavfi -i "color=c=#4a90d9:s=100x100:d=1,format=rgb24" -frames:v 1 cover.jpg 2>/dev/null
+# Sidecar artwork generation — commented out until TASK-141 is implemented.
+# When TASK-141 lands, uncomment to generate cover.jpg for sidecar artwork tests.
+# echo "Creating cover art..."
+# ffmpeg -y -f lavfi -i "color=c=#4a90d9:s=100x100:d=1,format=rgb24" -frames:v 1 cover.jpg 2>/dev/null
 
 # Common metadata
 ARTIST="Multi-Format Test"

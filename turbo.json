@@ -47,6 +47,11 @@
       "inputs": ["src/**", "build.ts", "demo.tape", "run.sh", "package.json"],
       "outputs": ["demo.gif"]
     },
+    "@podkit/test-fixtures#generate-fixtures": {
+      "inputs": ["src/**"],
+      "outputs": ["../../test/manual-collection/**"],
+      "cache": true
+    },
     "clean": {
       "cache": false
     }

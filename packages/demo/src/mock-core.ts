@@ -1343,6 +1343,14 @@ export async function extractAndSaveArtwork(_filePath: string, _options?: any) {
   return null;
 }
 
+export function hashArtwork(_data: Buffer | Uint8Array): string {
+  return '00000000';
+}
+
+export function selectBestPicture(pictures: any[]) {
+  return pictures[0];
+}
+
 // =============================================================================
 // Metadata extraction (mock)
 // =============================================================================

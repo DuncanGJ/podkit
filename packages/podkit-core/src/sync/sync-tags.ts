@@ -1,8 +1,23 @@
 /**
  * Sync tags — metadata stored in iPod track comment fields
  *
- * Sync tags record what transcode settings produced each file on the iPod,
- * enabling exact preset change detection without bitrate comparison.
+ * Sync tags record the transcode settings and artwork fingerprint used during
+ * sync. They enable accurate change detection by comparing the tag against the
+ * current configuration.
+ *
+ * ## Sync Tag Consistency
+ *
+ * A sync tag is "consistent" when it accurately reflects the track's actual
+ * state on the iPod — correct quality preset, encoding mode, and artwork hash.
+ * Inconsistencies can arise from:
+ *
+ * - Missing sync tags entirely (track synced before sync tags existed)
+ * - Missing artwork hash (artwork present but never hashed)
+ * - Stale artwork hash (artwork removed but hash lingers)
+ * - Stale quality/encoding (track re-synced but tag not updated)
+ *
+ * The self-healing sync progressively writes and updates sync tags to maintain
+ * consistency. Users can force full consistency with `--force-sync-tags`.
  *
  * ## Format
  *
@@ -36,6 +51,8 @@ export interface SyncTagData {
   encoding?: string;
   /** Custom bitrate override in kbps (audio only, only when explicitly set) */
   bitrate?: number;
+  /** Artwork hash: 8-char lowercase hex string (xxHash truncated to 32 bits) */
+  artworkHash?: string;
 }
 
 // =============================================================================
@@ -114,6 +131,10 @@ export function parseSyncTag(comment: string | null | undefined): SyncTagData | 
     }
   }
 
+  if (data.art && /^[0-9a-f]{8}$/.test(data.art)) {
+    result.artworkHash = data.art;
+  }
+
   return result;
 }
 
@@ -136,6 +157,10 @@ export function formatSyncTag(data: SyncTagData): string {
 
   if (data.bitrate !== undefined) {
     parts.push(`bitrate=${data.bitrate}`);
+  }
+
+  if (data.artworkHash) {
+    parts.push(`art=${data.artworkHash}`);
   }
 
   return `${TAG_PREFIX}${parts.join(' ')}${TAG_SUFFIX}`;

@@ -40,6 +40,8 @@ export type UpgradeReason =
   | 'preset-downgrade'
   | 'force-transcode'
   | 'artwork-added'
+  | 'artwork-removed'
+  | 'artwork-updated'
   | 'soundcheck-update'
   | 'metadata-correction';
 
@@ -54,6 +56,8 @@ export type UpgradeReason =
  * - format-upgrade: Source is lossless, iPod has lossy (file replacement)
  * - quality-upgrade: Same format family, significantly higher bitrate (file replacement)
  * - artwork-added: Source has artwork, iPod does not (file replacement)
+ * - artwork-removed: Source no longer has artwork but iPod does (metadata-only)
+ * - artwork-updated: Source artwork hash differs from iPod sync tag hash (metadata-only)
  * - soundcheck-update: Source has soundcheck value, iPod lacks or differs (metadata-only)
  * - metadata-correction: Non-matching metadata fields differ (metadata-only)
  */
@@ -421,4 +425,14 @@ export interface PlanOptions {
    * @default false
    */
   deviceSupportsAlac?: boolean;
+
+  /**
+   * Whether artwork transfer is enabled.
+   *
+   * When false, `artwork-updated` upgrade operations are filtered out
+   * since they cannot be executed without artwork transfer.
+   *
+   * @default true
+   */
+  artworkEnabled?: boolean;
 }

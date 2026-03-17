@@ -194,11 +194,15 @@ export { IPOD_ARTWORK_FORMATS, EXTERNAL_ARTWORK_NAMES } from './artwork/types.js
 export type { ExtractArtworkOptions } from './artwork/extractor.js';
 export {
   extractArtwork,
+  selectBestPicture,
   saveArtworkToTemp,
   cleanupTempArtwork,
   cleanupAllTempArtwork,
   extractAndSaveArtwork,
 } from './artwork/extractor.js';
+
+// Artwork hashing (for change detection)
+export { hashArtwork } from './artwork/hash.js';
 
 // Metadata extraction utilities
 export type { FileDisplayMetadata } from './metadata/extractor.js';

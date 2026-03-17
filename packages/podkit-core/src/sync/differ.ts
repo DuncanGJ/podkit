@@ -365,8 +365,14 @@ export function computeDiff(
 
   // Post-processing: write sync tags to lossless-source tracks that are missing
   // or have outdated tags. This is metadata-only — no file replacement.
+  //
+  // When checkArtwork is active (source tracks have artworkHash), this also processes
+  // lossy/copied sources that have artwork but no art= hash in their sync tag.
+  // This establishes the artwork hash baseline so --check-artwork can detect future changes.
+  // The baseline assumes the iPod artwork currently matches the source, which is the
+  // expected state for a freshly synced collection.
   if (options?.forceSyncTags && options?.resolvedQuality) {
-    const expectedTag = buildAudioSyncTag(
+    const baseExpectedTag = buildAudioSyncTag(
       options.resolvedQuality,
       options.encodingMode,
       options.customBitrate
@@ -374,9 +380,41 @@ export function computeDiff(
     const stillExisting: MatchedTrack[] = [];
 
     for (const match of existing) {
-      if (!isSourceLossless(match.collection)) {
+      const sourceLossless = isSourceLossless(match.collection);
+
+      // For lossy (copied) sources, only process when the source has an artwork hash
+      // and the iPod track is missing the art= baseline in its sync tag.
+      // This ensures --force-sync-tags --check-artwork establishes baselines for ALL tracks.
+      if (!sourceLossless) {
+        if (match.collection.artworkHash) {
+          const currentTag = parseSyncTag(match.ipod.comment);
+          if (!currentTag?.artworkHash || currentTag.artworkHash !== match.collection.artworkHash) {
+            // Build a minimal "copy" sync tag with just the artwork hash
+            const copyTag: typeof baseExpectedTag = { quality: 'copy', artworkHash: match.collection.artworkHash };
+            // If there's an existing tag, preserve its fields but update the artwork hash
+            const expectedTag = currentTag
+              ? { ...currentTag, artworkHash: match.collection.artworkHash }
+              : copyTag;
+            toUpdate.push({
+              source: match.collection,
+              ipod: match.ipod,
+              reason: 'sync-tag-write',
+              changes: [{ field: 'comment', from: match.ipod.comment ?? '', to: formatSyncTag(expectedTag) }],
+            });
+            continue;
+          }
+        }
         stillExisting.push(match);
         continue;
+      }
+
+      // Include artwork hash in the expected tag when available (--check-artwork active).
+      // This establishes the baseline by writing the source's artwork hash — it assumes
+      // the iPod artwork currently matches the source, which is the expected state for
+      // a freshly synced collection.
+      const expectedTag = { ...baseExpectedTag };
+      if (match.collection.artworkHash) {
+        expectedTag.artworkHash = match.collection.artworkHash;
       }
 
       // Compare formatted tag strings — rewrite if the text differs,
@@ -450,6 +488,14 @@ function buildUpgradeChanges(
 
       case 'artwork-added':
         // Placeholder for when CollectionTrack gains artwork metadata
+        break;
+
+      case 'artwork-removed':
+        // Artwork removed from source — iPod artwork will be cleared
+        break;
+
+      case 'artwork-updated':
+        // Artwork hash changed — source has different artwork than what's on iPod
         break;
 
       case 'soundcheck-update':

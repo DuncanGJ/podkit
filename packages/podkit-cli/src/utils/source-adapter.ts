@@ -21,6 +21,8 @@ export interface CreateMusicAdapterOptions {
   onProgress?: (progress: ScanProgress) => void;
   /** Callback for scan warnings (directory adapter only) */
   onWarning?: (warning: ScanWarning) => void;
+  /** When true, compute artwork hashes for change detection */
+  checkArtwork?: boolean;
 }
 
 /**
@@ -85,11 +87,11 @@ export function isSubsonicUrl(source: string): boolean {
  * @throws Error if Subsonic credentials are missing
  */
 export function createMusicAdapter(options: CreateMusicAdapterOptions): core.CollectionAdapter {
-  const { config, name, onProgress, onWarning } = options;
+  const { config, name, onProgress, onWarning, checkArtwork } = options;
   const collectionType = config.type ?? 'directory';
 
   if (collectionType === 'subsonic') {
-    return createSubsonicAdapterFromConfig(config, name);
+    return createSubsonicAdapterFromConfig(config, name, checkArtwork);
   }
 
   // Default: directory adapter
@@ -97,6 +99,7 @@ export function createMusicAdapter(options: CreateMusicAdapterOptions): core.Col
     path: config.path,
     onProgress,
     onWarning,
+    checkArtwork,
   });
 }
 
@@ -112,7 +115,8 @@ export function createMusicAdapter(options: CreateMusicAdapterOptions): core.Col
  */
 function createSubsonicAdapterFromConfig(
   config: MusicCollectionConfig,
-  collectionName: string
+  collectionName: string,
+  checkArtwork?: boolean
 ): core.SubsonicAdapter {
   if (!config.url) {
     throw new Error(`Subsonic collection '${collectionName}' requires 'url' in config`);
@@ -137,6 +141,7 @@ function createSubsonicAdapterFromConfig(
     url: config.url,
     username: config.username,
     password,
+    checkArtwork,
   });
 }
 

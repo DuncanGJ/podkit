@@ -15,6 +15,7 @@ import type {
 } from './interface.js';
 import type { TrackFilter, AudioFileType } from '../types.js';
 import { replayGainToSoundcheck } from '../sync/soundcheck.js';
+import { hashArtwork } from '../artwork/hash.js';
 
 /**
  * Configuration for SubsonicAdapter
@@ -26,6 +27,8 @@ export interface SubsonicAdapterConfig {
   username: string;
   /** Password for authentication */
   password: string;
+  /** When true, compute artwork hashes for change detection (--check-artwork) */
+  checkArtwork?: boolean;
 }
 
 /**
@@ -116,9 +119,12 @@ export class SubsonicAdapter implements CollectionAdapter {
   private config: SubsonicAdapterConfig;
   private tracks: CollectionTrack[] | null = null;
   private connected = false;
+  private checkArtwork: boolean;
+  private artworkHashCache = new Map<string, string>();
 
   constructor(config: SubsonicAdapterConfig) {
     this.config = config;
+    this.checkArtwork = config.checkArtwork ?? false;
     this.api = new SubsonicAPI({
       url: config.url,
       auth: {
@@ -184,7 +190,7 @@ export class SubsonicAdapter implements CollectionAdapter {
 
           if (fullAlbum?.song) {
             for (const song of fullAlbum.song) {
-              const track = this.mapSongToTrack(song, fullAlbum);
+              const track = await this.mapSongToTrack(song, fullAlbum);
               this.tracks.push(track);
             }
           }
@@ -238,6 +244,7 @@ export class SubsonicAdapter implements CollectionAdapter {
   async disconnect(): Promise<void> {
     this.tracks = null;
     this.connected = false;
+    this.artworkHashCache.clear();
   }
 
   /**
@@ -248,12 +255,56 @@ export class SubsonicAdapter implements CollectionAdapter {
   }
 
   /**
+   * Fetch and hash artwork from the Subsonic server for a given coverArt ID.
+   *
+   * Caches results by coverArt ID to avoid redundant downloads
+   * (multiple tracks on the same album share the same cover art).
+   *
+   * @returns Artwork hash (8-char hex), or undefined on error
+   */
+  private async fetchArtworkHash(coverArtId: string): Promise<string | undefined> {
+    // Check cache first (many tracks share the same album cover)
+    const cached = this.artworkHashCache.get(coverArtId);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    try {
+      // Fetch full-size cover art (no size param = original resolution)
+      const response = await this.api.getCoverArt({ id: coverArtId });
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const hash = hashArtwork(buffer);
+      this.artworkHashCache.set(coverArtId, hash);
+      return hash;
+    } catch {
+      // Non-fatal: artwork hash is optional
+      return undefined;
+    }
+  }
+
+  /**
    * Map a Subsonic song (Child) to a CollectionTrack
    */
-  private mapSongToTrack(song: Child, album: AlbumWithSongsID3): CollectionTrack {
+  private async mapSongToTrack(song: Child, album: AlbumWithSongsID3): Promise<CollectionTrack> {
     const fileType = suffixToFileType(song.suffix);
     const codec = getCodec(song.suffix, song.contentType);
     const lossless = isLosslessSuffix(song.suffix);
+
+    // The Subsonic API's coverArt field is an opaque ID that Navidrome always populates,
+    // even for tracks/albums without actual artwork. We cannot reliably determine artwork
+    // presence from coverArt alone — set hasArtwork to undefined (unknown) to avoid
+    // false artwork-added detections. Artwork is still transferred when available during
+    // sync via extractArtwork() on the downloaded file.
+    // See TASK-141 for planned sidecar artwork support.
+    const hasArtwork = undefined;
+
+    // Compute artwork hash when check-artwork is enabled and coverArt ID is present.
+    // fetchArtworkHash returns undefined if getCoverArt fails (no actual artwork).
+    let artworkHash: string | undefined;
+    if (this.checkArtwork && song.coverArt) {
+      artworkHash = await this.fetchArtworkHash(song.coverArt);
+    }
 
     return {
       // Use Subsonic ID as track ID
@@ -284,9 +335,9 @@ export class SubsonicAdapter implements CollectionAdapter {
       lossless,
       bitrate: song.bitRate,
 
-      // Artwork: coverArt is the server-side cover art ID for this song.
-      // Its presence (non-empty string) means the server has artwork for this track.
-      hasArtwork: song.coverArt !== undefined && song.coverArt !== '',
+      // Artwork
+      hasArtwork,
+      artworkHash,
 
       // MusicBrainz IDs if available
       musicBrainzRecordingId: song.musicBrainzId,

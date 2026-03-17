@@ -11,6 +11,8 @@ import { extname, basename, resolve } from 'node:path';
 import type { CollectionAdapter, CollectionTrack, FileAccess } from './interface.js';
 import type { AudioFileType, TrackFilter } from '../types.js';
 import { extractSoundcheck } from '../sync/soundcheck.js';
+import { selectBestPicture } from '../artwork/extractor.js';
+import { hashArtwork } from '../artwork/hash.js';
 
 /**
  * Warning emitted during directory scanning
@@ -34,6 +36,8 @@ export interface DirectoryAdapterConfig {
   onProgress?: (progress: ScanProgress) => void;
   /** Warning callback for non-fatal issues during scanning */
   onWarning?: (warning: ScanWarning) => void;
+  /** When true, compute artwork hashes for change detection (--check-artwork) */
+  checkArtwork?: boolean;
 }
 
 /**
@@ -122,6 +126,7 @@ export class DirectoryAdapter implements CollectionAdapter {
   private extensions: string[];
   private onProgress?: (progress: ScanProgress) => void;
   private onWarning?: (warning: ScanWarning) => void;
+  private checkArtwork: boolean;
   private cache: CollectionTrack[] = [];
   private connected = false;
 
@@ -130,6 +135,7 @@ export class DirectoryAdapter implements CollectionAdapter {
     this.extensions = config.extensions ?? DEFAULT_EXTENSIONS;
     this.onProgress = config.onProgress;
     this.onWarning = config.onWarning;
+    this.checkArtwork = config.checkArtwork ?? false;
   }
 
   /**
@@ -241,7 +247,15 @@ export class DirectoryAdapter implements CollectionAdapter {
     // Detect artwork presence from embedded pictures.
     // common.picture is populated by music-metadata when skipCovers: false.
     // We only need to know whether artwork exists (boolean), not the actual bytes.
-    const hasArtwork = (common.picture?.length ?? 0) > 0;
+    const pictures = common.picture;
+    const hasArtwork = (pictures?.length ?? 0) > 0;
+
+    // Compute artwork hash for change detection (when --check-artwork is enabled)
+    let artworkHash: string | undefined;
+    if (this.checkArtwork && pictures && pictures.length > 0) {
+      const bestPicture = selectBestPicture(pictures);
+      artworkHash = hashArtwork(bestPicture.data);
+    }
 
     // Volume normalization
     const scResult = extractSoundcheck(metadata);
@@ -276,6 +290,7 @@ export class DirectoryAdapter implements CollectionAdapter {
 
       // Artwork
       hasArtwork,
+      artworkHash,
 
       // Volume normalization
       soundcheck: scResult?.value,

@@ -5,7 +5,7 @@
  * of track tables, JSON, and CSV exports.
  */
 
-import type { SoundCheckSource } from '@podkit/core';
+import type { SoundCheckSource, SyncTagData } from '@podkit/core';
 
 // =============================================================================
 // Types and Constants
@@ -32,7 +32,8 @@ export interface DisplayTrack {
   bitrate?: number;
   soundcheck?: number;
   soundcheckSource?: SoundCheckSource;
-  syncTag?: boolean;
+  syncTag?: SyncTagData | null;
+  hasArtwork?: boolean;
 }
 
 /**
@@ -55,6 +56,9 @@ export const AVAILABLE_FIELDS = [
   'bitrate',
   'soundcheck',
   'syncTag',
+  'syncTagQuality',
+  'syncTagEncoding',
+  'syncTagArtwork',
 ] as const;
 
 export type FieldName = (typeof AVAILABLE_FIELDS)[number];
@@ -84,6 +88,9 @@ export const FIELD_HEADERS: Record<FieldName, string> = {
   bitrate: 'Bitrate',
   soundcheck: 'SndChk',
   syncTag: 'Sync',
+  syncTagQuality: 'SyncQ',
+  syncTagEncoding: 'SyncEnc',
+  syncTagArtwork: 'SyncArt',
 };
 
 /**
@@ -105,7 +112,10 @@ export const DEFAULT_COLUMN_WIDTHS: Record<FieldName, number> = {
   format: 8,
   bitrate: 7,
   soundcheck: 10,
-  syncTag: 4,
+  syncTag: 7,
+  syncTagQuality: 10,
+  syncTagEncoding: 7,
+  syncTagArtwork: 7,
 };
 
 // =============================================================================
@@ -196,7 +206,21 @@ export function getFieldValue(track: DisplayTrack, field: FieldName): string {
     case 'soundcheck':
       return track.soundcheck ? `${track.soundcheck}` : '';
     case 'syncTag':
-      return track.syncTag === true ? '\u2713' : track.syncTag === false ? '\u2717' : '-';
+      if (track.syncTag === undefined) return '-';
+      if (track.syncTag === null) return '\u2717';
+      // Complete if has artworkHash, OR if track has no artwork (nothing to hash)
+      if (track.syncTag.artworkHash || track.hasArtwork === false) return '\u2713';
+      return '\u25D0 -art';
+    case 'syncTagQuality':
+      return track.syncTag ? track.syncTag.quality : '-';
+    case 'syncTagEncoding':
+      return track.syncTag?.encoding ?? '-';
+    case 'syncTagArtwork':
+      if (track.syncTag === undefined) return '-';
+      if (track.syncTag === null) return '-';
+      if (track.syncTag.artworkHash) return '\u2713';
+      if (track.hasArtwork === false) return '-'; // no artwork to hash
+      return '\u2717'; // has artwork but no hash
     default:
       return '';
   }
@@ -304,11 +328,19 @@ export function formatTable(tracks: DisplayTrack[], fields: FieldName[]): string
  */
 export function formatJson(tracks: DisplayTrack[], fields: FieldName[]): string {
   const output = tracks.map((track) => {
-    const obj: Record<string, string | number | boolean | undefined> = {};
+    const obj: Record<string, string | number | boolean | SyncTagData | null | undefined> = {};
     for (const field of fields) {
       if (field === 'duration') {
         obj['duration'] = track.duration;
         obj['durationFormatted'] = formatDuration(track.duration);
+      } else if (field === 'syncTag') {
+        obj['syncTag'] = track.syncTag ?? null;
+      } else if (field === 'syncTagQuality') {
+        obj['syncTagQuality'] = track.syncTag ? track.syncTag.quality : null;
+      } else if (field === 'syncTagEncoding') {
+        obj['syncTagEncoding'] = track.syncTag?.encoding ?? null;
+      } else if (field === 'syncTagArtwork') {
+        obj['syncTagArtwork'] = track.syncTag?.artworkHash ?? null;
       } else {
         obj[field] = track[field as keyof DisplayTrack] as string | number | boolean | undefined;
       }
@@ -362,6 +394,8 @@ export interface ContentStats {
   compilationTracks: number;
   soundCheckTracks: number;
   syncTagTracks: number;
+  syncTagComplete: number;
+  syncTagMissingArt: number;
   soundCheckSources?: Partial<Record<SoundCheckSource, number>>;
   fileTypes: Record<string, number>;
 }
@@ -378,6 +412,8 @@ export function computeStats(tracks: DisplayTrack[]): ContentStats {
   let compilationTracks = 0;
   let soundCheckTracks = 0;
   let syncTagTracks = 0;
+  let syncTagComplete = 0;
+  let syncTagMissingArt = 0;
 
   for (const track of tracks) {
     const album = track.album || 'Unknown Album';
@@ -390,8 +426,15 @@ export function computeStats(tracks: DisplayTrack[]): ContentStats {
       compilationAlbumSet.add(album);
     }
 
-    if (track.syncTag === true) {
+    if (track.syncTag) {
       syncTagTracks++;
+      if (track.syncTag.artworkHash) {
+        syncTagComplete++;
+      } else if (track.hasArtwork === true) {
+        syncTagMissingArt++; // only missing if track actually has artwork
+      } else {
+        syncTagComplete++; // no artwork = nothing to hash = complete
+      }
     }
 
     if (track.soundcheck !== undefined && track.soundcheck > 0) {
@@ -414,6 +457,8 @@ export function computeStats(tracks: DisplayTrack[]): ContentStats {
     compilationAlbums: compilationAlbumSet.size,
     compilationTracks,
     syncTagTracks,
+    syncTagComplete,
+    syncTagMissingArt,
     soundCheckTracks,
     soundCheckSources:
       Object.keys(soundCheckSources).length > 0
@@ -481,9 +526,17 @@ export function formatStatsText(
   }
 
   if (stats.syncTagTracks > 0) {
-    const stTracks = formatNumber(stats.syncTagTracks);
-    const pct = Math.floor((stats.syncTagTracks / stats.tracks) * 100);
-    lines.push(`  Sync Tags: ${stTracks} (${pct}%)`);
+    const noTag = stats.tracks - stats.syncTagTracks;
+    lines.push(`  Sync Tags:    ${formatNumber(stats.syncTagTracks)} of ${formatNumber(stats.tracks)} tracks`);
+    if (stats.syncTagComplete > 0) {
+      lines.push(`    \u2713 Consistent: ${formatNumber(stats.syncTagComplete)}`);
+    }
+    if (stats.syncTagMissingArt > 0) {
+      lines.push(`    \u25D0 Missing artwork hash: ${formatNumber(stats.syncTagMissingArt)}`);
+    }
+    if (noTag > 0) {
+      lines.push(`    \u2717 No sync tag: ${formatNumber(noTag)}`);
+    }
   }
 
   if (stats.soundCheckTracks > 0) {

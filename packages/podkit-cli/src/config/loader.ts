@@ -152,6 +152,10 @@ export function loadConfigFile(configPath: string): PartialConfig | undefined {
     config.tips = parsed.tips;
   }
 
+  if (typeof parsed.checkArtwork === 'boolean') {
+    config.checkArtwork = parsed.checkArtwork;
+  }
+
   if (typeof parsed.skipUpgrades === 'boolean') {
     config.skipUpgrades = parsed.skipUpgrades;
   }
@@ -529,6 +533,17 @@ function parseDevices(
       device.artwork = rawDevice.artwork;
     }
 
+    // Parse optional checkArtwork
+    if (rawDevice.checkArtwork !== undefined) {
+      if (typeof rawDevice.checkArtwork !== 'boolean') {
+        throw new Error(
+          `Invalid type for "checkArtwork" in [devices.${name}]. ` +
+            `Expected boolean, got ${typeof rawDevice.checkArtwork}.`
+        );
+      }
+      device.checkArtwork = rawDevice.checkArtwork;
+    }
+
     // Parse optional skipUpgrades
     if (rawDevice.skipUpgrades !== undefined) {
       if (typeof rawDevice.skipUpgrades !== 'boolean') {
@@ -705,6 +720,16 @@ export function loadEnvConfig(): PartialConfig {
     config.forceSyncTags = parseBoolEnv(forceSyncTags);
   }
 
+  const checkArtwork = process.env[ENV_KEYS.checkArtwork];
+  if (checkArtwork !== undefined) {
+    config.checkArtwork = parseBoolEnv(checkArtwork);
+  }
+
+  const skipUpgrades = process.env[ENV_KEYS.skipUpgrades];
+  if (skipUpgrades !== undefined) {
+    config.skipUpgrades = parseBoolEnv(skipUpgrades);
+  }
+
   const artwork = process.env[ENV_KEYS.artwork];
   if (artwork !== undefined) {
     config.artwork = parseBoolEnv(artwork);
@@ -849,6 +874,9 @@ export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
     }
     if (config.tips !== undefined) {
       merged.tips = config.tips;
+    }
+    if (config.checkArtwork !== undefined) {
+      merged.checkArtwork = config.checkArtwork;
     }
     if (config.skipUpgrades !== undefined) {
       merged.skipUpgrades = config.skipUpgrades;

@@ -17,6 +17,7 @@ function makeConfig(overrides: Partial<PodkitConfig> = {}): PodkitConfig {
   return {
     quality: 'high',
     artwork: true,
+    tips: true,
     transforms: DEFAULT_TRANSFORMS_CONFIG,
     ...overrides,
   };

@@ -2126,3 +2126,192 @@ describe('sync tag detection', () => {
     expect(diff.toUpdate).toHaveLength(0);
   });
 });
+
+// =============================================================================
+// forceSyncTags Detection
+// =============================================================================
+
+describe('forceSyncTags', () => {
+  it('writes sync tag for lossless sources missing a tag', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'flac',
+      lossless: true,
+    });
+    // iPod track has no comment (no sync tag)
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      bitrate: 256,
+      filetype: 'AAC audio file',
+    });
+
+    const diff = computeDiff([source], [ipod], {
+      transcodingActive: true,
+      presetBitrate: 256,
+      encodingMode: 'vbr',
+      resolvedQuality: 'high',
+      forceSyncTags: true,
+    });
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('sync-tag-write');
+    // The expected comment should contain the sync tag
+    const commentChange = diff.toUpdate[0]!.changes.find((c) => c.field === 'comment');
+    expect(commentChange).toBeDefined();
+    expect(commentChange!.to).toContain('quality=high');
+    expect(commentChange!.to).toContain('encoding=vbr');
+    expect(diff.existing).toHaveLength(0);
+  });
+
+  it('writes sync tag for lossless sources with outdated tag', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'flac',
+      lossless: true,
+    });
+    // iPod track has an old sync tag with different quality
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      bitrate: 256,
+      filetype: 'AAC audio file',
+      comment: '[podkit:v1 quality=low encoding=vbr]',
+    });
+
+    const diff = computeDiff([source], [ipod], {
+      transcodingActive: true,
+      presetBitrate: 256,
+      encodingMode: 'vbr',
+      resolvedQuality: 'high',
+      forceSyncTags: true,
+    });
+
+    // Since the sync tag doesn't match the expected config, it triggers
+    // a preset change detection (preset-upgrade) during the shouldCheckPreset
+    // pass BEFORE forceSyncTags runs. The upgrade detection takes priority.
+    expect(diff.toUpdate).toHaveLength(1);
+  });
+
+  it('keeps lossless source in existing when sync tag already matches', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'flac',
+      lossless: true,
+    });
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      bitrate: 256,
+      filetype: 'AAC audio file',
+      comment: '[podkit:v1 quality=high encoding=vbr]',
+    });
+
+    const diff = computeDiff([source], [ipod], {
+      transcodingActive: true,
+      presetBitrate: 256,
+      encodingMode: 'vbr',
+      resolvedQuality: 'high',
+      forceSyncTags: true,
+    });
+
+    // Tag already matches — no update needed
+    expect(diff.existing).toHaveLength(1);
+    expect(diff.toUpdate).toHaveLength(0);
+  });
+
+  it('skips lossy sources when forceSyncTags is active', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'mp3',
+      lossless: false,
+    });
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      bitrate: 192,
+      filetype: 'MPEG audio file',
+    });
+
+    const diff = computeDiff([source], [ipod], {
+      transcodingActive: true,
+      presetBitrate: 256,
+      encodingMode: 'vbr',
+      resolvedQuality: 'high',
+      forceSyncTags: true,
+    });
+
+    // Lossy sources are copied as-is — no sync tag written
+    expect(diff.existing).toHaveLength(1);
+    expect(diff.toUpdate).toHaveLength(0);
+  });
+
+  it('includes custom bitrate in expected sync tag', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'flac',
+      lossless: true,
+    });
+    // Track has a tag without custom bitrate — sync tag comparison sees a mismatch
+    // because the expected tag includes bitrate=320 but the iPod tag does not.
+    // The shouldCheckPreset pass detects this first as a preset-upgrade.
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      bitrate: 320,
+      filetype: 'AAC audio file',
+      comment: '[podkit:v1 quality=high encoding=cbr]',
+    });
+
+    const diff = computeDiff([source], [ipod], {
+      transcodingActive: true,
+      presetBitrate: 320,
+      encodingMode: 'cbr',
+      resolvedQuality: 'high',
+      customBitrate: 320,
+      forceSyncTags: true,
+    });
+
+    // The sync tag mismatch (missing bitrate=320) is detected during the
+    // preset change pass, which runs before forceSyncTags. It triggers a
+    // preset-upgrade because the tags don't match exactly.
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('preset-upgrade');
+  });
+
+  it('forceSyncTags writes tag when preset detection does not catch it', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'flac',
+      lossless: true,
+    });
+    // No comment on iPod track, but bitrate is within tolerance so preset
+    // detection does not flag it. forceSyncTags should still write the tag.
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      bitrate: 250, // Within VBR 30% tolerance of 256
+      filetype: 'AAC audio file',
+      // No comment — missing sync tag
+    });
+
+    const diff = computeDiff([source], [ipod], {
+      transcodingActive: true,
+      presetBitrate: 256,
+      encodingMode: 'vbr',
+      resolvedQuality: 'high',
+      forceSyncTags: true,
+    });
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('sync-tag-write');
+    const commentChange = diff.toUpdate[0]!.changes.find((c) => c.field === 'comment');
+    expect(commentChange).toBeDefined();
+    expect(commentChange!.to).toContain('quality=high');
+    expect(commentChange!.to).toContain('encoding=vbr');
+  });
+
+  it('does not activate without resolvedQuality even when forceSyncTags is true', () => {
+    const source = createCollectionTrack('Artist', 'Song', 'Album', {
+      fileType: 'flac',
+      lossless: true,
+    });
+    const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+      bitrate: 256,
+      filetype: 'AAC audio file',
+    });
+
+    const diff = computeDiff([source], [ipod], {
+      transcodingActive: true,
+      presetBitrate: 256,
+      forceSyncTags: true,
+      // resolvedQuality is NOT provided
+    });
+
+    // Without resolvedQuality, forceSyncTags guard condition fails
+    expect(diff.existing).toHaveLength(1);
+    expect(diff.toUpdate).toHaveLength(0);
+  });
+});

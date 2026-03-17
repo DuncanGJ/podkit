@@ -14,6 +14,7 @@ describe('CLI context', () => {
   const mockConfig: PodkitConfig = {
     quality: 'high',
     artwork: true,
+    tips: true,
     transforms: DEFAULT_TRANSFORMS_CONFIG,
     music: {
       main: { path: '/test/music' },
@@ -32,6 +33,7 @@ describe('CLI context', () => {
     quiet: false,
     json: false,
     color: true,
+    tips: true,
     config: '/test/config.toml',
   };
 

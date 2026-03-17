@@ -88,6 +88,42 @@ export function getStorageInfo(
 
 
 /**
+ * Format a terse sync tag consistency summary for device info display.
+ *
+ * Only shows non-zero categories. If all tracks are consistent, shows just a checkmark.
+ * If there are no tracks, returns just "0 tracks".
+ */
+export function formatSyncTagSummary(
+  trackCount: number,
+  complete: number,
+  missingArt: number,
+  noTag: number
+): string {
+  const tracksStr = `${formatNumber(trackCount)} tracks`;
+  if (trackCount === 0) return tracksStr;
+
+  const parts: string[] = [];
+  if (complete > 0) parts.push(`\u2713 ${formatNumber(complete)} consistent`);
+  if (missingArt > 0) parts.push(`\u25D0 ${formatNumber(missingArt)} missing artwork hash`);
+  if (noTag > 0) parts.push(`\u2717 ${formatNumber(noTag)} no sync tag`);
+
+  // No sync tag data at all
+  if (parts.length === 0) return tracksStr;
+
+  // All consistent — just show the checkmark after track count
+  if (parts.length === 1 && complete > 0 && complete === trackCount) {
+    return `${tracksStr} \u2713 all consistent`;
+  }
+
+  // All tags, none with art hash (single non-zero category)
+  if (parts.length === 1 && noTag === trackCount) {
+    return `${tracksStr} (\u2717 no sync tags)`;
+  }
+
+  return `${tracksStr} (${parts.join(', ')})`;
+}
+
+/**
  * Format a table row with consistent column widths
  */
 function formatRow(columns: string[], widths: number[]): string {
@@ -230,6 +266,8 @@ export interface DeviceInfoOutput {
     musicCount?: number;
     videoCount?: number;
     syncTagCount?: number;
+    syncTagComplete?: number;
+    syncTagMissingArt?: number;
   };
   error?: string;
 }
@@ -1308,9 +1346,15 @@ const infoSubcommand = new Command('info')
               const storage = getStorageInfo(resolveResult.path);
 
               const tracks = ipod.getTracks();
-              const musicCount = tracks.filter((t) => core.isMusicMediaType(t.mediaType)).length;
+              const musicTracks = tracks.filter((t) => core.isMusicMediaType(t.mediaType));
+              const musicCount = musicTracks.length;
               const videoCount = tracks.filter((t) => core.isVideoMediaType(t.mediaType)).length;
-              const syncTagCount = tracks.filter((t) => parseSyncTag(t.comment) !== null).length;
+              const parsedSyncTags = musicTracks.map((t) => ({ tag: parseSyncTag(t.comment), hasArtwork: t.hasArtwork }));
+              const syncTagCount = parsedSyncTags.filter((t) => t.tag !== null).length;
+              const syncTagComplete = parsedSyncTags.filter(
+                (t) => t.tag !== null && (t.tag.artworkHash || t.hasArtwork === false)
+              ).length;
+              const syncTagMissingArt = syncTagCount - syncTagComplete;
 
               const deviceValidation = validateDevice(info.device, resolveResult.path);
 
@@ -1332,6 +1376,8 @@ const infoSubcommand = new Command('info')
                 musicCount,
                 videoCount,
                 syncTagCount,
+                syncTagComplete,
+                syncTagMissingArt,
               };
 
               if (storage) {
@@ -1441,11 +1487,13 @@ const infoSubcommand = new Command('info')
           }
 
           if (liveStatus.musicCount !== undefined) {
-            const syncSuffix =
-              liveStatus.syncTagCount && liveStatus.syncTagCount > 0
-                ? ` (${formatNumber(liveStatus.syncTagCount)} with sync tags)`
-                : '';
-            out.print(`  Music:         ${formatNumber(liveStatus.musicCount)} tracks${syncSuffix}`);
+            const trackCount = liveStatus.musicCount;
+            const syncTagCount = liveStatus.syncTagCount ?? 0;
+            const complete = liveStatus.syncTagComplete ?? 0;
+            const missingArt = liveStatus.syncTagMissingArt ?? 0;
+            const noTag = trackCount - syncTagCount;
+
+            out.print(`  Music:         ${formatSyncTagSummary(trackCount, complete, missingArt, noTag)}`);
           }
           if (liveStatus.videoCount !== undefined && liveStatus.videoCount > 0) {
             out.print(`  Video:         ${formatNumber(liveStatus.videoCount)} videos`);
@@ -1482,6 +1530,19 @@ const infoSubcommand = new Command('info')
               out.print(`    ${transformName}: ${enabled ? 'enabled' : 'disabled'}${detailStr}`);
             }
           }
+        }
+
+        // Show tips based on sync tag state
+        if (liveStatus?.musicCount !== undefined && liveStatus.musicCount > 0) {
+          const syncTagCount = liveStatus.syncTagCount ?? 0;
+          const missingArt = liveStatus.syncTagMissingArt ?? 0;
+          out.printTips({
+            syncTagInfo: {
+              trackCount: liveStatus.musicCount,
+              syncTagCount,
+              missingArt,
+            },
+          });
         }
       }
     );
@@ -1591,7 +1652,8 @@ const musicSubcommand = new Command('music')
           format: parseFormat(t.filetype),
           bitrate: t.bitrate > 0 ? t.bitrate : undefined,
           soundcheck: t.soundcheck || undefined,
-          syncTag: parseSyncTag(t.comment) !== null,
+          syncTag: parseSyncTag(t.comment),
+          hasArtwork: t.hasArtwork,
         }));
 
         if (mode === 'stats') {
@@ -1632,7 +1694,7 @@ const musicSubcommand = new Command('music')
           if (format === 'json') {
             const fullTracks = musicTracks.map((t) => ({
               ...ipodTrackToFullJson(t),
-              syncTag: parseSyncTag(t.comment) !== null,
+              syncTag: parseSyncTag(t.comment),
             }));
             out.stdout(JSON.stringify(fullTracks, null, 2));
           } else if (format === 'csv') {
@@ -1745,7 +1807,8 @@ const videoSubcommand = new Command('video')
           compilation: t.compilation,
           format: parseFormat(t.filetype),
           bitrate: t.bitrate > 0 ? t.bitrate : undefined,
-          syncTag: parseSyncTag(t.comment) !== null,
+          syncTag: parseSyncTag(t.comment),
+          hasArtwork: t.hasArtwork,
         }));
 
         if (mode === 'stats') {
@@ -1786,7 +1849,7 @@ const videoSubcommand = new Command('video')
           if (format === 'json') {
             const fullTracks = videoTracks.map((t) => ({
               ...ipodTrackToFullJson(t),
-              syncTag: parseSyncTag(t.comment) !== null,
+              syncTag: parseSyncTag(t.comment),
             }));
             out.stdout(JSON.stringify(fullTracks, null, 2));
           } else if (format === 'csv') {

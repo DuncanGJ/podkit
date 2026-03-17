@@ -14,6 +14,7 @@ import type { CollectionTrack } from '../adapters/interface.js';
 import type { EncodingMode } from '../transcode/types.js';
 import type { IPodTrack } from './types.js';
 import type { UpdateReason, UpgradeReason } from './types.js';
+import { parseSyncTag } from './sync-tags.js';
 
 /**
  * Metadata fields to check for correction upgrades.
@@ -213,11 +214,12 @@ export function isQualityUpgrade(source: CollectionTrack, ipod: IPodTrack): bool
  * - `format-upgrade`: source is lossless, iPod has lossy
  * - `quality-upgrade`: same format family, significantly higher bitrate
  * - `artwork-added`: source has artwork (`hasArtwork === true`) and iPod track does not
+ * - `artwork-removed`: source has no artwork (`hasArtwork === false`) but iPod does
  * - `soundcheck-update`: source has soundcheck value, iPod value absent or differs
  * - `metadata-correction`: non-matching metadata fields differ
  *
  * **Reason ordering:** Reasons are pushed in priority order (most significant first):
- * format-upgrade > quality-upgrade > artwork-added > soundcheck-update > metadata-correction.
+ * format-upgrade > quality-upgrade > artwork-added > artwork-removed > artwork-updated > soundcheck-update > metadata-correction.
  * The first reason (`reasons[0]`) is used as the primary/headline reason in `UpdateTrack.reason`,
  * while the full list of changes is available in `UpdateTrack.changes`.
  *
@@ -265,6 +267,22 @@ export function detectUpgrades(source: CollectionTrack, ipod: IPodTrack): Upgrad
   // so adapters that don't populate the field never produce false positives.
   if (source.hasArtwork === true && ipod.hasArtwork === false) {
     reasons.push('artwork-added');
+  }
+
+  // Artwork removed: source no longer has artwork but iPod does.
+  // This is a metadata-only operation — removes artwork from iPod track.
+  if (source.hasArtwork === false && ipod.hasArtwork === true) {
+    reasons.push('artwork-removed');
+  }
+
+  // Artwork updated: source artwork hash differs from the hash stored in the iPod's sync tag.
+  // Only check when source.artworkHash is defined (adapter had --check-artwork enabled)
+  // and the iPod track has artwork (not trying to compare when iPod has no artwork).
+  if (source.artworkHash && ipod.hasArtwork !== false) {
+    const syncTag = parseSyncTag(ipod.comment);
+    if (syncTag?.artworkHash && syncTag.artworkHash !== source.artworkHash) {
+      reasons.push('artwork-updated');
+    }
   }
 
   // Sound Check update: source has soundcheck, iPod value is absent or differs
@@ -343,9 +361,14 @@ export function isEmpty(value: unknown): boolean {
  * - artwork-added: file with embedded artwork
  *
  * Metadata-only reasons update the iPod database without file transfer:
+ * - artwork-updated: artwork bytes changed but track audio is the same (re-extract artwork only)
  * - soundcheck-update: volume normalization value
  * - metadata-correction: genre, year, track number, etc.
  * - transform-apply / transform-remove / metadata-changed: metadata-only changes
+ *
+ * Note: `artwork-updated` is NOT a file replacement upgrade. The audio file on the iPod
+ * is unchanged — only the artwork needs re-extraction from the source and re-transfer.
+ * The executor handles this as a metadata-like operation that also updates artwork bytes.
  */
 export function isFileReplacementUpgrade(reason: UpdateReason): boolean {
   return (

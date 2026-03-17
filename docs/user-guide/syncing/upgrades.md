@@ -23,11 +23,13 @@ podkit recognizes several types of improvements:
 | **Quality upgrade** | 128 kbps re-ripped at 320 kbps | New file transcoded and copied to iPod |
 | **Preset upgrade** | Quality preset changed from low to high | Re-transcoded at new (higher) bitrate |
 | **Preset downgrade** | Quality preset changed from high to low | Re-transcoded at new (lower) bitrate |
-| **Artwork added** | Artwork embedded into previously bare files | New file copied with artwork |
+| **Artwork added** | Artwork embedded into previously bare files (directory sources only) | New file copied with artwork |
+| **Artwork updated** | Album artwork changed in source (requires `--check-artwork`) | Metadata updated (no file transfer) |
+| **Artwork removed** | Artwork removed from source files (directory sources only) | Artwork removed from iPod |
 | **Sound Check update** | ReplayGain tags added to collection | Metadata updated (no file transfer) |
 | **Metadata correction** | Genre, year, or track numbers fixed | Metadata updated (no file transfer) |
 
-File-replacement upgrades (format, quality, preset, artwork) require transferring a new audio file to the iPod. Metadata-only updates (Sound Check, metadata corrections) are instant since they only touch the iPod database.
+File-replacement upgrades (format, quality, preset, artwork added) require transferring a new audio file to the iPod. Metadata-only updates (artwork updated, artwork removed, Sound Check, metadata corrections) are instant since they only touch the iPod database.
 
 ## Preserved User Data
 
@@ -90,6 +92,48 @@ This re-transcodes all lossless-source tracks while preserving play counts, rati
 
 Like other file-replacement upgrades, preset changes are suppressed by `--skip-upgrades`.
 
+## Artwork Change Detection
+
+By default, podkit detects when artwork is **added** to a previously bare track — but not when existing artwork is **replaced** with a different image. To detect changed artwork, use the `--check-artwork` flag:
+
+```bash
+podkit sync --check-artwork
+```
+
+When enabled, podkit stores a fingerprint of each track's artwork during sync. On subsequent syncs, it compares the current source artwork against the stored fingerprint and upgrades the artwork if it has changed. This is a metadata-only operation — the audio file is not re-transferred.
+
+You can also enable this via the `PODKIT_CHECK_ARTWORK` environment variable or the `checkArtwork` config option.
+
+### Establishing a Baseline
+
+If you enable `--check-artwork` on a device that has already been synced, existing tracks won't have artwork fingerprints yet. To establish a baseline without re-syncing all your audio files, combine it with `--force-sync-tags`:
+
+```bash
+podkit sync --check-artwork --force-sync-tags
+```
+
+This writes artwork fingerprints for all existing tracks so that future changes can be detected.
+
+### Performance
+
+For directory sources, artwork change detection adds minimal overhead — artwork bytes are already read during scanning, and hashing adds only microseconds per track.
+
+For Subsonic sources, enabling `--check-artwork` adds one HTTP request per unique album artwork during the scan phase. On large libraries this can slow down scanning significantly. Artwork is cached by cover art ID, so albums sharing the same artwork only require one request, but the total number of requests still scales with the number of distinct album covers.
+
+For this reason, consider using `--check-artwork` as an occasional manual check rather than enabling it permanently — especially with Subsonic sources. The `checkArtwork` config option exists for users who want it always-on, but the CLI flag is a better fit for most workflows.
+
+### Subsonic Limitations
+
+Artwork **change** detection (`--check-artwork`) works with both directory and Subsonic sources. However, artwork **added** and **removed** detection currently only works with directory sources.
+
+The Subsonic API does not reliably indicate whether a track has artwork — servers like Navidrome always populate the `coverArt` field regardless of whether actual artwork exists. To avoid false positives, podkit treats artwork presence as unknown for Subsonic tracks. This means:
+
+- **Artwork updated**: Detected with `--check-artwork` (compares fingerprints)
+- **Artwork added**: Not detected (requires reliable artwork presence information)
+- **Artwork removed**: Not detected (same reason)
+
+Artwork is still transferred during initial sync when embedded in the source files. This limitation only affects the self-healing upgrade detection between syncs.
+
 ### Sync Tags
 
 Sync tags are metadata stored in the iPod track's comment field that record exactly what transcode settings produced each file. They look like this:
@@ -99,6 +143,12 @@ Sync tags are metadata stored in the iPod track's comment field that record exac
 ```
 
 When a sync tag is present, podkit uses exact comparison instead of bitrate tolerance to detect preset changes. This eliminates all false positives from VBR bitrate variance and reliably detects any change in quality, encoding mode, or custom bitrate.
+
+#### Sync Tag Consistency
+
+A sync tag is "consistent" when it accurately reflects the track's actual state on the iPod — the correct quality preset, encoding mode, and artwork hash. Inconsistencies can arise from missing tags (tracks synced before sync tags existed), missing artwork hashes, or stale values after manual changes.
+
+Consistency is maintained progressively: every sync writes tags to newly transcoded tracks and updates tags on upgraded tracks. You can check the current consistency breakdown with `podkit device music`, which shows how many tracks are fully consistent, missing artwork hashes, or missing sync tags entirely. To bring all tracks into consistency at once, use `--force-sync-tags`.
 
 **Gradual rollout:** Sync tags are written automatically to all newly transcoded tracks. Existing tracks on your iPod (synced before sync tags were introduced) will continue using bitrate-based detection until they are re-transcoded.
 
@@ -113,6 +163,8 @@ This writes sync tags to all matched lossless-source tracks on the iPod. Future 
 ```bash
 podkit sync --force-sync-tags --dry-run
 ```
+
+Copied lossy tracks (MP3, AAC) that are not transcoded may also receive a minimal sync tag with `quality=copy` when artwork hashes are written. This records the artwork baseline without implying any transcoding took place.
 
 Sync tags coexist with any existing text in the comment field — they don't overwrite user comments.
 
@@ -132,6 +184,7 @@ Sync plan:
     Format upgrade:     8  (MP3 → FLAC)
     Preset upgrade:     2  (quality preset changed)
     Artwork added:      1
+    Artwork updated:    1
     Sound Check update: 1
   Unchanged: 1,397 tracks
 ```

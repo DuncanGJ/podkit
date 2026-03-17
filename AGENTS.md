@@ -16,7 +16,8 @@ packages/
 ├── gpod-testing/    # Test utilities for iPod environments (no hardware needed)
 ├── libgpod-node/    # Native Node.js bindings for libgpod (C library)
 ├── podkit-core/     # Core sync logic, adapters, transcoding
-└── podkit-cli/      # Command-line interface
+├── podkit-cli/      # Command-line interface
+└── test-fixtures/   # Test fixture generator (FLAC files with controllable metadata/artwork)
 
 tools/
 ├── gpod-tool/       # C CLI for iPod database operations
@@ -237,7 +238,8 @@ These decisions are documented in ADRs — read the full ADR for context:
 | Collection sources | Adapter pattern | [ADR-004](adr/adr-004-collection-sources.md) |
 | Test environments | gpod-tool + temp directories | [ADR-005](adr/adr-005-test-ipod-environment.md) |
 | Video transcoding | FFmpeg with H.264/M4V output | [ADR-006](adr/adr-006-video-transcoding.md) |
-| Sync prefetch pipeline | Three-stage pipeline for remote sources | [ADR-011](adr/adr-011-prefetch-pipeline.md) |
+| Self-healing sync | Detect and upgrade changed source files | [ADR-009](adr/adr-009-self-healing-sync.md) |
+| Artwork change detection | Hash-based artwork diffing with opt-in scanning | [ADR-012](adr/adr-012-artwork-change-detection.md) |
 
 ## Testing
 
@@ -289,6 +291,21 @@ See [packages/gpod-testing/README.md](packages/gpod-testing/README.md) for full 
 ### Test Audio Fixtures
 
 Pre-built FLAC files with metadata and artwork are available in `test/fixtures/audio/` for integration tests. See [test/fixtures/audio/README.md](test/fixtures/audio/README.md) for details.
+
+### Test Fixture Generator
+
+The `@podkit/test-fixtures` package generates FLAC files with controllable metadata and artwork for manual testing:
+
+```bash
+bun run generate-fixtures                    # Default: 3 FLAC tracks with blue artwork
+bun run generate-fixtures --artwork red      # Regenerate with red artwork
+bun run generate-fixtures --artwork          # Random different artwork color
+bun run generate-fixtures --tracks 5         # Generate 5 tracks
+bun run generate-fixtures --format mp3       # Convert to MP3
+bun run generate-fixtures --replaygain -3.5  # Set specific ReplayGain value
+```
+
+Output goes to `test/manual-collection/` (gitignored). Without flags, output is deterministic and turbo-cached. Each variance flag (`--artwork`, `--format`, `--replaygain`) picks a random different value if no specific value is given. Requires FFmpeg and metaflac.
 
 ### Writing E2E Tests
 
@@ -482,3 +499,4 @@ Key files to understand:
 | gpod-tool CLI | `tools/gpod-tool/gpod-tool.c` |
 | Demo build | `packages/demo/build.ts` |
 | Demo tape | `packages/demo/demo.tape` |
+| Test fixture generator | `packages/test-fixtures/src/index.ts` |

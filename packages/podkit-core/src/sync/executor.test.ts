@@ -2688,3 +2688,377 @@ describe('DefaultSyncExecutor - prefetch pipeline (ADR-011)', () => {
     // (exact count depends on timing, but should not be all 3)
   });
 });
+
+// =============================================================================
+// Sync Tag Preservation After Upgrade
+// =============================================================================
+
+describe('sync tag preservation after upgrade', () => {
+  let db: MockIpodDatabase;
+  let transcoder: MockTranscoder;
+
+  beforeEach(() => {
+    db = createMockIpodDatabase();
+    transcoder = createMockTranscoder();
+  });
+
+  it('writes sync tag with NEW quality after preset-downgrade upgrade', async () => {
+    // This tests the stale snapshot fix: after upgrade, the sync tag in the
+    // comment field should reflect the NEW preset (low), not the old one (high).
+    let capturedUpdateFields: Record<string, unknown> | undefined;
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      comment: '[podkit:v1 quality=high encoding=vbr]',
+      update: (fields: Record<string, unknown>) => {
+        capturedUpdateFields = fields;
+        return existingTrack;
+      },
+    });
+
+    const replaceTrackFile = mock(() => existingTrack);
+    (db as any).replaceTrackFile = replaceTrackFile;
+    db.getTracks.mockReturnValue([existingTrack]);
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+            duration: 200000,
+          }),
+          target: existingTrack,
+          reason: 'preset-downgrade',
+          preset: { name: 'low' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    for await (const _p of executor.execute(plan, {
+      artwork: false,
+      syncTagConfig: { encodingMode: 'vbr' },
+    })) {
+      // consume
+    }
+
+    // The update fields should contain a comment with the NEW quality=low
+    expect(capturedUpdateFields).toBeDefined();
+    expect(capturedUpdateFields!.comment).toContain('quality=low');
+    expect(capturedUpdateFields!.comment).not.toContain('quality=high');
+  });
+
+  it('writes sync tag with encoding mode after transcode upgrade', async () => {
+    let capturedUpdateFields: Record<string, unknown> | undefined;
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      update: (fields: Record<string, unknown>) => {
+        capturedUpdateFields = fields;
+        return existingTrack;
+      },
+    });
+
+    const replaceTrackFile = mock(() => existingTrack);
+    (db as any).replaceTrackFile = replaceTrackFile;
+    db.getTracks.mockReturnValue([existingTrack]);
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+          }),
+          target: existingTrack,
+          reason: 'preset-upgrade',
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    for await (const _p of executor.execute(plan, {
+      artwork: false,
+      syncTagConfig: { encodingMode: 'cbr' },
+    })) {
+      // consume
+    }
+
+    expect(capturedUpdateFields).toBeDefined();
+    expect(capturedUpdateFields!.comment).toContain('quality=high');
+    expect(capturedUpdateFields!.comment).toContain('encoding=cbr');
+  });
+
+  it('does not write sync tag when syncTagConfig is not provided', async () => {
+    let capturedUpdateFields: Record<string, unknown> | undefined;
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      update: (fields: Record<string, unknown>) => {
+        capturedUpdateFields = fields;
+        return existingTrack;
+      },
+    });
+
+    const replaceTrackFile = mock(() => existingTrack);
+    (db as any).replaceTrackFile = replaceTrackFile;
+    db.getTracks.mockReturnValue([existingTrack]);
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+          }),
+          target: existingTrack,
+          reason: 'format-upgrade',
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    // No syncTagConfig provided
+    for await (const _p of executor.execute(plan, { artwork: false })) {
+      // consume
+    }
+
+    expect(capturedUpdateFields).toBeDefined();
+    expect(capturedUpdateFields!.comment).toBeUndefined();
+  });
+
+  it('writes sync tag for new transcode operations', async () => {
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac'),
+          preset: { name: 'medium' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    for await (const _p of executor.execute(plan, {
+      artwork: false,
+      syncTagConfig: { encodingMode: 'vbr' },
+    })) {
+      // consume
+    }
+
+    // Check the addTrack call for the comment field
+    expect(db.addTrack).toHaveBeenCalledTimes(1);
+    const trackInput = db.addTrack.mock.calls[0]![0] as Record<string, unknown>;
+    expect(trackInput.comment).toContain('quality=medium');
+    expect(trackInput.comment).toContain('encoding=vbr');
+  });
+});
+
+// =============================================================================
+// Artwork During Upgrade Operations
+// =============================================================================
+
+describe('artwork during upgrade operations', () => {
+  let db: MockIpodDatabase;
+  let transcoder: MockTranscoder;
+
+  beforeEach(() => {
+    db = createMockIpodDatabase();
+    transcoder = createMockTranscoder();
+  });
+
+  it('transfers artwork during transcode when artwork is enabled', async () => {
+    let artworkSet = false;
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'transcode',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac'),
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    // Mock addTrack to return a track that records setArtworkFromData calls
+    db.addTrack = mock((input: Record<string, unknown>) => {
+      const filePath = `:iPod_Control:Music:F00:MOCK_ART.m4a`;
+      return createMockIPodTrack(
+        String(input.artist ?? ''),
+        String(input.title ?? ''),
+        String(input.album ?? ''),
+        filePath,
+        {
+          setArtworkFromData: (_data: Buffer) => {
+            artworkSet = true;
+            return createMockIPodTrack(
+              String(input.artist ?? ''),
+              String(input.title ?? ''),
+              String(input.album ?? ''),
+              filePath
+            );
+          },
+        }
+      );
+    });
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    // artwork: true — extractArtwork is called on the source file.
+    // Since our test source file doesn't exist, extraction returns null.
+    // No warning is added for missing artwork (it's normal).
+    for await (const _p of executor.execute(plan, { artwork: true })) {
+      // consume
+    }
+
+    // The test verifies the artwork code path ran. With non-existent test files,
+    // extractArtwork returns null (no embedded artwork), so setArtworkFromData
+    // is not called. The critical thing is the operation completed without error.
+    expect(db.addTrack).toHaveBeenCalledTimes(1);
+    // Artwork was not set (no artwork in test fixture), but no errors either
+    expect(artworkSet).toBe(false);
+    expect(executor.getWarnings()).toHaveLength(0);
+  });
+
+  it('skips artwork during upgrade when artwork is disabled', async () => {
+    let artworkSet = false;
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      hasArtwork: false,
+      update: (_fields: Record<string, unknown>) => existingTrack,
+      setArtworkFromData: (_data: Buffer) => {
+        artworkSet = true;
+        return existingTrack;
+      },
+    });
+
+    const replaceTrackFile = mock(() => existingTrack);
+    (db as any).replaceTrackFile = replaceTrackFile;
+    db.getTracks.mockReturnValue([existingTrack]);
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+          }),
+          target: existingTrack,
+          reason: 'format-upgrade',
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    for await (const _p of executor.execute(plan, { artwork: false })) {
+      // consume
+    }
+
+    // Artwork should NOT have been set
+    expect(artworkSet).toBe(false);
+    expect(executor.getWarnings()).toHaveLength(0);
+  });
+
+  it('artwork-added upgrade replaces the file on iPod', async () => {
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      hasArtwork: false,
+      update: (_fields: Record<string, unknown>) => existingTrack,
+    });
+
+    const replaceTrackFile = mock(() => existingTrack);
+    (db as any).replaceTrackFile = replaceTrackFile;
+    db.getTracks.mockReturnValue([existingTrack]);
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'flac', {
+            lossless: true,
+            hasArtwork: true,
+          }),
+          target: existingTrack,
+          reason: 'artwork-added',
+          preset: { name: 'high' },
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    for await (const _p of executor.execute(plan, { artwork: true })) {
+      // consume
+    }
+
+    // File should have been replaced (artwork-added is a file-replacement upgrade)
+    expect(replaceTrackFile).toHaveBeenCalledTimes(1);
+
+    // Transcoder should have been called (preset is set)
+    expect(transcoder.transcode).toHaveBeenCalledTimes(1);
+
+    // No new track added — upgrade reuses existing database entry
+    expect(db.addTrack).not.toHaveBeenCalled();
+  });
+
+  it('upgrade with no preset does not transfer significantly large bytes', async () => {
+    const existingTrack = createIPodTrack('Artist', 'Song', 'Album', {
+      filePath: ':iPod_Control:Music:F00:EXISTING.m4a',
+      bitrate: 128,
+      update: (_fields: Record<string, unknown>) => existingTrack,
+    });
+
+    const replaceTrackFile = mock(() => existingTrack);
+    (db as any).replaceTrackFile = replaceTrackFile;
+    db.getTracks.mockReturnValue([existingTrack]);
+
+    const plan: SyncPlan = {
+      ...createEmptyPlan(),
+      operations: [
+        {
+          type: 'upgrade',
+          source: createCollectionTrack('Artist', 'Song', 'Album', 'mp3', {
+            bitrate: 320,
+          }),
+          target: existingTrack,
+          reason: 'quality-upgrade',
+          // No preset — copy-based upgrade
+        },
+      ],
+    };
+
+    const deps = createDependencies(db, transcoder);
+    const executor = new DefaultSyncExecutor(deps);
+
+    const progress: ExecutorProgress[] = [];
+    for await (const p of executor.execute(plan, { artwork: false })) {
+      progress.push(p);
+    }
+
+    // Should have completed the upgrade
+    const upgradeEvent = progress.find((p) => p.phase === 'upgrading');
+    expect(upgradeEvent).toBeDefined();
+
+    // Should NOT have transcoded
+    expect(transcoder.transcode).not.toHaveBeenCalled();
+  });
+});

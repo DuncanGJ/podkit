@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import type { SyncTagData } from '@podkit/core';
 import {
   formatDuration,
   truncate,
@@ -286,6 +287,87 @@ describe('getFieldValue', () => {
       expect(getFieldValue(createTrack({ filePath: undefined }), 'filePath')).toBe('');
     });
   });
+
+  describe('syncTag field', () => {
+    it('returns checkmark for complete tag (has artworkHash)', () => {
+      const tag: SyncTagData = { quality: 'high', encoding: 'vbr', artworkHash: 'a1b2c3d4' };
+      expect(getFieldValue(createTrack({ syncTag: tag }), 'syncTag')).toBe('\u2713');
+    });
+
+    it('returns half-circle with -art for tag missing artwork', () => {
+      const tag: SyncTagData = { quality: 'high', encoding: 'vbr' };
+      expect(getFieldValue(createTrack({ syncTag: tag }), 'syncTag')).toBe('\u25D0 -art');
+    });
+
+    it('returns checkmark for tag without artworkHash when track has no artwork', () => {
+      const tag: SyncTagData = { quality: 'high', encoding: 'vbr' };
+      expect(getFieldValue(createTrack({ syncTag: tag, hasArtwork: false }), 'syncTag')).toBe('\u2713');
+    });
+
+    it('returns X for null (no tag)', () => {
+      expect(getFieldValue(createTrack({ syncTag: null }), 'syncTag')).toBe('\u2717');
+    });
+
+    it('returns dash for undefined', () => {
+      expect(getFieldValue(createTrack({ syncTag: undefined }), 'syncTag')).toBe('-');
+    });
+  });
+
+  describe('syncTagQuality field', () => {
+    it('returns quality value when tag present', () => {
+      const tag: SyncTagData = { quality: 'high', encoding: 'vbr' };
+      expect(getFieldValue(createTrack({ syncTag: tag }), 'syncTagQuality')).toBe('high');
+    });
+
+    it('returns dash when no tag', () => {
+      expect(getFieldValue(createTrack({ syncTag: null }), 'syncTagQuality')).toBe('-');
+    });
+
+    it('returns dash when syncTag is undefined', () => {
+      expect(getFieldValue(createTrack({ syncTag: undefined }), 'syncTagQuality')).toBe('-');
+    });
+  });
+
+  describe('syncTagEncoding field', () => {
+    it('returns encoding value when present', () => {
+      const tag: SyncTagData = { quality: 'high', encoding: 'vbr' };
+      expect(getFieldValue(createTrack({ syncTag: tag }), 'syncTagEncoding')).toBe('vbr');
+    });
+
+    it('returns dash when tag has no encoding (lossless)', () => {
+      const tag: SyncTagData = { quality: 'lossless' };
+      expect(getFieldValue(createTrack({ syncTag: tag }), 'syncTagEncoding')).toBe('-');
+    });
+
+    it('returns dash when no tag', () => {
+      expect(getFieldValue(createTrack({ syncTag: null }), 'syncTagEncoding')).toBe('-');
+    });
+  });
+
+  describe('syncTagArtwork field', () => {
+    it('returns checkmark when artworkHash present', () => {
+      const tag: SyncTagData = { quality: 'high', artworkHash: 'a1b2c3d4' };
+      expect(getFieldValue(createTrack({ syncTag: tag }), 'syncTagArtwork')).toBe('\u2713');
+    });
+
+    it('returns X when tag exists but no artworkHash', () => {
+      const tag: SyncTagData = { quality: 'high', encoding: 'vbr' };
+      expect(getFieldValue(createTrack({ syncTag: tag }), 'syncTagArtwork')).toBe('\u2717');
+    });
+
+    it('returns dash when tag exists, no artworkHash, and track has no artwork', () => {
+      const tag: SyncTagData = { quality: 'high', encoding: 'vbr' };
+      expect(getFieldValue(createTrack({ syncTag: tag, hasArtwork: false }), 'syncTagArtwork')).toBe('-');
+    });
+
+    it('returns dash when no tag', () => {
+      expect(getFieldValue(createTrack({ syncTag: null }), 'syncTagArtwork')).toBe('-');
+    });
+
+    it('returns dash when undefined', () => {
+      expect(getFieldValue(createTrack({ syncTag: undefined }), 'syncTagArtwork')).toBe('-');
+    });
+  });
 });
 
 // =============================================================================
@@ -547,6 +629,65 @@ describe('formatJson', () => {
     expect(parsed).toEqual([]);
   });
 
+  it('emits full SyncTagData object for syncTag field when tag exists', () => {
+    const tag: SyncTagData = { quality: 'high', encoding: 'vbr', artworkHash: 'abc123' };
+    const track = createTrack({ syncTag: tag });
+    const result = formatJson([track], ['syncTag']);
+    const parsed = JSON.parse(result);
+
+    expect(parsed[0].syncTag).toEqual({ quality: 'high', encoding: 'vbr', artworkHash: 'abc123' });
+  });
+
+  it('emits null for syncTag field when syncTag is null', () => {
+    const track = createTrack({ syncTag: null });
+    const result = formatJson([track], ['syncTag']);
+    const parsed = JSON.parse(result);
+
+    expect(parsed[0].syncTag).toBeNull();
+  });
+
+  it('emits null for syncTag field when syncTag is undefined', () => {
+    const track = createTrack({ syncTag: undefined });
+    const result = formatJson([track], ['syncTag']);
+    const parsed = JSON.parse(result);
+
+    expect(parsed[0].syncTag).toBeNull();
+  });
+
+  it('emits quality string for syncTagQuality when tag exists', () => {
+    const tag: SyncTagData = { quality: 'high', encoding: 'vbr' };
+    const track = createTrack({ syncTag: tag });
+    const result = formatJson([track], ['syncTagQuality']);
+    const parsed = JSON.parse(result);
+
+    expect(parsed[0].syncTagQuality).toBe('high');
+  });
+
+  it('emits null for syncTagQuality when no tag', () => {
+    const track = createTrack({ syncTag: null });
+    const result = formatJson([track], ['syncTagQuality']);
+    const parsed = JSON.parse(result);
+
+    expect(parsed[0].syncTagQuality).toBeNull();
+  });
+
+  it('emits artwork hash string for syncTagArtwork when present', () => {
+    const tag: SyncTagData = { quality: 'high', encoding: 'vbr', artworkHash: 'abc123' };
+    const track = createTrack({ syncTag: tag });
+    const result = formatJson([track], ['syncTagArtwork']);
+    const parsed = JSON.parse(result);
+
+    expect(parsed[0].syncTagArtwork).toBe('abc123');
+  });
+
+  it('emits null for syncTagArtwork when no tag', () => {
+    const track = createTrack({ syncTag: null });
+    const result = formatJson([track], ['syncTagArtwork']);
+    const parsed = JSON.parse(result);
+
+    expect(parsed[0].syncTagArtwork).toBeNull();
+  });
+
   it('preserves undefined values as undefined in JSON', () => {
     const track = createTrack({ genre: undefined, bitrate: undefined });
     const result = formatJson([track], ['genre', 'bitrate']);
@@ -770,6 +911,43 @@ describe('computeStats', () => {
     const stats = computeStats(tracks);
     expect(stats.soundCheckSources).toBeUndefined();
   });
+
+  it('counts sync tag breakdown: complete, missing art, and total', () => {
+    const tracks = [
+      createTrack({ syncTag: { quality: 'high', encoding: 'vbr', artworkHash: 'a1b2c3d4' } }),
+      createTrack({ syncTag: { quality: 'high', encoding: 'vbr', artworkHash: 'e5f6a7b8' } }),
+      createTrack({ syncTag: { quality: 'lossless' }, hasArtwork: true }), // has artwork but missing hash
+      createTrack({ syncTag: null }), // no tag
+      createTrack({ syncTag: undefined }), // no tag
+    ];
+    const stats = computeStats(tracks);
+    expect(stats.syncTagTracks).toBe(3);
+    expect(stats.syncTagComplete).toBe(2);
+    expect(stats.syncTagMissingArt).toBe(1);
+  });
+
+  it('counts track with sync tag but no artwork as complete when hasArtwork is false', () => {
+    const tracks = [
+      createTrack({ syncTag: { quality: 'high', encoding: 'vbr' }, hasArtwork: false }), // no artwork = complete
+      createTrack({ syncTag: { quality: 'high', encoding: 'vbr' }, hasArtwork: true }), // has artwork but no hash = missing
+      createTrack({ syncTag: { quality: 'high', encoding: 'vbr', artworkHash: 'a1b2' } }), // has hash = complete
+    ];
+    const stats = computeStats(tracks);
+    expect(stats.syncTagTracks).toBe(3);
+    expect(stats.syncTagComplete).toBe(2);
+    expect(stats.syncTagMissingArt).toBe(1);
+  });
+
+  it('returns zero sync tag counts when no tags present', () => {
+    const tracks = [
+      createTrack({ syncTag: null }),
+      createTrack({ syncTag: undefined }),
+    ];
+    const stats = computeStats(tracks);
+    expect(stats.syncTagTracks).toBe(0);
+    expect(stats.syncTagComplete).toBe(0);
+    expect(stats.syncTagMissingArt).toBe(0);
+  });
 });
 
 // =============================================================================
@@ -785,6 +963,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 0,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: { FLAC: 892, MP3: 280 },
     };
     const result = formatStatsText(stats, 'Music on TERAPOD:');
@@ -807,6 +988,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 0,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -822,6 +1006,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 3,
       compilationTracks: 25,
       soundCheckTracks: 0,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -837,6 +1024,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 0,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -852,6 +1042,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 75,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -867,6 +1060,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 997,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -884,6 +1080,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 100,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -899,6 +1098,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 0,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -914,6 +1116,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 0,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:', {
@@ -932,6 +1137,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 0,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:', {
@@ -950,6 +1158,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 80,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       soundCheckSources: {
         iTunNORM: 50,
         replayGain_track: 25,
@@ -972,6 +1183,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 80,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       soundCheckSources: {
         iTunNORM: 50,
         replayGain_track: 25,
@@ -993,6 +1207,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 80,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -1010,6 +1227,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 100,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -1025,6 +1245,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 0,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:');
@@ -1040,6 +1263,9 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 80,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: { flac: 100 },
     };
     const result = formatStatsText(stats, 'Music:');
@@ -1058,11 +1284,74 @@ describe('formatStatsText', () => {
       compilationAlbums: 0,
       compilationTracks: 0,
       soundCheckTracks: 80,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
       fileTypes: {},
     };
     const result = formatStatsText(stats, 'Music:', { tips: false });
 
     expect(result).not.toContain('Tip:');
+  });
+
+  it('shows sync tag breakdown when sync tags present (only non-zero categories)', () => {
+    const stats: ContentStats = {
+      tracks: 1247,
+      albums: 98,
+      artists: 45,
+      compilationAlbums: 0,
+      compilationTracks: 0,
+      soundCheckTracks: 0,
+      syncTagTracks: 345,
+      syncTagComplete: 120,
+      syncTagMissingArt: 225,
+      fileTypes: {},
+    };
+    const result = formatStatsText(stats, 'Music on TERAPOD:', { tips: false });
+
+    expect(result).toContain('Sync Tags:    345 of 1,247 tracks');
+    expect(result).toContain('\u2713 Consistent: 120');
+    expect(result).toContain('\u25D0 Missing artwork hash: 225');
+    expect(result).toContain('\u2717 No sync tag: 902');
+  });
+
+  it('omits zero-count breakdown lines in sync tags', () => {
+    const stats: ContentStats = {
+      tracks: 100,
+      albums: 10,
+      artists: 5,
+      compilationAlbums: 0,
+      compilationTracks: 0,
+      soundCheckTracks: 0,
+      syncTagTracks: 100,
+      syncTagComplete: 100,
+      syncTagMissingArt: 0,
+      fileTypes: {},
+    };
+    const result = formatStatsText(stats, 'Music:', { tips: false });
+
+    expect(result).toContain('Sync Tags:    100 of 100 tracks');
+    expect(result).toContain('\u2713 Consistent: 100');
+    expect(result).not.toContain('\u25D0 Missing artwork hash');
+    expect(result).not.toContain('\u2717 No sync tag');
+  });
+
+  it('omits sync tag breakdown when no sync tags', () => {
+    const stats: ContentStats = {
+      tracks: 100,
+      albums: 10,
+      artists: 5,
+      compilationAlbums: 0,
+      compilationTracks: 0,
+      soundCheckTracks: 0,
+      syncTagTracks: 0,
+      syncTagComplete: 0,
+      syncTagMissingArt: 0,
+      fileTypes: {},
+    };
+    const result = formatStatsText(stats, 'Music:', { tips: false });
+
+    expect(result).not.toContain('Sync Tags');
   });
 });
 

@@ -85,6 +85,7 @@ interface SyncOptions {
   skipUpgrades?: boolean;
   forceTranscode?: boolean;
   forceSyncTags?: boolean;
+  checkArtwork?: boolean;
   delete?: boolean;
   collection?: string;
   eject?: boolean;
@@ -153,6 +154,8 @@ export interface UpdateBreakdown {
   'force-transcode'?: number;
   'sync-tag-write'?: number;
   'artwork-added'?: number;
+  'artwork-removed'?: number;
+  'artwork-updated'?: number;
   'soundcheck-update'?: number;
   'metadata-correction'?: number;
 }
@@ -401,6 +404,18 @@ function getEffectiveArtwork(globalArtwork: boolean, deviceConfig?: DeviceConfig
 }
 
 /**
+ * Get effective checkArtwork setting for a device
+ *
+ * Resolution order: device checkArtwork > global checkArtwork > default (false)
+ */
+function getEffectiveCheckArtwork(
+  globalCheckArtwork: boolean | undefined,
+  deviceConfig?: DeviceConfig
+): boolean {
+  return deviceConfig?.checkArtwork ?? globalCheckArtwork ?? false;
+}
+
+/**
  * Get effective skipUpgrades setting for a device
  *
  * Resolution order: device skipUpgrades > global skipUpgrades > default (false)
@@ -469,6 +484,7 @@ interface MusicSyncContext {
   skipUpgrades: boolean;
   forceTranscode: boolean;
   forceSyncTags: boolean;
+  checkArtwork: boolean;
   ipod: Awaited<ReturnType<typeof import('@podkit/core').IpodDatabase.open>>;
   transcoder: ReturnType<typeof import('@podkit/core').createFFmpegTranscoder>;
   core: typeof import('@podkit/core');
@@ -479,6 +495,7 @@ interface MusicSyncResult {
   completed: number;
   failed: number;
   jsonOutput?: SyncOutput;
+  artworkMissingBaseline?: number;
 }
 
 /**
@@ -502,6 +519,7 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
     skipUpgrades,
     forceTranscode,
     forceSyncTags,
+    checkArtwork,
     ipod,
     transcoder,
     core,
@@ -520,6 +538,7 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
     adapter = createMusicAdapter({
       config: collectionConfig,
       name: collection.name,
+      checkArtwork,
       onProgress: (progress) => {
         if (progress.phase === 'discovering') {
           spinner.update(`Discovering audio files from${collectionLabel}...`);
@@ -623,13 +642,26 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
   });
   diffSpinner.stop('Diff computed');
 
+  // Count tracks with artwork but no artwork hash baseline (for tip at end of sync)
+  let artworkMissingBaseline = 0;
+  if (checkArtwork) {
+    for (const match of diff.existing) {
+      if (match.ipod.hasArtwork === true) {
+        const syncTag = core.parseSyncTag(match.ipod.comment);
+        if (!syncTag?.artworkHash) {
+          artworkMissingBaseline++;
+        }
+      }
+    }
+  }
+
   // Create sync plan
   const transcodeConfig = {
     quality: effectiveQuality,
     encoding: effectiveEncoding,
     customBitrate: effectiveCustomBitrate,
   };
-  const plan = core.createPlan(diff, { removeOrphans, transcodeConfig, deviceSupportsAlac });
+  const plan = core.createPlan(diff, { removeOrphans, transcodeConfig, deviceSupportsAlac, artworkEnabled: effectiveArtwork });
   const summary = core.getPlanSummary(plan);
   const storage = getStorageInfo(devicePath);
   const hasEnoughSpace = storage ? core.willFitInSpace(plan, storage.free) : true;
@@ -653,7 +685,7 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
       core,
     });
     await adapter.disconnect();
-    return { success: true, completed: 0, failed: 0, jsonOutput: out.isJson ? result : undefined };
+    return { success: true, completed: 0, failed: 0, jsonOutput: out.isJson ? result : undefined, artworkMissingBaseline };
   }
 
   // Check space
@@ -751,7 +783,9 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
       out.raw('\r\x1b[KSaving iPod database...');
     } else if (progress.phase !== 'preparing') {
       const bar = renderProgressBar(progress.current + 1, progress.total);
-      const phaseStr = progress.phase.charAt(0).toUpperCase() + progress.phase.slice(1);
+      const phaseStr = progress.phase === 'updating-metadata'
+        ? 'Updating metadata'
+        : progress.phase.charAt(0).toUpperCase() + progress.phase.slice(1);
       const line = formatProgressLine({
         bar,
         phase: phaseStr,
@@ -769,7 +803,7 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
   }
 
   await adapter.disconnect();
-  return { success: failed === 0, completed, failed };
+  return { success: failed === 0, completed, failed, artworkMissingBaseline };
 }
 
 interface MusicDryRunContext {
@@ -1237,7 +1271,9 @@ async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoSyncResu
       } else {
         const bar = renderProgressBar(progress.current + 1, progress.total);
         const phaseStr = progress.phase.replace('video-', '');
-        const phaseFormatted = phaseStr.charAt(0).toUpperCase() + phaseStr.slice(1);
+        const phaseFormatted = phaseStr === 'updating-metadata'
+          ? 'Updating metadata'
+          : phaseStr.charAt(0).toUpperCase() + phaseStr.slice(1);
         const line = formatProgressLine({
           bar,
           phase: phaseFormatted,
@@ -1295,7 +1331,8 @@ export const syncCommand = new Command('sync')
   .option('--no-artwork', 'skip artwork transfer')
   .option('--skip-upgrades', 'skip file-replacement upgrades for changed source files')
   .option('--force-transcode', 're-transcode all lossless-source tracks regardless of bitrate')
-  .option('--force-sync-tags', 'write sync tags to all matched transcoded tracks without re-transcoding')
+  .option('--force-sync-tags', 'ensure sync tag consistency by writing tags to all matched transcoded tracks without re-transcoding')
+  .option('--check-artwork', 'detect artwork changes by comparing content hashes')
   .option('--delete', 'remove tracks from iPod not in source')
   .option('--eject', 'eject iPod after successful sync')
   .action(async (options: SyncOptions) => {
@@ -1599,6 +1636,7 @@ export const syncCommand = new Command('sync')
     let totalCompleted = 0;
     let totalFailed = 0;
     let anyError = false;
+    let totalArtworkMissingBaseline = 0;
 
     try {
       // ----- Sync Music Collections -----
@@ -1628,6 +1666,7 @@ export const syncCommand = new Command('sync')
             skipUpgrades: effectiveSkipUpgrades,
             forceTranscode: options.forceTranscode ?? config.forceTranscode ?? false,
             forceSyncTags: options.forceSyncTags ?? config.forceSyncTags ?? false,
+            checkArtwork: options.checkArtwork ?? getEffectiveCheckArtwork(config.checkArtwork, deviceConfig),
             ipod,
             transcoder,
             core,
@@ -1639,6 +1678,7 @@ export const syncCommand = new Command('sync')
 
           totalCompleted += result.completed;
           totalFailed += result.failed;
+          totalArtworkMissingBaseline += result.artworkMissingBaseline ?? 0;
           if (!result.success) {
             anyError = true;
           }
@@ -1740,6 +1780,11 @@ export const syncCommand = new Command('sync')
       if (dryRun) {
         out.newline();
         out.print('Run without --dry-run to execute this plan.');
+      }
+
+      // Show artwork baseline tip at end of sync
+      if (totalArtworkMissingBaseline > 0) {
+        out.printTips({ artworkMissingBaseline: totalArtworkMissingBaseline });
       }
 
       // Show eject tip or auto-eject on successful sync

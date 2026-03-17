@@ -35,6 +35,7 @@ function createTestContext(
   const config: PodkitConfig = {
     quality: 'medium',
     artwork: true,
+    tips: true,
     transforms: DEFAULT_TRANSFORMS_CONFIG,
     devices: {},
     music: {},
@@ -49,6 +50,7 @@ function createTestContext(
     quiet: false,
     verbose: 0,
     color: true,
+    tips: true,
     ...overrides.globalOpts,
   };
 

@@ -103,6 +103,60 @@ describe('parseSyncTag', () => {
     // quality is present so tag is valid, but bitrate is not included
     expect(result).toEqual({ quality: 'high' });
   });
+
+  // --- art= field tests ---
+
+  it('parses sync tag with art field', () => {
+    const result = parseSyncTag('[podkit:v1 quality=high encoding=vbr art=aabbccdd]');
+    expect(result).toEqual({ quality: 'high', encoding: 'vbr', artworkHash: 'aabbccdd' });
+  });
+
+  it('parses sync tag without art field (backward compat)', () => {
+    const result = parseSyncTag('[podkit:v1 quality=high encoding=vbr]');
+    expect(result).toEqual({ quality: 'high', encoding: 'vbr' });
+    expect(result!.artworkHash).toBeUndefined();
+  });
+
+  it('rejects art hash with wrong length (too short)', () => {
+    const result = parseSyncTag('[podkit:v1 quality=high art=aabb]');
+    expect(result).toEqual({ quality: 'high' });
+    expect(result!.artworkHash).toBeUndefined();
+  });
+
+  it('rejects art hash with wrong length (too long)', () => {
+    const result = parseSyncTag('[podkit:v1 quality=high art=aabbccddee]');
+    expect(result).toEqual({ quality: 'high' });
+    expect(result!.artworkHash).toBeUndefined();
+  });
+
+  it('rejects art hash with non-hex characters', () => {
+    const result = parseSyncTag('[podkit:v1 quality=high art=aabbccgg]');
+    expect(result).toEqual({ quality: 'high' });
+    expect(result!.artworkHash).toBeUndefined();
+  });
+
+  it('rejects art hash with uppercase hex characters', () => {
+    const result = parseSyncTag('[podkit:v1 quality=high art=AABBCCDD]');
+    expect(result).toEqual({ quality: 'high' });
+    expect(result!.artworkHash).toBeUndefined();
+  });
+
+  it('parses art field in any key position', () => {
+    const result = parseSyncTag('[podkit:v1 art=12345678 quality=low encoding=cbr]');
+    expect(result).toEqual({ quality: 'low', encoding: 'cbr', artworkHash: '12345678' });
+  });
+
+  it('parses art field with all other fields present', () => {
+    const result = parseSyncTag(
+      '[podkit:v1 quality=high encoding=cbr bitrate=320 art=deadbeef]'
+    );
+    expect(result).toEqual({
+      quality: 'high',
+      encoding: 'cbr',
+      bitrate: 320,
+      artworkHash: 'deadbeef',
+    });
+  });
 });
 
 // =============================================================================
@@ -134,6 +188,23 @@ describe('formatSyncTag', () => {
     expect(formatSyncTag({ quality: 'medium', encoding: 'vbr' })).toBe(
       '[podkit:v1 quality=medium encoding=vbr]'
     );
+  });
+
+  it('formats a tag with artworkHash', () => {
+    expect(formatSyncTag({ quality: 'high', encoding: 'vbr', artworkHash: 'a1b2c3d4' })).toBe(
+      '[podkit:v1 quality=high encoding=vbr art=a1b2c3d4]'
+    );
+  });
+
+  it('omits art field when artworkHash is undefined', () => {
+    const result = formatSyncTag({ quality: 'high', encoding: 'vbr' });
+    expect(result).not.toContain('art=');
+  });
+
+  it('formats tag with all fields including artworkHash', () => {
+    expect(
+      formatSyncTag({ quality: 'high', encoding: 'cbr', bitrate: 320, artworkHash: 'deadbeef' })
+    ).toBe('[podkit:v1 quality=high encoding=cbr bitrate=320 art=deadbeef]');
   });
 });
 
@@ -340,6 +411,9 @@ describe('round-trip: format → parse → compare', () => {
     { name: 'high CBR with custom bitrate', data: { quality: 'high', encoding: 'cbr', bitrate: 320 } },
     { name: 'video max', data: { quality: 'max' } },
     { name: 'video medium', data: { quality: 'medium' } },
+    { name: 'high VBR with artworkHash', data: { quality: 'high', encoding: 'vbr', artworkHash: 'a1b2c3d4' } },
+    { name: 'lossless with artworkHash', data: { quality: 'lossless', artworkHash: 'deadbeef' } },
+    { name: 'CBR with bitrate and artworkHash', data: { quality: 'high', encoding: 'cbr', bitrate: 320, artworkHash: '00112233' } },
   ];
 
   for (const { name, data } of testCases) {
@@ -350,6 +424,14 @@ describe('round-trip: format → parse → compare', () => {
       expect(syncTagMatchesConfig(parsed!, data)).toBe(true);
     });
   }
+
+  it('round-trips artworkHash through format then parse', () => {
+    const data: SyncTagData = { quality: 'high', encoding: 'vbr', artworkHash: 'a1b2c3d4' };
+    const formatted = formatSyncTag(data);
+    const parsed = parseSyncTag(formatted);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.artworkHash).toBe('a1b2c3d4');
+  });
 
   it('round-trips through writeSyncTag with existing comment', () => {
     const data: SyncTagData = { quality: 'high', encoding: 'vbr' };

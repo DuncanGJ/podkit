@@ -81,6 +81,17 @@ export interface CollectionTrack {
    */
   hasArtwork?: boolean;
 
+  /**
+   * Hash of the artwork bytes (8-char lowercase hex, xxHash truncated to 32 bits).
+   * Populated by adapters when `--check-artwork` is enabled.
+   * Used to detect artwork changes (not just presence/absence) via sync tags.
+   *
+   * `hasArtwork` may be `true` while `artworkHash` is `undefined` — this is the
+   * normal case when `--check-artwork` is not passed (artwork present but hash
+   * not computed).
+   */
+  artworkHash?: string;
+
   // Volume normalization
   /**
    * Sound Check value for volume normalization.

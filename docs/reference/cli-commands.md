@@ -83,6 +83,7 @@ podkit sync [options]
 | `--encoding <mode>` | Encoding mode: `vbr` (default) or `cbr` |
 | `--filter <pattern>` | Only sync tracks matching pattern |
 | `--no-artwork` | Skip artwork transfer |
+| `--check-artwork` | Detect changed artwork by comparing fingerprints between syncs |
 | `--skip-upgrades` | Skip file-replacement upgrades for changed source files |
 | `--force-transcode` | Re-transcode all lossless-source tracks regardless of bitrate match |
 | `--force-sync-tags` | Write sync tags to all matched transcoded tracks without re-transcoding |

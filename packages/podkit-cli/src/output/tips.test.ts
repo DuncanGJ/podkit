@@ -56,6 +56,70 @@ describe('collectTips', () => {
     });
   });
 
+  describe('artwork baseline tip', () => {
+    it('returns tip when tracks missing artwork baseline', () => {
+      const tips = collectTips({ artworkMissingBaseline: 50 });
+      expect(tips).toHaveLength(1);
+      expect(tips[0]!.message).toContain('artwork hash in their sync tag');
+      expect(tips[0]!.message).toContain('--force-sync-tags --check-artwork');
+    });
+
+    it('returns no tip when artworkMissingBaseline is 0', () => {
+      const tips = collectTips({ artworkMissingBaseline: 0 });
+      expect(tips).toHaveLength(0);
+    });
+
+    it('does not trigger without artworkMissingBaseline context', () => {
+      const tips = collectTips({});
+      expect(tips).toHaveLength(0);
+    });
+  });
+
+  describe('no sync tags tip', () => {
+    it('returns tip when tracks exist but no sync tags', () => {
+      const tips = collectTips({
+        syncTagInfo: { trackCount: 100, syncTagCount: 0, missingArt: 0 },
+      });
+      expect(tips).toHaveLength(1);
+      expect(tips[0]!.message).toContain('--force-sync-tags');
+    });
+
+    it('returns no tip when sync tags exist', () => {
+      const tips = collectTips({
+        syncTagInfo: { trackCount: 100, syncTagCount: 50, missingArt: 10 },
+      });
+      // Should not trigger the no-sync-tags tip (may trigger missing-artwork-hash)
+      const noTagTips = tips.filter((t) => t.message.includes('no sync tags'));
+      expect(noTagTips).toHaveLength(0);
+    });
+
+    it('returns no tip when no tracks', () => {
+      const tips = collectTips({
+        syncTagInfo: { trackCount: 0, syncTagCount: 0, missingArt: 0 },
+      });
+      expect(tips).toHaveLength(0);
+    });
+  });
+
+  describe('missing artwork hash tip', () => {
+    it('returns tip when sync tags exist but some missing artwork hash', () => {
+      const tips = collectTips({
+        syncTagInfo: { trackCount: 100, syncTagCount: 80, missingArt: 30 },
+      });
+      const artTips = tips.filter((t) => t.message.includes('no artwork hash'));
+      expect(artTips).toHaveLength(1);
+      expect(artTips[0]!.message).toContain('--check-artwork --force-sync-tags');
+    });
+
+    it('returns no tip when no sync tags missing artwork hash', () => {
+      const tips = collectTips({
+        syncTagInfo: { trackCount: 100, syncTagCount: 80, missingArt: 0 },
+      });
+      const artTips = tips.filter((t) => t.message.includes('no artwork hash'));
+      expect(artTips).toHaveLength(0);
+    });
+  });
+
   describe('multiple tips', () => {
     it('returns multiple tips when multiple conditions match', () => {
       const tips = collectTips({

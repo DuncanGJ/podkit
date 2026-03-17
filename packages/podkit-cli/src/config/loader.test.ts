@@ -1131,6 +1131,7 @@ device = "terapod"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
       };
       const result = loadCliConfig(globalOpts);
       expect(result).toEqual({});
@@ -1142,6 +1143,7 @@ device = "terapod"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
       };
       const commandOpts = { quality: 'low' };
       const result = loadCliConfig(globalOpts, commandOpts);
@@ -1154,6 +1156,7 @@ device = "terapod"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
       };
       const commandOpts = { artwork: false };
       const result = loadCliConfig(globalOpts, commandOpts);
@@ -1166,6 +1169,7 @@ device = "terapod"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
       };
       const commandOpts = { skipUpgrades: true };
       const result = loadCliConfig(globalOpts, commandOpts);
@@ -1178,6 +1182,7 @@ device = "terapod"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
       };
       const commandOpts = { quality: 'invalid' };
       const result = loadCliConfig(globalOpts, commandOpts);
@@ -1198,6 +1203,7 @@ device = "terapod"
           quiet: false,
           json: false,
           color: true,
+          tips: true,
         };
         const commandOpts = { quality: preset };
         const result = loadCliConfig(globalOpts, commandOpts);
@@ -1212,6 +1218,7 @@ device = "terapod"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
       };
       const commandOpts = { encoding: 'cbr' };
       const result = loadCliConfig(globalOpts, commandOpts);
@@ -1224,6 +1231,7 @@ device = "terapod"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
       };
       const commandOpts = { encoding: 'invalid' };
       const result = loadCliConfig(globalOpts, commandOpts);
@@ -1237,6 +1245,7 @@ device = "terapod"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
       };
       const commandOpts = { audioQuality: 'max' };
       const result = loadCliConfig(globalOpts, commandOpts);
@@ -1250,6 +1259,7 @@ device = "terapod"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
       };
       const commandOpts = { videoQuality: 'medium' };
       const result = loadCliConfig(globalOpts, commandOpts);
@@ -1532,6 +1542,7 @@ device = "terapod"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
         config: path.join(tempDir, 'nonexistent.toml'),
       };
 
@@ -1558,6 +1569,7 @@ path = "/custom/music"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
         config: configPath,
       };
 
@@ -1574,6 +1586,7 @@ path = "/custom/music"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
         // Use a non-existent config path to avoid loading real user config
         config: '/nonexistent/path/to/config.toml',
       };
@@ -1599,6 +1612,7 @@ cleanArtists = true
         quiet: false,
         json: false,
         color: true,
+        tips: true,
         config: configPath,
       };
 
@@ -1623,6 +1637,7 @@ quality = "low"
         quiet: false,
         json: false,
         color: true,
+        tips: true,
         config: configPath,
       };
 

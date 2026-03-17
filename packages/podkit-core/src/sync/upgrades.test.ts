@@ -551,6 +551,240 @@ describe('detectUpgrades', () => {
     });
   });
 
+  describe('artwork-removed', () => {
+    it('detects artwork-removed when source has no artwork but iPod does', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: false,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('artwork-removed');
+    });
+
+    it('does not detect artwork-removed when source hasArtwork is undefined', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        // hasArtwork undefined
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('artwork-removed');
+    });
+
+    it('does not detect artwork-removed when iPod has no artwork', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: false,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: false,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('artwork-removed');
+    });
+
+    it('does not detect artwork-removed when both have artwork', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('artwork-removed');
+    });
+
+    it('artwork-removed is not a file replacement upgrade', () => {
+      expect(isFileReplacementUpgrade('artwork-removed')).toBe(false);
+    });
+
+    it('artwork-removed appears between artwork-added and artwork-updated in priority', () => {
+      // Verify artwork-removed comes before soundcheck-update in priority
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: false,
+        soundcheck: 5000,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+        soundcheck: 3000,
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('artwork-removed');
+      expect(reasons).toContain('soundcheck-update');
+      const artIdx = reasons.indexOf('artwork-removed');
+      const scIdx = reasons.indexOf('soundcheck-update');
+      expect(artIdx).toBeLessThan(scIdx);
+    });
+  });
+
+  describe('artwork-updated', () => {
+    it('detects artwork-updated when source artworkHash differs from sync tag', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+        artworkHash: 'aabbccdd',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+        comment: '[podkit:v1 quality=high encoding=vbr art=11223344]',
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('artwork-updated');
+    });
+
+    it('does not detect artwork-updated when hashes match', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+        artworkHash: 'aabbccdd',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+        comment: '[podkit:v1 quality=high encoding=vbr art=aabbccdd]',
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('artwork-updated');
+    });
+
+    it('does not detect artwork-updated when iPod has no sync tag', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+        artworkHash: 'aabbccdd',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+        // no comment / no sync tag
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('artwork-updated');
+    });
+
+    it('does not detect artwork-updated when iPod sync tag has no art field', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+        artworkHash: 'aabbccdd',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+        comment: '[podkit:v1 quality=high encoding=vbr]',
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('artwork-updated');
+    });
+
+    it('does not detect artwork-updated when source has no artworkHash (checkArtwork disabled)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+        // artworkHash undefined — checkArtwork not enabled
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+        comment: '[podkit:v1 quality=high encoding=vbr art=11223344]',
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).not.toContain('artwork-updated');
+    });
+
+    it('artwork-added and artwork-updated are mutually exclusive (iPod has no artwork triggers artwork-added, not artwork-updated)', () => {
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+        artworkHash: 'aabbccdd',
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: false,
+        comment: '[podkit:v1 quality=high encoding=vbr art=11223344]',
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('artwork-added');
+      // artwork-updated should not fire because iPod has no artwork (hasArtwork: false)
+      expect(reasons).not.toContain('artwork-updated');
+    });
+
+    it('artwork-updated appears after artwork-added in priority order', () => {
+      // This test verifies that if both could theoretically fire (not a real case
+      // due to mutual exclusivity), artwork-added would come first in the array.
+      // We verify the ordering by checking a case where artwork-updated fires
+      // alongside other reasons.
+      const source = createCollectionTrack('Artist', 'Song', 'Album', {
+        fileType: 'mp3',
+        lossless: false,
+        bitrate: 256,
+        hasArtwork: true,
+        artworkHash: 'aabbccdd',
+        soundcheck: 1000,
+      });
+      const ipod = createIPodTrack('Artist', 'Song', 'Album', {
+        filetype: 'MPEG audio file',
+        bitrate: 256,
+        hasArtwork: true,
+        comment: '[podkit:v1 quality=high encoding=vbr art=11223344]',
+        // no soundcheck
+      });
+      const reasons = detectUpgrades(source, ipod);
+      expect(reasons).toContain('artwork-updated');
+      expect(reasons).toContain('soundcheck-update');
+      // artwork-updated should come before soundcheck-update in priority
+      const artIdx = reasons.indexOf('artwork-updated');
+      const scIdx = reasons.indexOf('soundcheck-update');
+      expect(artIdx).toBeLessThan(scIdx);
+    });
+  });
+
   describe('soundcheck-update', () => {
     it('detects soundcheck added (source has, iPod does not)', () => {
       const source = createCollectionTrack('Artist', 'Song', 'Album', {
@@ -1089,6 +1323,10 @@ describe('isFileReplacementUpgrade', () => {
 
   it('returns false for metadata-correction', () => {
     expect(isFileReplacementUpgrade('metadata-correction')).toBe(false);
+  });
+
+  it('returns false for artwork-updated (metadata-only, no audio re-transfer)', () => {
+    expect(isFileReplacementUpgrade('artwork-updated')).toBe(false);
   });
 });
 

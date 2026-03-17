@@ -22,6 +22,7 @@ audioQuality = "high"        # Audio override: max | high | medium | low
 videoQuality = "high"        # Video override: max | high | medium | low
 encoding = "vbr"             # Encoding mode: vbr | cbr
 artwork = true               # Include album artwork
+checkArtwork = false         # Detect changed artwork between syncs
 tips = true                  # Show contextual tips
 skipUpgrades = false         # Skip file-replacement upgrades for changed source files
 
@@ -77,6 +78,7 @@ These apply to all devices unless overridden at the device level.
 | `customBitrate` | integer | - | Override the preset's target bitrate (64-320 kbps). Ignored when `max` resolves to ALAC. |
 | `bitrateTolerance` | number | - | Override the automatic preset change detection tolerance (0.0-1.0). Default is 0.3 (30%) for VBR and 0.1 (10%) for CBR. |
 | `artwork` | boolean | `true` | Include album artwork during sync |
+| `checkArtwork` | boolean | `false` | Detect changed artwork by comparing fingerprints between syncs. For Subsonic sources this adds one HTTP request per unique album during scanning, which can be slow on large libraries — consider using the `--check-artwork` CLI flag for periodic checks instead of enabling permanently. |
 | `tips` | boolean | `true` | Show contextual tips (e.g., Sound Check, eject reminders). Also controllable via `--no-tips` flag or `PODKIT_TIPS=false`. |
 | `skipUpgrades` | boolean | `false` | Skip file-replacement upgrades for changed source files |
 
@@ -156,6 +158,7 @@ skipUpgrades = false          # Allow file-replacement upgrades (default)
 | `customBitrate` | integer | no | global `customBitrate` | Override the preset's target bitrate for this device |
 | `bitrateTolerance` | number | no | global `bitrateTolerance` | Override preset change detection tolerance for this device |
 | `artwork` | boolean | no | global `artwork` | Artwork override for this device |
+| `checkArtwork` | boolean | no | global `checkArtwork` | Detect changed artwork for this device |
 | `skipUpgrades` | boolean | no | global `skipUpgrades` | Skip file-replacement upgrades for this device |
 
 ### Per-Device Clean Artists

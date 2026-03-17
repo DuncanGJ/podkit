@@ -127,6 +127,10 @@ export function formatUpdateReason(reason: string): string {
       return 'Sync tag';
     case 'artwork-added':
       return 'Artwork added';
+    case 'artwork-removed':
+      return 'Artwork removed';
+    case 'artwork-updated':
+      return 'Artwork updated';
     case 'soundcheck-update':
       return 'Sound Check update';
     case 'metadata-correction':

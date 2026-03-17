@@ -23,6 +23,14 @@ export interface TipContext {
   };
   /** Mount result requiring sudo */
   mountRequiresSudo?: boolean;
+  /** Number of tracks with artwork but no artwork hash baseline (from sync) */
+  artworkMissingBaseline?: number;
+  /** Sync tag counts from device info */
+  syncTagInfo?: {
+    trackCount: number;
+    syncTagCount: number;
+    missingArt: number;
+  };
 }
 
 export interface TipDefinition {
@@ -54,7 +62,43 @@ const MACOS_MOUNTING_TIP: TipDefinition = {
   },
 };
 
-const ALL_TIPS: TipDefinition[] = [SOUND_CHECK_TIP, MACOS_MOUNTING_TIP];
+const ARTWORK_BASELINE_TIP: TipDefinition = {
+  evaluate: ({ artworkMissingBaseline }) => {
+    if (artworkMissingBaseline && artworkMissingBaseline > 0) {
+      const plural = artworkMissingBaseline === 1 ? '' : 's';
+      return {
+        message: `${artworkMissingBaseline} track${plural} have artwork but no artwork hash in their sync tag. Run with --force-sync-tags --check-artwork to improve sync tag consistency for artwork change detection.`,
+      };
+    }
+    return null;
+  },
+};
+
+const NO_SYNC_TAGS_TIP: TipDefinition = {
+  evaluate: ({ syncTagInfo }) => {
+    if (syncTagInfo && syncTagInfo.trackCount > 0 && syncTagInfo.syncTagCount === 0) {
+      return {
+        message:
+          "Your tracks have no sync tags. Run 'podkit sync --force-sync-tags' to establish sync tag consistency for reliable preset change detection.",
+      };
+    }
+    return null;
+  },
+};
+
+const MISSING_ARTWORK_HASH_TIP: TipDefinition = {
+  evaluate: ({ syncTagInfo }) => {
+    if (syncTagInfo && syncTagInfo.missingArt > 0 && syncTagInfo.syncTagCount > 0) {
+      const plural = syncTagInfo.missingArt === 1 ? '' : 's';
+      return {
+        message: `${syncTagInfo.missingArt} track${plural} have artwork but no artwork hash in their sync tag. Run 'podkit sync --check-artwork --force-sync-tags' to improve sync tag consistency for artwork change detection.`,
+      };
+    }
+    return null;
+  },
+};
+
+const ALL_TIPS: TipDefinition[] = [SOUND_CHECK_TIP, MACOS_MOUNTING_TIP, ARTWORK_BASELINE_TIP, NO_SYNC_TAGS_TIP, MISSING_ARTWORK_HASH_TIP];
 
 export function collectTips(context: TipContext): Tip[] {
   const tips: Tip[] = [];

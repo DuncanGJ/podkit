@@ -179,8 +179,8 @@ describe('SubsonicAdapter error handling', () => {
 // =============================================================================
 
 describe('SubsonicAdapter Sound Check (ReplayGain)', () => {
-  // Helper to call the private mapSongToTrack method
-  function mapSong(song: Partial<Child>, album?: Partial<AlbumWithSongsID3>) {
+  // Helper to call the private mapSongToTrack method (async since it may fetch artwork hashes)
+  async function mapSong(song: Partial<Child>, album?: Partial<AlbumWithSongsID3>) {
     const adapter = createTestAdapter();
     const fullSong: Child = {
       id: 'song-1',
@@ -200,11 +200,11 @@ describe('SubsonicAdapter Sound Check (ReplayGain)', () => {
       ...album,
     };
     // Access private method via bracket notation
-    return (adapter as any)['mapSongToTrack'](fullSong, fullAlbum);
+    return await (adapter as any)['mapSongToTrack'](fullSong, fullAlbum);
   }
 
-  it('prefers track gain over album gain', () => {
-    const track = mapSong({
+  it('prefers track gain over album gain', async () => {
+    const track = await mapSong({
       replayGain: {
         trackGain: -6.0,
         albumGain: -3.0,
@@ -219,8 +219,8 @@ describe('SubsonicAdapter Sound Check (ReplayGain)', () => {
     expect(track.soundcheck).toBe(replayGainToSoundcheck(-6.0));
   });
 
-  it('falls back to album gain when track gain is missing', () => {
-    const track = mapSong({
+  it('falls back to album gain when track gain is missing', async () => {
+    const track = await mapSong({
       replayGain: {
         albumGain: -3.0,
         trackPeak: 1.0,
@@ -232,14 +232,14 @@ describe('SubsonicAdapter Sound Check (ReplayGain)', () => {
     expect(track.soundcheck).toBe(replayGainToSoundcheck(-3.0));
   });
 
-  it('soundcheck is undefined when no ReplayGain data present', () => {
-    const track = mapSong({});
+  it('soundcheck is undefined when no ReplayGain data present', async () => {
+    const track = await mapSong({});
 
     expect(track.soundcheck).toBeUndefined();
   });
 
-  it('soundcheck is undefined when replayGain object exists but has no gain values', () => {
-    const track = mapSong({
+  it('soundcheck is undefined when replayGain object exists but has no gain values', async () => {
+    const track = await mapSong({
       replayGain: {
         trackPeak: 1.0,
         albumPeak: 1.0,
@@ -250,8 +250,8 @@ describe('SubsonicAdapter Sound Check (ReplayGain)', () => {
     expect(track.soundcheck).toBeUndefined();
   });
 
-  it('a gain of 0 dB correctly produces soundcheck of 1000', () => {
-    const track = mapSong({
+  it('a gain of 0 dB correctly produces soundcheck of 1000', async () => {
+    const track = await mapSong({
       replayGain: {
         trackGain: 0,
         albumGain: -3.0,

@@ -41,5 +41,8 @@ coverage/
 # Homebrew tap staging
 homebrew-tap/
 
+# Test fixture output
+test/manual-collection/
+
 # Notes
 SCRATCH.md

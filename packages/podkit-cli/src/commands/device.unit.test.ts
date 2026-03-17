@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { formatBytes, formatNumber, formatGeneration, getStorageInfo } from './device.js';
+import { formatBytes, formatNumber, formatGeneration, getStorageInfo, formatSyncTagSummary } from './device.js';
 
 describe('device utility functions', () => {
   describe('formatBytes', () => {
@@ -192,6 +192,42 @@ describe('device utility functions', () => {
 
       expect(info).not.toBeNull();
       expect(info!.total).toBeGreaterThan(0);
+    });
+  });
+
+  describe('formatSyncTagSummary', () => {
+    it('returns just track count for zero tracks', () => {
+      expect(formatSyncTagSummary(0, 0, 0, 0)).toBe('0 tracks');
+    });
+
+    it('shows checkmark when all tracks are consistent', () => {
+      expect(formatSyncTagSummary(2289, 2289, 0, 0)).toBe('2,289 tracks \u2713 all consistent');
+    });
+
+    it('shows no sync tags when all tracks have no tag', () => {
+      expect(formatSyncTagSummary(2289, 0, 0, 2289)).toBe('2,289 tracks (\u2717 no sync tags)');
+    });
+
+    it('shows missing artwork hash when all tags exist but none have art hash', () => {
+      expect(formatSyncTagSummary(2289, 0, 2289, 0)).toBe('2,289 tracks (\u25D0 2,289 missing artwork hash)');
+    });
+
+    it('shows mixed breakdown with only non-zero categories', () => {
+      expect(formatSyncTagSummary(2289, 100, 200, 1989)).toBe(
+        '2,289 tracks (\u2713 100 consistent, \u25D0 200 missing artwork hash, \u2717 1,989 no sync tag)'
+      );
+    });
+
+    it('omits zero categories in mixed case', () => {
+      expect(formatSyncTagSummary(500, 300, 0, 200)).toBe(
+        '500 tracks (\u2713 300 consistent, \u2717 200 no sync tag)'
+      );
+    });
+
+    it('shows only missing art when complete and no-tag are zero', () => {
+      expect(formatSyncTagSummary(100, 0, 100, 0)).toBe(
+        '100 tracks (\u25D0 100 missing artwork hash)'
+      );
     });
   });
 });

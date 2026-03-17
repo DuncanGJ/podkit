@@ -114,6 +114,9 @@ export function addDevice(
   if (device.artwork !== undefined) {
     lines.push(`artwork = ${device.artwork}`);
   }
+  if (device.checkArtwork !== undefined) {
+    lines.push(`checkArtwork = ${device.checkArtwork}`);
+  }
 
   // Handle cleanArtists config
   if (device.transforms?.cleanArtists) {
@@ -187,6 +190,7 @@ export function updateDevice(
     audioQuality?: string | null;
     videoQuality?: string | null;
     artwork?: boolean | null;
+    checkArtwork?: boolean | null;
   },
   options?: UpdateConfigOptions
 ): UpdateConfigResult {

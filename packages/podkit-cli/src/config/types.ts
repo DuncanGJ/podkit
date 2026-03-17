@@ -122,6 +122,8 @@ export interface DeviceConfig {
   bitrateTolerance?: number;
   /** Whether to sync artwork to this device */
   artwork?: boolean;
+  /** Detect artwork changes by comparing content hashes (overrides global) */
+  checkArtwork?: boolean;
   /** Skip file-replacement upgrades during sync for this device */
   skipUpgrades?: boolean;
   /** Device-specific transform settings */
@@ -194,6 +196,8 @@ export interface PodkitConfig {
   forceTranscode?: boolean;
   /** Write sync tags to all matched transcoded tracks without re-transcoding (CLI/env only) */
   forceSyncTags?: boolean;
+  /** Detect artwork changes by comparing content hashes (can be overridden per-device) */
+  checkArtwork?: boolean;
   /** Transform configuration (global default, can be overridden per-device) */
   transforms: TransformsConfig;
 
@@ -286,6 +290,7 @@ export interface ConfigFileDevice {
   customBitrate?: number;
   bitrateTolerance?: number;
   artwork?: boolean;
+  checkArtwork?: boolean;
   skipUpgrades?: boolean;
   cleanArtists?: ConfigFileCleanArtists;
 }
@@ -344,6 +349,7 @@ export interface ConfigFileContent {
   customBitrate?: number;
   bitrateTolerance?: number;
   artwork?: boolean;
+  checkArtwork?: boolean;
   tips?: boolean;
   skipUpgrades?: boolean;
   cleanArtists?: ConfigFileCleanArtists;

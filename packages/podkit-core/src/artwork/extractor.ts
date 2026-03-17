@@ -134,7 +134,7 @@ export async function extractArtwork(
  * Select the best picture from multiple embedded images.
  * Prefers front cover, then falls back to first image.
  */
-function selectBestPicture(pictures: mm.IPicture[]): mm.IPicture {
+export function selectBestPicture(pictures: mm.IPicture[]): mm.IPicture {
   if (pictures.length === 1) {
     return pictures[0]!;
   }
