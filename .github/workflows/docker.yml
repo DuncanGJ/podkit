@@ -1,0 +1,94 @@
+name: Build Docker Image
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version tag for the image (e.g., 0.5.0)'
+        required: true
+        type: string
+      push:
+        description: 'Push image to registry'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  packages: write
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    name: Build & Push Docker Image
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux amd64 musl binary
+        uses: actions/download-artifact@v4
+        with:
+          name: podkit-linux-x64-musl
+          path: docker-artifacts/
+
+      - name: Download Linux arm64 musl binary
+        uses: actions/download-artifact@v4
+        with:
+          name: podkit-linux-arm64-musl
+          path: docker-artifacts/
+
+      - name: Prepare binaries for multi-arch build
+        run: |
+          mkdir -p bin/amd64 bin/arm64
+          tar xzf docker-artifacts/podkit-linux-x64-musl.tar.gz -C bin/amd64/
+          tar xzf docker-artifacts/podkit-linux-arm64-musl.tar.gz -C bin/arm64/
+          chmod +x bin/amd64/podkit bin/arm64/podkit
+          echo "--- amd64 binary ---"
+          file bin/amd64/podkit
+          echo "--- arm64 binary ---"
+          file bin/arm64/podkit
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: inputs.push
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Docker tags
+        id: tags
+        run: |
+          VERSION="${{ inputs.version }}"
+          REPO="ghcr.io/jvgomg/podkit"
+
+          TAGS="${REPO}:${VERSION}"
+          TAGS="${TAGS},${REPO}:latest"
+
+          # Add major.minor tag (e.g., 0.5)
+          MINOR=$(echo "$VERSION" | sed -n 's/^\([0-9]*\.[0-9]*\).*/\1/p')
+          if [ -n "$MINOR" ]; then
+            TAGS="${TAGS},${REPO}:${MINOR}"
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Tags: ${TAGS}"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ inputs.push }}
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            VERSION=${{ inputs.version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

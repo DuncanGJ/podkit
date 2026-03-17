@@ -7,7 +7,8 @@
 
 import { createRequire } from 'module';
 import { dirname, join } from 'path';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { arch as osArch, platform as osPlatform } from 'os';
 
@@ -242,10 +243,33 @@ function getPackageRootCandidates(): string[] {
 }
 
 /**
+ * Detect if the current Linux system uses musl libc (e.g., Alpine Linux).
+ */
+let _isMuslCached: boolean | undefined;
+function isMusl(): boolean {
+  if (osPlatform() !== 'linux') return false;
+  if (_isMuslCached !== undefined) return _isMuslCached;
+
+  try {
+    const lddOutput = execSync('ldd /bin/sh 2>&1', { encoding: 'utf8' });
+    _isMuslCached = lddOutput.includes('musl');
+  } catch {
+    // If ldd fails, check for the musl dynamic linker
+    _isMuslCached =
+      existsSync('/lib/ld-musl-x86_64.so.1') || existsSync('/lib/ld-musl-aarch64.so.1');
+  }
+
+  return _isMuslCached;
+}
+
+/**
  * Find a prebuild binary in a package root's prebuilds/ directory.
  *
  * Implements the prebuildify convention:
  *   prebuilds/{platform}-{arch}/*.napi.node
+ *
+ * On musl Linux, prefers prebuilds/{platform}-{arch}-musl/ over
+ * prebuilds/{platform}-{arch}/.
  *
  * This is inlined rather than using node-gyp-build so it works when
  * the code is bundled into another package (e.g., the CLI dist).
@@ -262,26 +286,29 @@ function findPrebuild(packageRoot: string): string | null {
     return null;
   }
 
-  // Find matching platform-arch directory (e.g., "darwin-arm64")
-  const matchingDir = entries.find((entry) => {
-    const parts = entry.split('-');
-    if (parts.length !== 2) return false;
-    return parts[0] === platform && parts[1]!.split('+').includes(arch);
-  });
+  // On musl Linux, prefer the musl-specific directory (e.g., "linux-x64-musl")
+  const muslSuffix = isMusl() ? '-musl' : '';
+  const preferredDir = `${platform}-${arch}${muslSuffix}`;
 
-  if (!matchingDir) return null;
+  // Try preferred directory first, then fall back to base platform-arch
+  const dirsToTry = muslSuffix ? [preferredDir, `${platform}-${arch}`] : [preferredDir];
 
-  // Find a .node file, preferring napi builds
-  let nodeFiles: string[];
-  try {
-    nodeFiles = readdirSync(join(prebuildsDir, matchingDir)).filter((f) => f.endsWith('.node'));
-  } catch {
-    return null;
+  for (const dirName of dirsToTry) {
+    if (!entries.includes(dirName)) continue;
+
+    let nodeFiles: string[];
+    try {
+      nodeFiles = readdirSync(join(prebuildsDir, dirName)).filter((f) => f.endsWith('.node'));
+    } catch {
+      continue;
+    }
+
+    const napiFile = nodeFiles.find((f) => f.includes('.napi.') || f.includes('napi'));
+    const file = napiFile || nodeFiles[0];
+    if (file) return join(prebuildsDir, dirName, file);
   }
 
-  const napiFile = nodeFiles.find((f) => f.includes('.napi.') || f.includes('napi'));
-  const file = napiFile || nodeFiles[0];
-  return file ? join(prebuildsDir, matchingDir, file) : null;
+  return null;
 }
 
 /**

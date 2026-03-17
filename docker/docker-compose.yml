@@ -1,0 +1,70 @@
+# podkit Docker Compose examples
+#
+# Choose one of the examples below and save it as your docker-compose.yml.
+# For full documentation: https://jvgomg.github.io/podkit/getting-started/docker
+#
+# Quick start:
+#   1. docker compose run --rm podkit init    # Generate config file
+#   2. Edit config/config.toml                # Set your music path to /music
+#   3. docker compose run --rm podkit sync    # Sync to iPod
+#
+
+# =============================================================================
+# Example: Local music directory
+# =============================================================================
+services:
+  podkit:
+    image: ghcr.io/jvgomg/podkit:latest
+    container_name: podkit
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./config:/config # Config file and cache
+      - /path/to/music:/music:ro # Music collection (read-only)
+      - /media/ipod:/ipod # iPod mount point
+    # command: sync                           # Default — run sync
+    # command: sync --dry-run                 # Preview changes without syncing
+    # command: sync --dry-run --delete        # Preview including track removals
+
+# =============================================================================
+# Example: With quality overrides
+# =============================================================================
+# services:
+#   podkit:
+#     image: ghcr.io/jvgomg/podkit:latest
+#     container_name: podkit
+#     environment:
+#       - PUID=1000
+#       - PGID=1000
+#       - TZ=Etc/UTC
+#       - PODKIT_QUALITY=medium               # Override transcoding quality
+#       - PODKIT_ARTWORK=true                 # Include album artwork
+#       - PODKIT_CLEAN_ARTISTS=true           # Clean up featured artist credits
+#     volumes:
+#       - ./config:/config
+#       - /path/to/music:/music:ro
+#       - /media/ipod:/ipod
+
+# =============================================================================
+# Example: USB device passthrough
+# =============================================================================
+# If your iPod is connected via USB and not pre-mounted, you can pass through
+# the USB device and mount point:
+#
+# services:
+#   podkit:
+#     image: ghcr.io/jvgomg/podkit:latest
+#     container_name: podkit
+#     environment:
+#       - PUID=1000
+#       - PGID=1000
+#       - TZ=Etc/UTC
+#     volumes:
+#       - ./config:/config
+#       - /path/to/music:/music:ro
+#       - /media/ipod:/ipod
+#     devices:
+#       - /dev/bus/usb:/dev/bus/usb           # USB device passthrough
+#     privileged: true                        # Required for USB access

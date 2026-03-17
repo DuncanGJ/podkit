@@ -46,7 +46,14 @@ if [ -n "$STATIC_DEPS_DIR" ]; then
     add_static "${STATIC_DEPS_DIR}/lib/libgpod.a" "-lgpod"
     add_static "${STATIC_DEPS_DIR}/lib/libgdk_pixbuf-2.0.a" "-lgdk_pixbuf-2.0"
     LIBS="$LIBS $(pkg-config --libs glib-2.0 gobject-2.0 gio-2.0 gmodule-2.0)"
-    LIBS="$LIBS -lplist-2.0 -lpng16 -ljpeg -ltiff -lz -lm -lresolv -lpthread"
+    LIBS="$LIBS -lplist-2.0 -lpng16 -ljpeg -ltiff -lz -lm -lpthread"
+
+    # glibc has a separate libresolv; musl includes the resolver in libc
+    if ldd /bin/sh 2>/dev/null | grep -q musl; then
+      : # musl — resolver is built into libc, no -lresolv needed
+    else
+      LIBS="$LIBS -lresolv"
+    fi
   fi
 
   echo "$LIBS"
