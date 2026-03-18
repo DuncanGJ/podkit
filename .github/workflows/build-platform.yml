@@ -74,9 +74,11 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            build-essential pkg-config cmake meson ninja-build \
+            build-essential pkg-config cmake ninja-build \
             python3 python3-pip curl gettext \
             intltool autoconf automake libtool gtk-doc-tools
+          # Debian 12 ships meson 1.0.1, glib 2.82+ needs >= 1.2.0
+          sudo pip3 install --upgrade meson --break-system-packages
 
       - name: Build static dependencies
         if: steps.prebuild-cache.outputs.cache-hit != 'true' && steps.static-cache.outputs.cache-hit != 'true'

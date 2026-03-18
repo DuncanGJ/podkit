@@ -467,7 +467,7 @@ elif [ "$OS" = "Linux" ]; then
     # -Wno-incompatible-pointer-types: libgpod 0.8.3's ithumb-writer.c triggers
     # -Werror=incompatible-pointer-types in GCC 14+ (newer GLib g_object_ref macro)
     export CFLAGS="-fPIC -Wno-incompatible-pointer-types -I$STATIC_DEPS_DIR/include"
-    export LDFLAGS="-L$STATIC_DEPS_DIR/lib"
+    export LDFLAGS="-L$STATIC_DEPS_DIR/lib -L$STATIC_DEPS_DIR/lib/$MULTIARCH"
 
     autoreconf -fi
     ./configure \
@@ -476,8 +476,12 @@ elif [ "$OS" = "Linux" ]; then
       --disable-more-warnings --disable-silent-rules \
       --disable-udev --disable-pygobject \
       --with-python=no --without-hal
-    make -j"$NPROC"
-    make install
+    # Build only the library (src/), not tools — the tools need complex static
+    # linking of all transitive deps which autotools can't handle well.
+    make -C src -j"$NPROC"
+    make -C src install
+    # Install pkgconfig file and top-level headers (not installed by src/ target)
+    make install-pkgconfigDATA
   else
     log "libgpod already built, skipping"
   fi
