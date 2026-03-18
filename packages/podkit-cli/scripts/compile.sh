@@ -19,20 +19,23 @@ STAGED="$LIBGPOD_DIR/gpod_binding.node"
 PLATFORM=$(node -p 'process.platform')
 ARCH=$(node -p 'process.arch')
 
-# Try prebuild first (CI creates these via prebuildify), then local node-gyp build
-PREBUILD="$LIBGPOD_DIR/prebuilds/${PLATFORM}-${ARCH}/gpod_binding.napi.node"
+# Try prebuild first (CI creates these via prebuildify), then local node-gyp build.
+# Prebuildify names the file after the package (e.g., @podkit+libgpod-node.node),
+# so we find any .node file in the platform directory rather than hardcoding.
+PREBUILD_DIR="$LIBGPOD_DIR/prebuilds/${PLATFORM}-${ARCH}"
+PREBUILD=$(find "$PREBUILD_DIR" -name "*.node" -type f 2>/dev/null | head -1)
 LOCAL_BUILD="$LIBGPOD_DIR/build/Release/gpod_binding.node"
 
-if [ -f "$PREBUILD" ]; then
+if [ -n "$PREBUILD" ]; then
   cp "$PREBUILD" "$STAGED"
-  echo "Staged prebuild: prebuilds/${PLATFORM}-${ARCH}/gpod_binding.napi.node"
+  echo "Staged prebuild: ${PREBUILD#"$LIBGPOD_DIR/"}"
 elif [ -f "$LOCAL_BUILD" ]; then
   cp "$LOCAL_BUILD" "$STAGED"
   echo "Staged local build: build/Release/gpod_binding.node"
 else
   echo "ERROR: No native binding found."
-  echo "  Expected: $PREBUILD"
-  echo "       or: $LOCAL_BUILD"
+  echo "  Searched: $PREBUILD_DIR/*.node"
+  echo "       and: $LOCAL_BUILD"
   echo "  Run 'bun run build:native' in packages/libgpod-node to build from source,"
   echo "  or run 'npx prebuildify --napi --strip' to create a prebuild."
   exit 1
