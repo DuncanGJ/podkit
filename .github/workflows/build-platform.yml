@@ -104,9 +104,9 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install dependencies (with scripts for prebuild)
+      - name: Install dependencies (for prebuild)
         if: steps.prebuild-cache.outputs.cache-hit != 'true'
-        run: bun install
+        run: bun install --ignore-scripts
 
       - name: Create prebuild
         if: steps.prebuild-cache.outputs.cache-hit != 'true'
@@ -298,9 +298,9 @@ jobs:
           export BUN_INSTALL=/usr/local
           curl -fsSL https://bun.sh/install | bash
 
-      - name: Install dependencies (with scripts for prebuild)
+      - name: Install dependencies (for prebuild)
         if: steps.prebuild-cache.outputs.cache-hit != 'true'
-        run: bun install
+        run: bun install --ignore-scripts
 
       - name: Create prebuild
         if: steps.prebuild-cache.outputs.cache-hit != 'true'
@@ -436,7 +436,7 @@ jobs:
               curl -fsSL https://bun.sh/install | bash
 
               echo "==> Installing Node.js dependencies..."
-              bun install
+              bun install --ignore-scripts
 
               echo "==> Creating prebuild..."
               cd packages/libgpod-node
