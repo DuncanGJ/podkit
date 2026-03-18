@@ -383,6 +383,11 @@ function loadBinding(): NativeBinding {
     const addonPath = findAddon();
 
     if (!addonPath) {
+      // Check for a stored error from the compile-entry.js shim (embedded binary)
+      const shimError = (globalThis as Record<string, unknown>).__podkit_native_binding_error;
+      if (shimError) {
+        throw shimError instanceof Error ? shimError : new Error(String(shimError));
+      }
       const candidates = getPackageRootCandidates();
       throw new Error(
         'Native binding not found. Searched package roots:\n' +
