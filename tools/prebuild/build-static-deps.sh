@@ -189,6 +189,13 @@ elif [ "$OS" = "Linux" ]; then
   # Consolidated PKG_CONFIG_PATH for our static deps (updated as libs are built)
   STATIC_PKG_PATH="$STATIC_DEPS_DIR/lib/pkgconfig:$STATIC_DEPS_DIR/lib/$MULTIARCH/pkgconfig"
 
+  # On Alpine/musl, copy libintl.a from system (gettext-static package).
+  # glib requires it, and it's not built from source.
+  if [ -f /usr/lib/libintl.a ] && [ ! -f "$STATIC_DEPS_DIR/lib/libintl.a" ]; then
+    log "Copying libintl.a from system..."
+    cp /usr/lib/libintl.a "$STATIC_DEPS_DIR/lib/"
+  fi
+
   # -----------------------------------------------------------------------
   # Phase 1: No-dependency libraries (zlib, libffi, pcre2, sqlite3)
   # -----------------------------------------------------------------------

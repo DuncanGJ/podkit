@@ -277,6 +277,7 @@ jobs:
             libjpeg-turbo-dev libjpeg-turbo-static \
             tiff-dev \
             zlib-dev zlib-static \
+            gettext-static gettext-dev \
             intltool autoconf automake libtool gtk-doc \
             perl-xml-parser linux-headers
 
@@ -297,7 +298,8 @@ jobs:
             libpng-dev libpng-static \
             libjpeg-turbo-dev libjpeg-turbo-static \
             tiff-dev \
-            zlib-dev zlib-static
+            zlib-dev zlib-static \
+            gettext-static gettext-dev
 
       - name: Install Node.js
         if: steps.prebuild-cache.outputs.cache-hit != 'true'
