@@ -386,6 +386,7 @@ elif [ "$OS" = "Linux" ]; then
     cd libjpeg-turbo-3.0.4
     cmake -B build \
       -DCMAKE_INSTALL_PREFIX="$STATIC_DEPS_DIR" \
+      -DCMAKE_INSTALL_LIBDIR=lib \
       -DCMAKE_C_FLAGS="-fPIC" \
       -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
       -DENABLE_SHARED=OFF \
@@ -461,6 +462,8 @@ elif [ "$OS" = "Linux" ]; then
 
     # Point pkg-config at our static deps so configure finds glib, gdk-pixbuf, libplist
     export PKG_CONFIG_PATH="$STATIC_PKG_PATH"
+    # autoreconf needs glib m4 macros (AM_GLIB_GNU_GETTEXT etc.) from our source-built glib
+    export ACLOCAL_PATH="$STATIC_DEPS_DIR/share/aclocal${ACLOCAL_PATH:+:$ACLOCAL_PATH}"
     # -Wno-incompatible-pointer-types: libgpod 0.8.3's ithumb-writer.c triggers
     # -Werror=incompatible-pointer-types in GCC 14+ (newer GLib g_object_ref macro)
     export CFLAGS="-fPIC -Wno-incompatible-pointer-types -I$STATIC_DEPS_DIR/include"
