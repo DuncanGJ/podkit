@@ -27,7 +27,7 @@
     "compile": "turbo run compile --filter=podkit",
     "clean": "turbo run clean --no-cache && rm -rf node_modules",
     "changeset": "bunx changeset",
-    "version": "bunx changeset version",
+    "version": "bunx changeset version && bun install --ignore-scripts",
     "demo": "turbo run record --filter=@podkit/demo",
     "docs:dev": "bun run --cwd packages/docs-site dev",
     "docs:build": "bun run --cwd packages/docs-site build",
