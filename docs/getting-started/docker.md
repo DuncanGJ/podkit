@@ -2,7 +2,7 @@
 title: Docker
 description: Run podkit in Docker to sync music collections to iPod devices from any Linux host.
 sidebar:
-  order: 4
+  order: 3
 ---
 
 podkit is available as a multi-architecture Docker image for `linux/amd64` and `linux/arm64`, built on Alpine Linux. The image follows [LinuxServer.io](https://www.linuxserver.io/) conventions for user permissions, environment variables, and volume mounts.

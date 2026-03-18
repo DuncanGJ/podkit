@@ -124,11 +124,11 @@ Read these documents based on what you're working on:
 | Device hardware testing | [docs/developers/device-hardware-testing.md](docs/developers/device-hardware-testing.md) |
 | Package READMEs | `packages/*/README.md` |
 | Feature requests | [agents/feature-requests.md](agents/feature-requests.md) |
-| About the project | [docs/about.md](docs/about.md) |
+| About the project | [docs/project/about.md](docs/project/about.md) |
 | Rockbox compatibility | [docs/devices/rockbox.md](docs/devices/rockbox.md) |
-| Similar projects | [docs/similar-projects.md](docs/similar-projects.md) |
-| Roadmap | [docs/roadmap.md](docs/roadmap.md) |
-| Feedback & feature requests (user-facing) | [docs/feedback.md](docs/feedback.md) |
+| Similar projects | [docs/project/similar-projects.md](docs/project/similar-projects.md) |
+| Roadmap | [docs/project/roadmap.md](docs/project/roadmap.md) |
+| Feedback & feature requests (user-facing) | [docs/project/feedback.md](docs/project/feedback.md) |
 | Docker | [docs/getting-started/docker.md](docs/getting-started/docker.md) |
 
 ## Feature Requests & GitHub Discussions
