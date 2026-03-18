@@ -27,10 +27,21 @@ jobs:
     needs: check-pr
     if: needs.check-pr.outputs.is_version_pr == 'true'
     uses: ./.github/workflows/build-platform.yml
+    with:
+      upload-artifacts: true
+
+  # Build Docker image (no push) to warm the layer cache for release
+  docker:
+    needs: [check-pr, build]
+    if: needs.check-pr.outputs.is_version_pr == 'true' && needs.build.result == 'success'
+    uses: ./.github/workflows/docker.yml
+    with:
+      version: 0.0.0-verify
+      push: false
 
   # Summary job for branch protection rules
   release-ci-passed:
-    needs: [check-pr, build]
+    needs: [check-pr, build, docker]
     if: always()
     runs-on: ubuntu-latest
     name: Release CI Status
@@ -43,6 +54,10 @@ jobs:
           fi
           if [[ "${{ needs.build.result }}" != "success" ]]; then
             echo "Build jobs failed or were cancelled"
+            exit 1
+          fi
+          if [[ "${{ needs.docker.result }}" != "success" ]]; then
+            echo "Docker build failed or was cancelled"
             exit 1
           fi
           echo "All release CI checks passed"

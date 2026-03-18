@@ -123,6 +123,7 @@ Read these documents based on what you're working on:
 | Similar projects | [docs/similar-projects.md](docs/similar-projects.md) |
 | Roadmap | [docs/roadmap.md](docs/roadmap.md) |
 | Feedback & feature requests (user-facing) | [docs/feedback.md](docs/feedback.md) |
+| Docker | [docs/getting-started/docker.md](docs/getting-started/docker.md) |
 
 ## Feature Requests & GitHub Discussions
 
@@ -437,6 +438,44 @@ The `podkit completions` command generates shell completion scripts (zsh, bash) 
 - If you introduce a Commander.js pattern the generator doesn't handle (e.g. custom argument completions with dynamic values like device names from config), you'll need to update the generation logic in `packages/podkit-cli/src/commands/completions.ts`.
 - The generator currently handles: subcommands, aliases, short/long options, flag arguments, and `argChoices`. Test with `podkit completions zsh | head -40` after CLI changes to spot-check.
 
+## Docker Image
+
+podkit is distributed as a Docker image at `ghcr.io/jvgomg/podkit`. See [docs/getting-started/docker.md](docs/getting-started/docker.md) for user documentation.
+
+**Key files:**
+
+| Purpose | Path |
+|---------|------|
+| Dockerfile | `docker/Dockerfile` |
+| Entrypoint script | `docker/entrypoint.sh` |
+| Docker Compose example | `docker/docker-compose.yml` |
+| CI workflow | `.github/workflows/docker.yml` |
+
+**Architecture:**
+- Base image: Alpine 3.21 (musl libc — CI produces musl-specific binaries for Docker)
+- Multi-arch: linux/amd64 and linux/arm64 via `docker buildx`
+- Pre-built musl binaries are copied from CI artifacts per `TARGETARCH`
+- Runtime deps: FFmpeg + su-exec + shadow (for PUID/PGID)
+- Follows LinuxServer.io conventions: PUID/PGID env vars, /config volume, branded startup banner
+
+**Entrypoint behavior:**
+1. Creates user/group matching PUID/PGID
+2. `init` command generates a config file into the mounted /config volume
+3. `sync` command auto-injects `--device /ipod` and checks for config file
+4. Fails with helpful instructions if no config file exists
+
+**Impact on CLI changes:**
+- New CLI commands need to be added to the `PODKIT_COMMANDS` list in `docker/entrypoint.sh`
+- The entrypoint passes `PODKIT_CONFIG=/config/config.toml` by default
+- `PODKIT_TIPS=false` is set in the Dockerfile (tips aren't useful in Docker context)
+
+**Future considerations (daemon mode):**
+- When daemon mode lands, the entrypoint's default CMD should switch from `sync` to `daemon`
+- USB auto-detect in Docker requires `--privileged` or `--device /dev/bus/usb` passthrough
+- udev rules inside the container would handle iPod connect/disconnect events
+- Process supervision (s6-overlay or similar) becomes relevant for long-running containers
+- Health check endpoint/command should be added for Docker orchestration
+
 ## Code Conventions
 
 - TypeScript strict mode
@@ -495,8 +534,9 @@ bunx changeset
 2. A bot PR ("Version Packages") is created/updated automatically
 3. When ready to release, merge the version PR
 4. CI builds binaries for 4 platforms and creates a GitHub Release with tarballs (`.github/workflows/release.yml`)
-5. Homebrew formula is auto-updated with new version and checksums
-6. Users get the update via `brew upgrade podkit`
+5. Docker image is built for linux/amd64 and linux/arm64 and pushed to GHCR (`.github/workflows/docker.yml`)
+6. Homebrew formula is auto-updated with new version and checksums
+7. Users get the update via `brew upgrade podkit` or `docker pull ghcr.io/jvgomg/podkit:latest`
 
 ### Reviewing and Improving a Release PR
 
@@ -542,3 +582,5 @@ Key files to understand:
 | Demo build | `packages/demo/build.ts` |
 | Demo tape | `packages/demo/demo.tape` |
 | Test fixture generator | `packages/test-fixtures/src/index.ts` |
+| Docker entrypoint | `docker/entrypoint.sh` |
+| Dockerfile | `docker/Dockerfile` |

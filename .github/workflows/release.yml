@@ -13,6 +13,7 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  packages: write
 
 jobs:
   # Step 1: Detect changesets and either create a version PR or flag for release
@@ -189,6 +190,18 @@ jobs:
             --notes-file release-notes.md \
             release-assets/podkit-*.tar.gz \
             release-assets/SHA256SUMS.txt
+
+  # Step 4: Build and push Docker image to GHCR
+  docker:
+    needs: [build, release]
+    if: needs.release.result == 'success'
+    uses: ./.github/workflows/docker.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+      push: true
+    permissions:
+      contents: read
+      packages: write
 
   # Step 5: Update the Homebrew formula in the tap repository
   update-homebrew:
