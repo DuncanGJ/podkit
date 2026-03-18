@@ -318,14 +318,30 @@ export class VideoDirectoryAdapter {
     const metadataTitleIsSceneRelease = metadataTitle && looksLikeSceneRelease(metadataTitle);
 
     if (contentTypeResult.type === 'tvshow') {
-      // For TV shows, title should be episode-specific, not series title
-      // Use episode ID format (e.g., "S01E01") or leave for later formatting
-      if (metadataTitle && !metadataTitleIsSceneRelease) {
-        // Use clean metadata title as episode title
+      // For TV shows, title should be episode-specific, not series title.
+      // If the metadata title is just the show name repeated, it's not a real
+      // episode title — use the episode ID instead.
+      const episodeId = contentTypeResult.episodeId;
+      // Detect if the metadata title is just the show name repeated (not a real episode title).
+      // Compare case-insensitively since filenames may differ in case from folder names.
+      // Also check if series title starts with the metadata title, since folder-derived
+      // titles may include language markers (e.g., "Digimon Adventure (JPN)" starts with "Digimon Adventure").
+      const seriesLower = (contentTypeResult.seriesTitle ?? '').toLowerCase();
+      const titleLower = (metadataTitle ?? '').toLowerCase();
+      const titleMatchesSeriesName =
+        !metadataTitle || titleLower === seriesLower || seriesLower.startsWith(titleLower + ' (');
+      const hasRealEpisodeTitle =
+        metadataTitle && !metadataTitleIsSceneRelease && !titleMatchesSeriesName;
+
+      if (hasRealEpisodeTitle && episodeId) {
+        // Has both episode ID and episode title: "S01E01 - Episode Title"
+        title = `${episodeId} - ${metadataTitle}`;
+      } else if (hasRealEpisodeTitle) {
+        // Has episode title but no ID
         title = metadataTitle;
-      } else if (contentTypeResult.episodeId) {
-        // Use episode ID as title (e.g., "S01E01")
-        title = contentTypeResult.episodeId;
+      } else if (episodeId) {
+        // No episode title, use episode ID: "S01E01"
+        title = episodeId;
       } else {
         // Fallback to filename
         title = this.getTitleFromPath(filePath);

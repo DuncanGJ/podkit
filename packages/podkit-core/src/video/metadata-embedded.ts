@@ -284,11 +284,16 @@ export function parseFilename(filePath: string): FilenameParsed {
   const sxxexxMatch = nameWithoutExt.match(/^(.+?)[.\s-]+[Ss](\d+)[Ee](\d+)(?:[.\s-]+(.*))?$/);
   if (sxxexxMatch) {
     const [, showPart, season, episode, titlePart] = sxxexxMatch;
+    const seasonNum = parseInt(season!, 10);
+    const episodeNum = parseInt(episode!, 10);
     const cleanedTitle = titlePart ? cleanEpisodeTitlePart(titlePart) : null;
+    // Use the cleaned episode title if available, otherwise use the show part.
+    // The show part will be detected as "not a real episode title" by analyzeFile()
+    // when it matches the series title, and the episode ID will be used instead.
     return {
       title: cleanedTitle || (showPart || '').replace(/\./g, ' ').trim(),
-      seasonNumber: parseInt(season!, 10),
-      episodeNumber: parseInt(episode!, 10),
+      seasonNumber: seasonNum,
+      episodeNumber: episodeNum,
     };
   }
 

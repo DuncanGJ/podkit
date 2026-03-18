@@ -125,7 +125,7 @@ describe('VideoDirectoryAdapter integration', () => {
 
       expect(tvVideo).toBeDefined();
       expect(tvVideo!.contentType).toBe('tvshow');
-      expect(tvVideo!.title).toBe('Pilot Episode');
+      expect(tvVideo!.title).toBe('S01E01 - Pilot Episode');
       expect(tvVideo!.seriesTitle).toBe('Test Show');
       expect(tvVideo!.seasonNumber).toBe(1);
       expect(tvVideo!.episodeNumber).toBe(1);
