@@ -10,7 +10,7 @@ import {
   getDeviceIdentity,
 } from './device.js';
 import type { PodkitConfig } from '../config/types.js';
-import { DEFAULT_TRANSFORMS_CONFIG } from '../config/types.js';
+import { DEFAULT_TRANSFORMS_CONFIG, DEFAULT_VIDEO_TRANSFORMS_CONFIG } from '../config/types.js';
 
 // Minimal config for testing
 function makeConfig(overrides: Partial<PodkitConfig> = {}): PodkitConfig {
@@ -19,6 +19,7 @@ function makeConfig(overrides: Partial<PodkitConfig> = {}): PodkitConfig {
     artwork: true,
     tips: true,
     transforms: DEFAULT_TRANSFORMS_CONFIG,
+    videoTransforms: DEFAULT_VIDEO_TRANSFORMS_CONFIG,
     ...overrides,
   };
 }

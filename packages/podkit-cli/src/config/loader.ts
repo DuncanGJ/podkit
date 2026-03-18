@@ -19,12 +19,14 @@ import type {
   VideoQualityPreset,
   ConfigFileContent,
   ConfigFileCleanArtists,
+  ConfigFileShowLanguage,
   ConfigFileMusicCollection,
   ConfigFileVideoCollection,
   ConfigFileDevice,
   ConfigFileDefaults,
   GlobalOptions,
   CleanArtistsConfig,
+  ShowLanguageConfig,
   MusicCollectionConfig,
   VideoCollectionConfig,
   DeviceConfig,
@@ -33,6 +35,7 @@ import type {
 import {
   QUALITY_PRESETS,
   DEFAULT_CLEAN_ARTISTS_CONFIG,
+  DEFAULT_SHOW_LANGUAGE_CONFIG,
   VIDEO_QUALITY_PRESETS,
 } from './types.js';
 import { DEFAULT_CONFIG, DEFAULT_CONFIG_PATH, ENV_KEYS } from './defaults.js';
@@ -118,14 +121,18 @@ export function loadConfigFile(configPath: string): PartialConfig | undefined {
       config.encoding = parsed.encoding;
     } else {
       throw new Error(
-        `Invalid encoding value "${parsed.encoding}" in config. ` +
-          `Valid values: vbr, cbr`
+        `Invalid encoding value "${parsed.encoding}" in config. ` + `Valid values: vbr, cbr`
       );
     }
   }
 
   if (parsed.customBitrate !== undefined) {
-    if (typeof parsed.customBitrate !== 'number' || !Number.isInteger(parsed.customBitrate) || parsed.customBitrate < 64 || parsed.customBitrate > 320) {
+    if (
+      typeof parsed.customBitrate !== 'number' ||
+      !Number.isInteger(parsed.customBitrate) ||
+      parsed.customBitrate < 64 ||
+      parsed.customBitrate > 320
+    ) {
       throw new Error(
         `Invalid customBitrate value "${parsed.customBitrate}" in config. ` +
           `Must be an integer between 64 and 320.`
@@ -135,7 +142,11 @@ export function loadConfigFile(configPath: string): PartialConfig | undefined {
   }
 
   if (parsed.bitrateTolerance !== undefined) {
-    if (typeof parsed.bitrateTolerance !== 'number' || parsed.bitrateTolerance < 0.0 || parsed.bitrateTolerance > 1.0) {
+    if (
+      typeof parsed.bitrateTolerance !== 'number' ||
+      parsed.bitrateTolerance < 0.0 ||
+      parsed.bitrateTolerance > 1.0
+    ) {
       throw new Error(
         `Invalid bitrateTolerance value "${parsed.bitrateTolerance}" in config. ` +
           `Must be a number between 0.0 and 1.0.`
@@ -164,6 +175,13 @@ export function loadConfigFile(configPath: string): PartialConfig | undefined {
   if (parsed.cleanArtists !== undefined) {
     config.transforms = {
       cleanArtists: parseCleanArtistsConfig(parsed.cleanArtists),
+    };
+  }
+
+  // Parse showLanguage (boolean or table)
+  if (parsed.showLanguage !== undefined) {
+    config.videoTransforms = {
+      showLanguage: parseShowLanguageConfig(parsed.showLanguage),
     };
   }
 
@@ -282,6 +300,75 @@ function parseCleanArtistsConfig(
       }
     }
     config.ignore = raw.ignore;
+  }
+
+  return config;
+}
+
+/**
+ * Parse and validate showLanguage config from TOML
+ *
+ * Accepts either a boolean (simple enable/disable) or a table with options.
+ * When provided as a table, enabled defaults to true unless explicitly set to false.
+ *
+ * @param raw - The raw TOML value for showLanguage
+ * @param context - Config path context for error messages (e.g., "showLanguage" or "devices.nano.showLanguage")
+ */
+function parseShowLanguageConfig(
+  raw: ConfigFileShowLanguage,
+  context: string = 'showLanguage'
+): ShowLanguageConfig {
+  // Boolean shorthand: showLanguage = true/false
+  if (typeof raw === 'boolean') {
+    return {
+      ...DEFAULT_SHOW_LANGUAGE_CONFIG,
+      enabled: raw,
+    };
+  }
+
+  // Table form: [showLanguage] with options — enabled defaults to true
+  if (typeof raw !== 'object' || raw === null) {
+    throw new Error(`Invalid type for "${context}". Expected boolean or table, got ${typeof raw}.`);
+  }
+
+  const config: ShowLanguageConfig = {
+    ...DEFAULT_SHOW_LANGUAGE_CONFIG,
+    enabled: true, // Table form implies enabled
+  };
+
+  // Validate types and set values
+  if (raw.enabled !== undefined) {
+    if (typeof raw.enabled !== 'boolean') {
+      throw new Error(
+        `Invalid type for "enabled" in [${context}]. ` +
+          `Expected boolean, got ${typeof raw.enabled}.`
+      );
+    }
+    config.enabled = raw.enabled;
+  }
+  if (raw.format !== undefined) {
+    if (typeof raw.format !== 'string') {
+      throw new Error(
+        `Invalid type for "format" in [${context}]. ` + `Expected string, got ${typeof raw.format}.`
+      );
+    }
+    // Validate format contains placeholder
+    if (!raw.format.includes('{}')) {
+      throw new Error(
+        `Invalid format "${raw.format}" in [${context}]. ` +
+          'Format must contain "{}" placeholder for language code.'
+      );
+    }
+    config.format = raw.format;
+  }
+  if (raw.expand !== undefined) {
+    if (typeof raw.expand !== 'boolean') {
+      throw new Error(
+        `Invalid type for "expand" in [${context}]. ` +
+          `Expected boolean, got ${typeof raw.expand}.`
+      );
+    }
+    config.expand = raw.expand;
   }
 
   return config;
@@ -502,7 +589,12 @@ function parseDevices(
 
     // Parse optional customBitrate
     if (rawDevice.customBitrate !== undefined) {
-      if (typeof rawDevice.customBitrate !== 'number' || !Number.isInteger(rawDevice.customBitrate) || rawDevice.customBitrate < 64 || rawDevice.customBitrate > 320) {
+      if (
+        typeof rawDevice.customBitrate !== 'number' ||
+        !Number.isInteger(rawDevice.customBitrate) ||
+        rawDevice.customBitrate < 64 ||
+        rawDevice.customBitrate > 320
+      ) {
         throw new Error(
           `Invalid customBitrate value "${rawDevice.customBitrate}" in [devices.${name}]. ` +
             `Must be an integer between 64 and 320.`
@@ -513,7 +605,11 @@ function parseDevices(
 
     // Parse optional bitrateTolerance
     if (rawDevice.bitrateTolerance !== undefined) {
-      if (typeof rawDevice.bitrateTolerance !== 'number' || rawDevice.bitrateTolerance < 0.0 || rawDevice.bitrateTolerance > 1.0) {
+      if (
+        typeof rawDevice.bitrateTolerance !== 'number' ||
+        rawDevice.bitrateTolerance < 0.0 ||
+        rawDevice.bitrateTolerance > 1.0
+      ) {
         throw new Error(
           `Invalid bitrateTolerance value "${rawDevice.bitrateTolerance}" in [devices.${name}]. ` +
             `Must be a number between 0.0 and 1.0.`
@@ -561,6 +657,16 @@ function parseDevices(
         cleanArtists: parseCleanArtistsConfig(
           rawDevice.cleanArtists,
           `devices.${name}.cleanArtists`
+        ),
+      };
+    }
+
+    // Parse optional showLanguage (boolean or table)
+    if (rawDevice.showLanguage !== undefined) {
+      device.videoTransforms = {
+        showLanguage: parseShowLanguageConfig(
+          rawDevice.showLanguage,
+          `devices.${name}.showLanguage`
         ),
       };
     }
@@ -774,6 +880,31 @@ export function loadEnvConfig(): PartialConfig {
     config.transforms = { cleanArtists: ca };
   }
 
+  // Show language env vars
+  const showLanguage = process.env[ENV_KEYS.showLanguage];
+  const showLanguageFormat = process.env[ENV_KEYS.showLanguageFormat];
+  const showLanguageExpand = process.env[ENV_KEYS.showLanguageExpand];
+
+  if (
+    showLanguage !== undefined ||
+    showLanguageFormat !== undefined ||
+    showLanguageExpand !== undefined
+  ) {
+    const sl: ShowLanguageConfig = { ...DEFAULT_SHOW_LANGUAGE_CONFIG };
+
+    if (showLanguage !== undefined) {
+      sl.enabled = parseBoolEnv(showLanguage);
+    }
+    if (showLanguageFormat !== undefined) {
+      sl.format = showLanguageFormat;
+    }
+    if (showLanguageExpand !== undefined) {
+      sl.expand = parseBoolEnv(showLanguageExpand);
+    }
+
+    config.videoTransforms = { showLanguage: sl };
+  }
+
   return config;
 }
 
@@ -847,6 +978,7 @@ export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
   const merged: PodkitConfig = {
     ...DEFAULT_CONFIG,
     transforms: { ...DEFAULT_CONFIG.transforms },
+    videoTransforms: { ...DEFAULT_CONFIG.videoTransforms },
   };
 
   for (const config of configs) {
@@ -888,6 +1020,15 @@ export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
         cleanArtists: {
           ...merged.transforms.cleanArtists,
           ...config.transforms.cleanArtists,
+        },
+      };
+    }
+    if (config.videoTransforms !== undefined) {
+      // Deep merge video transforms config
+      merged.videoTransforms = {
+        showLanguage: {
+          ...merged.videoTransforms.showLanguage,
+          ...config.videoTransforms.showLanguage,
         },
       };
     }
@@ -934,6 +1075,15 @@ export function mergeConfigs(...configs: PartialConfig[]): PodkitConfig {
                   },
                 }
               : existingDevice.transforms,
+            // Deep merge video transforms if both exist
+            videoTransforms: deviceConfig.videoTransforms
+              ? {
+                  showLanguage: {
+                    ...existingDevice.videoTransforms?.showLanguage,
+                    ...deviceConfig.videoTransforms.showLanguage,
+                  },
+                }
+              : existingDevice.videoTransforms,
           };
         } else {
           merged.devices[name] = deviceConfig;
