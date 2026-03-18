@@ -8,5 +8,11 @@
 // The gpod_binding.node file is staged by scripts/compile.sh before compilation.
 // We store it on globalThis so the binding loader can retrieve it without
 // needing to require() the .node file again (which fails from /$bunfs).
-globalThis.__podkit_native_binding = require('../gpod_binding.node');
+try {
+  globalThis.__podkit_native_binding = require('../gpod_binding.node');
+} catch {
+  // dlopen may fail if runtime deps are missing — that's fine for commands
+  // that don't touch the iPod database (--version, --help, completions).
+  // The binding loader will report the real error when needed.
+}
 import('./main.ts');
