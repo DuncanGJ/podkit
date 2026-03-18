@@ -1,9 +1,10 @@
 ---
 id: TASK-158
 title: Manual hardware test procedure for device operations
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-18 12:25'
+updated_date: '2026-03-18 14:39'
 labels:
   - testing
   - linux

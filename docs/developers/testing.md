@@ -335,6 +335,7 @@ See [Quality Preset Device Testing](/developers/quality-preset-testing) for the 
 ## See Also
 
 - [Device Testing](/developers/device-testing) - Testing device compatibility
+- [Device Hardware Testing](/developers/device-hardware-testing) - Manual test procedure for real iPod hardware
 - [Development Setup](/developers/development) - Setting up dev environment
 - `packages/gpod-testing/README.md` - Test utility documentation
 - `packages/e2e-tests/README.md` - E2E test documentation

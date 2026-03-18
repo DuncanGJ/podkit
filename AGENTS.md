@@ -121,6 +121,7 @@ Read these documents based on what you're working on:
 | Sync tags | [docs/reference/sync-tags.md](docs/reference/sync-tags.md) |
 | Demo GIF package | [packages/demo/README.md](packages/demo/README.md) |
 | Lima VMs (cross-platform testing) | [tools/lima/README.md](tools/lima/README.md) |
+| Device hardware testing | [docs/developers/device-hardware-testing.md](docs/developers/device-hardware-testing.md) |
 | Package READMEs | `packages/*/README.md` |
 | Feature requests | [agents/feature-requests.md](agents/feature-requests.md) |
 | About the project | [docs/about.md](docs/about.md) |
