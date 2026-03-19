@@ -61,7 +61,12 @@ import {
   buildTransformPreview,
 } from '../output/index.js';
 import type { CollectedError } from '../output/index.js';
-import { formatProgressLine } from '../utils/progress.js';
+import {
+  formatOverallLine,
+  formatCurrentLineWithBar,
+  formatCurrentLineText,
+  DualProgressDisplay,
+} from '../utils/progress.js';
 import { createMusicAdapter } from '../utils/source-adapter.js';
 
 // =============================================================================
@@ -844,6 +849,7 @@ export async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicS
   let failed = 0;
 
   const executor = new core.DefaultSyncExecutor({ ipod, transcoder });
+  const musicDisplay = new DualProgressDisplay((content) => out.raw(content));
 
   for await (const progress of executor.execute(plan, {
     dryRun: false,
@@ -875,22 +881,22 @@ export async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicS
     }
 
     if (progress.phase === 'complete') {
-      out.clearLine();
+      musicDisplay.finish();
       out.print('Music sync complete!');
     } else if (progress.phase === 'updating-db') {
-      out.raw('\r\x1b[KSaving iPod database...');
+      musicDisplay.finish();
+      out.raw('Saving iPod database...');
     } else if (progress.phase !== 'preparing') {
-      const bar = renderProgressBar(progress.current + 1, progress.total);
+      const overallLine = formatOverallLine(completed, progress.total, 'tracks');
       const phaseStr =
         progress.phase === 'updating-metadata'
           ? 'Updating metadata'
           : progress.phase.charAt(0).toUpperCase() + progress.phase.slice(1);
-      const line = formatProgressLine({
-        bar,
+      const currentLine = formatCurrentLineText({
         phase: phaseStr,
         trackName: progress.currentTrack,
       });
-      out.raw(line);
+      musicDisplay.update(overallLine, currentLine);
     }
   }
 
@@ -1464,6 +1470,7 @@ export async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoS
 
   const videoExecutor = core.createVideoExecutor({ ipod });
   let videoCompleted = 0;
+  const videoDisplay = new DualProgressDisplay((content) => out.raw(content));
 
   try {
     for await (const progress of videoExecutor.execute(videoPlan, {
@@ -1477,30 +1484,31 @@ export async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoS
       }
 
       if (progress.phase === 'complete') {
-        out.print('\nVideo sync complete.');
-      } else if (progress.transcodeProgress) {
-        const percent = progress.transcodeProgress.percent;
-        const bar = renderProgressBar(Math.round(percent), 100);
-        const line = formatProgressLine({
-          bar,
-          phase: 'Transcoding',
-          trackName: progress.currentTrack,
-          speed: progress.transcodeProgress.speed,
-        });
-        out.raw(line);
+        videoDisplay.finish();
+        out.print('Video sync complete.');
       } else {
-        const bar = renderProgressBar(progress.current + 1, progress.total);
-        const phaseStr = progress.phase.replace('video-', '');
-        const phaseFormatted =
-          phaseStr === 'updating-metadata'
-            ? 'Updating metadata'
-            : phaseStr.charAt(0).toUpperCase() + phaseStr.slice(1);
-        const line = formatProgressLine({
-          bar,
-          phase: phaseFormatted,
-          trackName: progress.currentTrack,
-        });
-        out.raw(line);
+        const overallLine = formatOverallLine(videoCompleted, progress.total, 'videos');
+
+        if (progress.transcodeProgress) {
+          const currentLine = formatCurrentLineWithBar({
+            percent: progress.transcodeProgress.percent,
+            phase: 'Transcoding',
+            trackName: progress.currentTrack,
+            speed: progress.transcodeProgress.speed,
+          });
+          videoDisplay.update(overallLine, currentLine);
+        } else {
+          const phaseStr = progress.phase.replace('video-', '');
+          const phaseFormatted =
+            phaseStr === 'updating-metadata'
+              ? 'Updating metadata'
+              : phaseStr.charAt(0).toUpperCase() + phaseStr.slice(1);
+          const currentLine = formatCurrentLineText({
+            phase: phaseFormatted,
+            trackName: progress.currentTrack,
+          });
+          videoDisplay.update(overallLine, currentLine);
+        }
       }
     }
   } catch (err) {
