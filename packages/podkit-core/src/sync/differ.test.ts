@@ -2315,3 +2315,94 @@ describe('forceSyncTags', () => {
     expect(diff.toUpdate).toHaveLength(0);
   });
 });
+
+// =============================================================================
+// Force Metadata Tests
+// =============================================================================
+
+describe('computeDiff - forceMetadata', () => {
+  it('moves all matched tracks to toUpdate with force-metadata reason', () => {
+    const collectionTracks = [
+      createCollectionTrack('Artist A', 'Song 1', 'Album 1'),
+      createCollectionTrack('Artist B', 'Song 2', 'Album 2'),
+    ];
+    const ipodTracks = [
+      createIPodTrack('Artist A', 'Song 1', 'Album 1'),
+      createIPodTrack('Artist B', 'Song 2', 'Album 2'),
+    ];
+
+    const diff = computeDiff(collectionTracks, ipodTracks, { forceMetadata: true });
+
+    expect(diff.existing).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(2);
+    expect(diff.toUpdate[0]!.reason).toBe('force-metadata');
+    expect(diff.toUpdate[1]!.reason).toBe('force-metadata');
+  });
+
+  it('tracks with differing secondary metadata are caught by metadata-correction first', () => {
+    // When metadata-correction fields (genre, year, etc.) differ, the upgrade detection
+    // pipeline catches them before forceMetadata runs. This is correct — they still get
+    // updated, just with a more specific reason.
+    const collectionTracks = [
+      createCollectionTrack('Artist', 'Song', 'Album', { genre: 'Rock', year: 2024 }),
+    ];
+    const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album', { genre: 'Pop', year: 2020 })];
+
+    const diff = computeDiff(collectionTracks, ipodTracks, { forceMetadata: true });
+
+    expect(diff.toUpdate).toHaveLength(1);
+    // Metadata-correction is detected first in the pipeline
+    expect(diff.toUpdate[0]!.reason).toBe('metadata-correction');
+  });
+
+  it('includes no-op title change when metadata is identical', () => {
+    const collectionTracks = [createCollectionTrack('Artist', 'Song', 'Album')];
+    const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album')];
+
+    const diff = computeDiff(collectionTracks, ipodTracks, { forceMetadata: true });
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('force-metadata');
+    expect(diff.toUpdate[0]!.changes).toHaveLength(1);
+    expect(diff.toUpdate[0]!.changes[0]!.field).toBe('title');
+  });
+
+  it('still adds new tracks when forceMetadata is true', () => {
+    const collectionTracks = [
+      createCollectionTrack('Artist A', 'Song 1', 'Album 1'),
+      createCollectionTrack('Artist B', 'New Song', 'Album 2'),
+    ];
+    const ipodTracks = [createIPodTrack('Artist A', 'Song 1', 'Album 1')];
+
+    const diff = computeDiff(collectionTracks, ipodTracks, { forceMetadata: true });
+
+    expect(diff.toAdd).toHaveLength(1);
+    expect(diff.toAdd[0]!.title).toBe('New Song');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('force-metadata');
+  });
+
+  it('still identifies removals when forceMetadata is true', () => {
+    const collectionTracks = [createCollectionTrack('Artist A', 'Song 1', 'Album 1')];
+    const ipodTracks = [
+      createIPodTrack('Artist A', 'Song 1', 'Album 1'),
+      createIPodTrack('Artist B', 'Old Song', 'Album 2'),
+    ];
+
+    const diff = computeDiff(collectionTracks, ipodTracks, { forceMetadata: true });
+
+    expect(diff.toRemove).toHaveLength(1);
+    expect(diff.toRemove[0]!.title).toBe('Old Song');
+    expect(diff.toUpdate).toHaveLength(1);
+  });
+
+  it('does not move tracks to toUpdate when forceMetadata is false', () => {
+    const collectionTracks = [createCollectionTrack('Artist', 'Song', 'Album')];
+    const ipodTracks = [createIPodTrack('Artist', 'Song', 'Album')];
+
+    const diff = computeDiff(collectionTracks, ipodTracks, { forceMetadata: false });
+
+    expect(diff.existing).toHaveLength(1);
+    expect(diff.toUpdate).toHaveLength(0);
+  });
+});

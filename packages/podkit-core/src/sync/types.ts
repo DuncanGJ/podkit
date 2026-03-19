@@ -67,6 +67,7 @@ export type UpdateReason =
   | 'metadata-changed'
   | 'force-transcode'
   | 'sync-tag-write'
+  | 'force-metadata'
   | UpgradeReason;
 
 /**
@@ -329,6 +330,15 @@ export interface DiffOptions {
    * @default false
    */
   forceSyncTags?: boolean;
+
+  /**
+   * When true, move ALL matched tracks to `toUpdate` with reason `'force-metadata'`.
+   * This rewrites metadata on every matched track without re-transcoding or
+   * re-transferring files.
+   *
+   * @default false
+   */
+  forceMetadata?: boolean;
 
   /**
    * When true, indicates that lossless sources are transcoded to lossy format

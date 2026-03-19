@@ -85,7 +85,7 @@ export interface MatchedVideo {
 /**
  * Reason why a video needs a metadata-only update
  */
-export type VideoUpdateReason = 'transform-apply' | 'transform-remove';
+export type VideoUpdateReason = 'transform-apply' | 'transform-remove' | 'force-metadata';
 
 /**
  * A video that needs a metadata-only update (no file re-transfer)
@@ -145,6 +145,14 @@ export interface VideoDiffOptions {
    * When set, enables dual-key matching for transform-aware sync.
    */
   videoTransforms?: VideoTransformsConfig;
+
+  /**
+   * When true, move ALL matched videos to `toUpdate` with reason `'force-metadata'`.
+   * This rewrites metadata on every matched video without re-transcoding.
+   *
+   * @default false
+   */
+  forceMetadata?: boolean;
 }
 
 // =============================================================================
@@ -386,6 +394,38 @@ export function diffVideos(
 
     existing.length = 0;
     existing.push(...stillExisting);
+  }
+
+  // Post-processing: force-metadata moves ALL remaining existing videos to toUpdate.
+  // This rewrites metadata on every matched video without re-transcoding.
+  if (_options?.forceMetadata) {
+    for (const match of existing) {
+      // Compute the effective series title (with transforms if configured)
+      const videoTransforms = _options?.videoTransforms;
+      const transformsEnabled = videoTransforms && hasEnabledVideoTransforms(videoTransforms);
+      let newSeriesTitle: string | undefined;
+
+      if (match.collection.contentType === 'tvshow') {
+        if (transformsEnabled) {
+          const { transformedSeriesTitle } = getVideoTransformMatchKeys(
+            match.collection,
+            generateVideoMatchKey,
+            videoTransforms
+          );
+          newSeriesTitle = transformedSeriesTitle ?? match.collection.seriesTitle;
+        } else {
+          newSeriesTitle = match.collection.seriesTitle;
+        }
+      }
+
+      toUpdate.push({
+        collection: match.collection,
+        ipod: match.ipod,
+        reason: 'force-metadata',
+        newSeriesTitle,
+      });
+    }
+    existing.length = 0;
   }
 
   return {

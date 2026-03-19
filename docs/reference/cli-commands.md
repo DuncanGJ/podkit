@@ -88,6 +88,7 @@ podkit sync [options]
 | `--skip-upgrades` | Skip file-replacement upgrades for changed source files |
 | `--force-transcode` | Re-transcode all lossless-source tracks regardless of bitrate match |
 | `--force-sync-tags` | Write sync tags to all matched transcoded tracks without re-transcoding |
+| `--force-metadata` | Rewrite metadata on all matched tracks without re-transcoding or re-transferring files |
 | `--delete` | Remove tracks from iPod that are not in the source |
 | `--eject` | Eject iPod after successful sync |
 

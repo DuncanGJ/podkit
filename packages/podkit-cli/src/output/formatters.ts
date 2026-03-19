@@ -135,6 +135,8 @@ export function formatUpdateReason(reason: string): string {
       return 'Sound Check update';
     case 'metadata-correction':
       return 'Metadata correction';
+    case 'force-metadata':
+      return 'Metadata refresh';
     default:
       return reason;
   }

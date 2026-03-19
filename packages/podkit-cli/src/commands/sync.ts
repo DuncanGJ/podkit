@@ -25,7 +25,7 @@
  * ```
  */
 import { existsSync, statfsSync } from '../utils/fs.js';
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { getContext } from '../context.js';
 import type {
   QualityPreset,
@@ -86,6 +86,7 @@ interface SyncOptions {
   skipUpgrades?: boolean;
   forceTranscode?: boolean;
   forceSyncTags?: boolean;
+  forceMetadata?: boolean;
   checkArtwork?: boolean;
   delete?: boolean;
   collection?: string;
@@ -159,6 +160,7 @@ export interface UpdateBreakdown {
   'artwork-updated'?: number;
   'soundcheck-update'?: number;
   'metadata-correction'?: number;
+  'force-metadata'?: number;
 }
 
 /**
@@ -524,6 +526,7 @@ interface MusicSyncContext {
   skipUpgrades: boolean;
   forceTranscode: boolean;
   forceSyncTags: boolean;
+  forceMetadata: boolean;
   checkArtwork: boolean;
   ipod: Awaited<ReturnType<typeof import('@podkit/core').IpodDatabase.open>>;
   transcoder: ReturnType<typeof import('@podkit/core').createFFmpegTranscoder>;
@@ -559,6 +562,7 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
     skipUpgrades,
     forceTranscode,
     forceSyncTags,
+    forceMetadata,
     checkArtwork,
     ipod,
     transcoder,
@@ -672,6 +676,7 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
     skipUpgrades,
     forceTranscode,
     forceSyncTags,
+    forceMetadata,
     transcodingActive: true,
     presetBitrate: core.getPresetBitrate(effectiveQuality),
     encodingMode: effectiveEncoding,
@@ -1123,6 +1128,7 @@ interface VideoSyncContext {
   removeOrphans: boolean;
   effectiveVideoQuality: VideoQualityPreset;
   effectiveVideoTransforms: VideoTransformsConfig;
+  forceMetadata: boolean;
   ipod: Awaited<ReturnType<typeof import('@podkit/core').IpodDatabase.open>>;
   core: typeof import('@podkit/core');
 }
@@ -1147,6 +1153,7 @@ async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoSyncResu
     removeOrphans,
     effectiveVideoQuality,
     effectiveVideoTransforms,
+    forceMetadata,
     ipod,
     core,
   } = ctx;
@@ -1225,6 +1232,7 @@ async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoSyncResu
     presetBitrate: videoPresetBitrate,
     resolvedVideoQuality: effectiveVideoQuality,
     videoTransforms: effectiveVideoTransforms,
+    forceMetadata,
   });
   diffSpinner.stop('Video diff computed');
 
@@ -1382,29 +1390,40 @@ function collectTypes(value: string, previous: string[]): string[] {
   return [...previous, ...value.split(',').map((v) => v.trim().toLowerCase())];
 }
 
+const syncTypeOption = new Option(
+  '-t, --type <type>',
+  'sync type (repeatable, comma-separated, default: all)'
+).default([] as string[]);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(syncTypeOption as any).parseArg = collectTypes;
+syncTypeOption.argChoices = ['music', 'video'];
+
 export const syncCommand = new Command('sync')
   .description('sync music and/or video collections to iPod')
-  .option(
-    '-t, --type <type>',
-    'sync type: music, video (repeatable, default: all)',
-    collectTypes,
-    [] as string[]
-  )
+  .addOption(syncTypeOption)
   .option('-c, --collection <name>', 'collection name to sync (searches music and video)')
   .option('-n, --dry-run', 'show what would be synced without making changes')
-  .option(
-    '--quality <preset>',
-    'unified quality preset for audio and video: max, high, medium, low'
+  .addOption(
+    new Option('--quality <preset>', 'unified quality preset for audio and video').choices([
+      'max',
+      'high',
+      'medium',
+      'low',
+    ])
   )
-  .option(
-    '--audio-quality <preset>',
-    'audio transcoding quality (overrides --quality): max, high, medium, low'
+  .addOption(
+    new Option(
+      '--audio-quality <preset>',
+      'audio transcoding quality (overrides --quality)'
+    ).choices(['max', 'high', 'medium', 'low'])
   )
-  .option(
-    '--video-quality <preset>',
-    'video transcoding quality (overrides --quality): max, high, medium, low'
+  .addOption(
+    new Option(
+      '--video-quality <preset>',
+      'video transcoding quality (overrides --quality)'
+    ).choices(['max', 'high', 'medium', 'low'])
   )
-  .option('--encoding <mode>', 'audio encoding mode: vbr, cbr')
+  .addOption(new Option('--encoding <mode>', 'audio encoding mode').choices(['vbr', 'cbr']))
   .option('--filter <pattern>', 'only sync tracks matching pattern')
   .option('--no-artwork', 'skip artwork transfer')
   .option('--skip-upgrades', 'skip file-replacement upgrades for changed source files')
@@ -1412,6 +1431,10 @@ export const syncCommand = new Command('sync')
   .option(
     '--force-sync-tags',
     'ensure sync tag consistency by writing tags to all matched transcoded tracks without re-transcoding'
+  )
+  .option(
+    '--force-metadata',
+    'rewrite metadata on all matched tracks without re-transcoding or re-transferring files'
   )
   .option('--check-artwork', 'detect artwork changes by comparing content hashes')
   .option('--delete', 'remove tracks from iPod not in source')
@@ -1756,6 +1779,7 @@ export const syncCommand = new Command('sync')
             skipUpgrades: effectiveSkipUpgrades,
             forceTranscode: options.forceTranscode ?? config.forceTranscode ?? false,
             forceSyncTags: options.forceSyncTags ?? config.forceSyncTags ?? false,
+            forceMetadata: options.forceMetadata ?? false,
             checkArtwork:
               options.checkArtwork ?? getEffectiveCheckArtwork(config.checkArtwork, deviceConfig),
             ipod,
@@ -1805,6 +1829,7 @@ export const syncCommand = new Command('sync')
               removeOrphans,
               effectiveVideoQuality,
               effectiveVideoTransforms,
+              forceMetadata: options.forceMetadata ?? false,
               ipod,
               core,
             });

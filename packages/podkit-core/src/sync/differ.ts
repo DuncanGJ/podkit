@@ -352,7 +352,9 @@ export function computeDiff(
           source: match.collection,
           ipod: match.ipod,
           reason: 'force-transcode',
-          changes: [{ field: 'bitrate', from: String(match.ipod.bitrate ?? 'unknown'), to: 'forced' }],
+          changes: [
+            { field: 'bitrate', from: String(match.ipod.bitrate ?? 'unknown'), to: 'forced' },
+          ],
         });
       } else {
         stillExisting.push(match);
@@ -390,7 +392,10 @@ export function computeDiff(
           const currentTag = parseSyncTag(match.ipod.comment);
           if (!currentTag?.artworkHash || currentTag.artworkHash !== match.collection.artworkHash) {
             // Build a minimal "copy" sync tag with just the artwork hash
-            const copyTag: typeof baseExpectedTag = { quality: 'copy', artworkHash: match.collection.artworkHash };
+            const copyTag: typeof baseExpectedTag = {
+              quality: 'copy',
+              artworkHash: match.collection.artworkHash,
+            };
             // If there's an existing tag, preserve its fields but update the artwork hash
             const expectedTag = currentTag
               ? { ...currentTag, artworkHash: match.collection.artworkHash }
@@ -399,7 +404,13 @@ export function computeDiff(
               source: match.collection,
               ipod: match.ipod,
               reason: 'sync-tag-write',
-              changes: [{ field: 'comment', from: match.ipod.comment ?? '', to: formatSyncTag(expectedTag) }],
+              changes: [
+                {
+                  field: 'comment',
+                  from: match.ipod.comment ?? '',
+                  to: formatSyncTag(expectedTag),
+                },
+              ],
             });
             continue;
           }
@@ -431,12 +442,67 @@ export function computeDiff(
         source: match.collection,
         ipod: match.ipod,
         reason: 'sync-tag-write',
-        changes: [{ field: 'comment', from: match.ipod.comment ?? '', to: formatSyncTag(expectedTag) }],
+        changes: [
+          { field: 'comment', from: match.ipod.comment ?? '', to: formatSyncTag(expectedTag) },
+        ],
       });
     }
 
     existing.length = 0;
     existing.push(...stillExisting);
+  }
+
+  // Post-processing: force-metadata moves ALL remaining existing tracks to toUpdate.
+  // This rewrites metadata on every matched track without re-transcoding or re-transferring.
+  if (options?.forceMetadata) {
+    for (const match of existing) {
+      const { collection: source, ipod } = match;
+      const changes: MetadataChange[] = [];
+
+      // Compare all metadata fields and report actual differences
+      const allFields = [
+        'title',
+        'artist',
+        'album',
+        'albumArtist',
+        'genre',
+        'year',
+        'trackNumber',
+        'discNumber',
+        'compilation',
+      ] as const;
+
+      for (const field of allFields) {
+        const sourceValue = source[field as keyof CollectionTrack];
+        const ipodValue = ipod[field as keyof IPodTrack];
+
+        if (metadataValuesDiffer(field, sourceValue, ipodValue)) {
+          changes.push({
+            field: field as MetadataChange['field'],
+            from: String(ipodValue ?? ''),
+            to: String(sourceValue ?? ''),
+          });
+        }
+      }
+
+      // Even if no fields differ, include the track — the point of --force-metadata
+      // is unconditional refresh. Use title as a no-op marker when nothing changed.
+      if (changes.length === 0) {
+        changes.push({
+          field: 'title',
+          from: ipod.title,
+          to: source.title,
+        });
+      }
+
+      toUpdate.push({
+        source,
+        ipod,
+        reason: 'force-metadata',
+        changes,
+      });
+    }
+    existing.length = 0;
   }
 
   // Find iPod tracks that weren't matched (candidates for removal)

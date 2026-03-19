@@ -645,3 +645,125 @@ describe('getVideoTransformMatchKeys', () => {
     expect(result.transformApplied).toBe(false);
   });
 });
+
+// =============================================================================
+// Force Metadata Tests
+// =============================================================================
+
+describe('diffVideos - forceMetadata', () => {
+  it('moves all matched TV shows to toUpdate with force-metadata reason', () => {
+    const collectionVideos = [
+      createCollectionVideo('S01E01', 'tvshow', {
+        seriesTitle: 'Breaking Bad',
+        seasonNumber: 1,
+        episodeNumber: 1,
+      }),
+      createCollectionVideo('S01E02', 'tvshow', {
+        seriesTitle: 'Breaking Bad',
+        seasonNumber: 1,
+        episodeNumber: 2,
+      }),
+    ];
+    const ipodVideos = [
+      createIPodVideo('S01E01', 'tvshow', {
+        seriesTitle: 'Breaking Bad',
+        seasonNumber: 1,
+        episodeNumber: 1,
+      }),
+      createIPodVideo('S01E02', 'tvshow', {
+        seriesTitle: 'Breaking Bad',
+        seasonNumber: 1,
+        episodeNumber: 2,
+      }),
+    ];
+
+    const diff = diffVideos(collectionVideos, ipodVideos, { forceMetadata: true });
+
+    expect(diff.existing).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(2);
+    expect(diff.toUpdate[0]!.reason).toBe('force-metadata');
+    expect(diff.toUpdate[1]!.reason).toBe('force-metadata');
+  });
+
+  it('moves matched movies to toUpdate with force-metadata reason', () => {
+    const collectionVideos = [createCollectionVideo('The Matrix', 'movie', { year: 1999 })];
+    const ipodVideos = [createIPodVideo('The Matrix', 'movie', { year: 1999 })];
+
+    const diff = diffVideos(collectionVideos, ipodVideos, { forceMetadata: true });
+
+    expect(diff.existing).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('force-metadata');
+  });
+
+  it('sets newSeriesTitle from collection for TV shows', () => {
+    const collectionVideos = [
+      createCollectionVideo('S01E01', 'tvshow', {
+        seriesTitle: 'Better Call Saul',
+        seasonNumber: 1,
+        episodeNumber: 1,
+      }),
+    ];
+    const ipodVideos = [
+      createIPodVideo('S01E01', 'tvshow', {
+        seriesTitle: 'Better Call Saul',
+        seasonNumber: 1,
+        episodeNumber: 1,
+      }),
+    ];
+
+    const diff = diffVideos(collectionVideos, ipodVideos, { forceMetadata: true });
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.newSeriesTitle).toBe('Better Call Saul');
+  });
+
+  it('does not set newSeriesTitle for movies', () => {
+    const collectionVideos = [createCollectionVideo('Inception', 'movie', { year: 2010 })];
+    const ipodVideos = [createIPodVideo('Inception', 'movie', { year: 2010 })];
+
+    const diff = diffVideos(collectionVideos, ipodVideos, { forceMetadata: true });
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.newSeriesTitle).toBeUndefined();
+  });
+
+  it('still adds new videos when forceMetadata is true', () => {
+    const collectionVideos = [
+      createCollectionVideo('The Matrix', 'movie', { year: 1999 }),
+      createCollectionVideo('Inception', 'movie', { year: 2010 }),
+    ];
+    const ipodVideos = [createIPodVideo('The Matrix', 'movie', { year: 1999 })];
+
+    const diff = diffVideos(collectionVideos, ipodVideos, { forceMetadata: true });
+
+    expect(diff.toAdd).toHaveLength(1);
+    expect(diff.toAdd[0]!.title).toBe('Inception');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('force-metadata');
+  });
+
+  it('still identifies removals when forceMetadata is true', () => {
+    const collectionVideos = [createCollectionVideo('The Matrix', 'movie', { year: 1999 })];
+    const ipodVideos = [
+      createIPodVideo('The Matrix', 'movie', { year: 1999 }),
+      createIPodVideo('Old Movie', 'movie', { year: 2000 }),
+    ];
+
+    const diff = diffVideos(collectionVideos, ipodVideos, { forceMetadata: true });
+
+    expect(diff.toRemove).toHaveLength(1);
+    expect(diff.toRemove[0]!.title).toBe('Old Movie');
+    expect(diff.toUpdate).toHaveLength(1);
+  });
+
+  it('does not move tracks to toUpdate when forceMetadata is false', () => {
+    const collectionVideos = [createCollectionVideo('The Matrix', 'movie', { year: 1999 })];
+    const ipodVideos = [createIPodVideo('The Matrix', 'movie', { year: 1999 })];
+
+    const diff = diffVideos(collectionVideos, ipodVideos, { forceMetadata: false });
+
+    expect(diff.existing).toHaveLength(1);
+    expect(diff.toUpdate).toHaveLength(0);
+  });
+});

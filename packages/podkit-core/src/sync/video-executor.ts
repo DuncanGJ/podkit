@@ -32,10 +32,30 @@ import type { SyncProgress, SyncOperation, ExecuteOptions } from './types.js';
 import type { VideoSyncPlan } from './video-planner.js';
 import type { TranscodeProgress } from '../transcode/types.js';
 import type { IpodDatabase } from '../ipod/index.js';
+import type { CollectionVideo } from '../video/directory-adapter.js';
 import { buildVideoSyncTag, writeSyncTag } from './sync-tags.js';
 import { transcodeVideo } from '../video/transcode.js';
 import { probeVideo } from '../video/probe.js';
 import { createVideoTrackInput } from '../ipod/video.js';
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/**
+ * Format episode title from video metadata (mirrors ipod/video.ts formatEpisodeTitle)
+ */
+function formatVideoEpisodeTitle(video: CollectionVideo): string {
+  if (video.episodeId) {
+    return video.episodeId;
+  }
+  if (video.seasonNumber !== undefined && video.episodeNumber !== undefined) {
+    const ep = String(video.episodeNumber).padStart(2, '0');
+    const season = String(video.seasonNumber).padStart(2, '0');
+    return `S${season}E${ep}`;
+  }
+  return `Episode ${video.episodeNumber ?? 1}`;
+}
 
 // =============================================================================
 // Types
@@ -583,7 +603,7 @@ export class DefaultVideoSyncExecutor implements VideoSyncExecutor {
     bytesProcessed: number,
     bytesTotal: number
   ): AsyncIterable<VideoExecutorProgress> {
-    const { video, newSeriesTitle } = operation;
+    const { video, source, newSeriesTitle } = operation;
 
     // Yield start progress
     yield {
@@ -608,8 +628,28 @@ export class DefaultVideoSyncExecutor implements VideoSyncExecutor {
       throw new Error(`Video track not found in database: ${video.title}`);
     }
 
-    // Update metadata fields — only TV shows have series title transforms
-    if (newSeriesTitle !== undefined && video.contentType === 'tvshow') {
+    // Build the full metadata update from the source video
+    if (source.contentType === 'tvshow') {
+      const seriesTitle = newSeriesTitle ?? source.seriesTitle ?? source.title;
+      const episodeTitle = source.title || formatVideoEpisodeTitle(source);
+
+      foundTrack.update({
+        title: episodeTitle,
+        artist: seriesTitle,
+        album: `${seriesTitle}, Season ${source.seasonNumber ?? 1}`,
+        tvShow: seriesTitle,
+        tvEpisode: episodeTitle,
+        trackNumber: source.episodeNumber,
+        discNumber: source.seasonNumber,
+      });
+    } else if (source.contentType === 'movie') {
+      foundTrack.update({
+        title: source.title,
+        artist: source.director ?? source.studio,
+        album: source.title,
+      });
+    } else if (newSeriesTitle !== undefined) {
+      // Fallback: only update series title fields (legacy behavior)
       foundTrack.update({
         artist: newSeriesTitle,
         album: `${newSeriesTitle}, Season ${video.seasonNumber ?? 1}`,
