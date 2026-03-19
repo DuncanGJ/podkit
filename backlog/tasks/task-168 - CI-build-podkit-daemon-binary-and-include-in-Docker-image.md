@@ -1,9 +1,10 @@
 ---
 id: TASK-168
 title: 'CI: build podkit-daemon binary and include in Docker image'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-19 15:59'
+updated_date: '2026-03-19 17:30'
 labels:
   - ci
   - daemon
@@ -35,8 +36,38 @@ The daemon binary (`podkit-daemon`) is not built by CI. The Dockerfile expects `
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Release workflow builds podkit-daemon binary for all platform targets
-- [ ] #2 Docker image includes both podkit and podkit-daemon binaries
-- [ ] #3 docker run ghcr.io/jvgomg/podkit daemon starts successfully
-- [ ] #4 turbo.json includes podkit-daemon build tasks
+- [x] #1 Release workflow builds podkit-daemon binary for Linux platform targets (x64 + arm64)
+- [x] #2 Docker image includes both podkit and podkit-daemon binaries
+- [x] #3 docker run ghcr.io/jvgomg/podkit daemon starts successfully
+- [x] #4 /sys access verification moved to TASK-165 (privilege minimization testing)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Scope refinement
+
+- Daemon is Docker/Linux-only — no need to build for macOS (darwin) targets
+- turbo.json already has a generic `compile` task — no changes needed
+- Root `compile` script stays filtered to CLI only (local dev concern)
+- `/sys` access verification moved to TASK-165 where it belongs (privilege minimization testing ladder)
+
+## CI verification
+
+Full pipeline verified via temporary test workflow (run 23304809967):
+- Linux x64: daemon compiled, tarball created and uploaded
+- Linux arm64: daemon compiled, tarball created and uploaded
+- Docker: daemon artifacts downloaded, extracted, multi-arch image built successfully
+- macOS builds unchanged
+
+PR: https://github.com/jvgomg/podkit/pull/41
+
+## Local Docker verification
+
+Downloaded CI artifacts, built Docker image locally, and tested:
+- `podkit --version` → 0.4.0
+- `podkit --help` → full CLI output
+- `daemon` command → starts successfully, logs "podkit-daemon running, waiting for iPod devices..."
+
+All 4 acceptance criteria now verified.
+<!-- SECTION:NOTES:END -->

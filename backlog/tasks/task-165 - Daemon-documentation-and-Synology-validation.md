@@ -4,7 +4,7 @@ title: 'Daemon: documentation and Synology validation'
 status: In Progress
 assignee: []
 created_date: '2026-03-18 23:57'
-updated_date: '2026-03-19 16:03'
+updated_date: '2026-03-19 16:09'
 labels:
   - daemon
   - docker
@@ -150,4 +150,8 @@ For each tier, plug in an iPod and verify:
 2. Update `docs/getting-started/docker-daemon.md` USB Passthrough section with the tiered approach
 3. If different platforms need different tiers, document per-platform recommendations
 4. If `--privileged` is truly required, document why clearly so users understand the tradeoff
+
+## /sys access verification (from TASK-168)
+
+TASK-168 originally included an acceptance criterion to verify `/sys/block/<device>/device/` symlink resolution inside Docker for USB vendor ID detection. This is not a CI/build concern — it belongs here as part of the privilege minimization testing ladder (already covered by Tier 1-4 checkpoints above, specifically the `idVendor` checkpoint). Removed from TASK-168 scope.
 <!-- SECTION:NOTES:END -->
