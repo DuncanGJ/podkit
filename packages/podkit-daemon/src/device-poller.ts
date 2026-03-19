@@ -160,6 +160,7 @@ function execLsblk(): Promise<string> {
     const proc = spawn('lsblk', [
       '--json',
       '-b',
+      '-f',
       '-o',
       'NAME,UUID,LABEL,MOUNTPOINT,FSTYPE,SIZE,TYPE',
     ]);
