@@ -12,7 +12,7 @@ Daemon mode is opt-in — the default Docker image still runs the CLI as documen
 ## Prerequisites
 
 - **Linux Docker host** — macOS and Windows Docker Desktop cannot pass USB devices to containers. Use the [CLI binary](/getting-started/installation/) directly or manually run the [Docker image](/getting-started/docker/) on those platforms.
-- **USB device access** — the container needs privileged mode (or explicit device passthrough) to detect iPod block devices.
+- **USB device access** — the container needs `privileged: true` to detect, mount, and sync iPod block devices. See [USB Passthrough](#usb-passthrough) for details on why this is required.
 - **Optional:** [Apprise](https://github.com/caronc/apprise) for notifications (ntfy, Slack, Discord, Telegram, etc.)
 
 ## Quick Start
@@ -203,57 +203,115 @@ docker compose logs -f  # Watch daemon activity
 
 ## USB Passthrough
 
-The daemon needs access to USB block devices to detect and mount iPods. The container must be able to see block devices like `/dev/sdb1` when an iPod is plugged in.
+The daemon needs access to USB block devices to detect and mount iPods. The container must be able to see block devices (like `/dev/sdb1`) when an iPod is plugged in, read USB vendor information from `/sys`, and mount FAT32 filesystems.
 
-**Privileged mode (recommended for daemon):**
+**Privileged mode (required):**
 
 ```yaml
     privileged: true
 ```
 
-Privileged mode gives the container full device access, allowing it to see dynamically created block devices when iPods are plugged in or unplugged. This is the simplest and most reliable option for the daemon's auto-detection to work.
+Privileged mode is required for the daemon to work. We tested several less-privileged configurations and none are sufficient:
 
-**Device passthrough (alternative):**
+| Configuration | Devices visible | Can mount | Result |
+|---------------|----------------|-----------|--------|
+| `--device /dev/bus/usb` + `CAP_SYS_ADMIN` | `lsblk` sees iPod, but no `/dev` nodes | No | Fails |
+| `-v /dev:/dev` + `CAP_SYS_ADMIN` | `/dev/sdb*` visible | Permission denied | Fails |
+| Above + `device_cgroup_rules: 'a *:* rwm'` | `/dev/sdb*` visible | Permission denied | Fails |
+| `privileged: true` | Full access | Yes | **Works** |
 
-If you know the specific block device for your iPod, you can pass it directly:
-
-```yaml
-    devices:
-      - /dev/sdb:/dev/sdb
-```
-
-This is more restrictive but less secure. Note that block device names can change between reboots or when other USB devices are connected, so this approach is fragile for auto-detection.
+The intermediate tiers fail because Docker's default security profile (AppArmor/seccomp) blocks the `mount` syscall even when `CAP_SYS_ADMIN` is granted. Privileged mode disables these restrictions entirely.
 
 :::note
-`--device /dev/bus/usb` passes raw USB bus access but may not be sufficient for the daemon — `lsblk` needs to see block devices (`/dev/sdb1`), not just USB bus nodes. If auto-detection isn't working, switch to privileged mode.
+For **CLI mode** (not the daemon), you don't need privileged mode. Mount the iPod on the host and pass the mount point as a volume — see the [Docker guide](/getting-started/docker/).
 :::
 
 ## Platform Notes
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| Linux (native Docker) | Supported | Full USB passthrough works |
-| Synology NAS | Expected to work | Use Container Manager's USB passthrough (testing in progress) |
+| Linux (bare metal / VM) | **Tested** | Full USB passthrough works with `privileged: true` |
+| Synology NAS (DSM 7) | **Tested** | Works with `privileged: true` via SSH / Docker Compose. See [Synology setup](#synology-nas) below |
+| Proxmox VM (QEMU) | **Tested** | Use USB passthrough to guest VM, then Docker `privileged: true`. Set CPU type to `host` |
+| Proxmox LXC | **Not supported** | Docker-in-LXC cannot access USB block devices — use a VM instead |
 | Unraid / TrueNAS | Untested | Community reports welcome |
 | macOS / Windows | Not supported | Docker Desktop cannot pass USB devices |
+
+### CPU Requirements
+
+The podkit Docker image requires a CPU with **SSE4.2** support (Intel Nehalem / AMD Bulldozer or newer, circa 2008+). This is a requirement of the [Bun](https://bun.sh) JavaScript runtime used inside the container.
+
+Most physical hardware from the last 15 years meets this requirement. Virtual machines may not — see [Troubleshooting](#troubleshooting) if you encounter issues.
+
+### Synology NAS
+
+Tested on a Synology DS923+ running DSM 7.3.2.
+
+**Important:** Synology's Container Manager GUI may not support all the Docker options needed for daemon mode. Use Docker Compose via SSH instead:
+
+1. SSH into your Synology: `ssh admin@your-nas`
+
+2. Docker is at `/usr/local/bin/docker` but may not be on your PATH. Either add it or use the full path:
+   ```bash
+   export PATH=/usr/local/bin:$PATH
+   ```
+
+3. Create a project directory and config:
+   ```bash
+   mkdir -p /volume1/docker/podkit/config
+   ```
+
+4. Create `docker-compose.yml` in the project directory. Use the examples from the [Quick Start](#quick-start) or [Notifications](#notifications-with-apprise) sections above.
+
+5. Set `PUID` and `PGID` to match your Synology user (check with `id your-username`).
+
+6. Start the daemon:
+   ```bash
+   cd /volume1/docker/podkit
+   docker compose up -d
+   docker compose logs -f
+   ```
+
+**Synology-specific notes:**
+- Synology uses non-standard block device names (`/dev/usb1p2` instead of `/dev/sdb2`). podkit handles this automatically.
+- Privileged mode is required — Synology's Docker has additional restrictions that prevent mounting even with `CAP_SYS_ADMIN`.
+- If your music is on a Synology shared folder, mount it read-only: `-v /volume1/music:/music:ro`
+
+### Proxmox
+
+For Proxmox users who want to run the daemon:
+
+- **Use a VM, not an LXC container.** Docker containers inside LXC cannot access USB block devices — the iPod won't appear in `lsblk` inside Docker regardless of privilege settings.
+- Pass the iPod through to the VM using QEMU USB passthrough (in the Proxmox GUI: VM → Hardware → Add → USB Device).
+- Set the VM's CPU type to **`host`** (not the default `kvm64`). The default virtual CPU lacks instruction set extensions required by the podkit runtime. See [Troubleshooting](#troubleshooting) if you see "Illegal instruction" errors.
 
 ## Troubleshooting
 
 **iPod not detected:**
-- Ensure the container is running with `privileged: true`
+- Ensure the container is running with `privileged: true` — this is required, not optional
 - Check that block devices are visible: `docker compose exec podkit lsblk`
 - Check daemon logs: `docker compose logs podkit`
 - If `lsblk` shows nothing, the container can't see USB block devices — verify privileged mode is enabled
+- On Proxmox LXC: Docker-in-LXC cannot see USB block devices. Use a VM instead
 
 **Notifications not arriving:**
 - Verify the Apprise URL is correct (`http://apprise:8000/notify` if using the sidecar)
 - Check Apprise container logs: `docker compose logs apprise`
 - Test Apprise directly: `curl -X POST -d '{"title":"test","body":"hello"}' http://localhost:8000/notify`
+- Ensure `APPRISE_STATELESS_URLS` is set on the Apprise container with a valid notification URL
 
 **Sync fails:**
 - Verify your music path is mounted correctly
 - Check collection configuration (env vars or config file)
 - Run a one-off CLI sync to isolate the issue: `docker compose run --rm podkit sync --dry-run`
+
+**Illegal instruction crash:**
+
+If the container crashes immediately with `Illegal instruction (core dumped)`, your CPU lacks the SSE4.2 instruction set required by the Bun runtime. This typically happens in virtual machines with a minimal virtual CPU:
+
+- **Proxmox:** Change the VM's CPU type from `kvm64`/`qemu64` to `host` (VM → Hardware → Processor → Type)
+- **Other hypervisors:** Ensure the guest CPU exposes SSE4.2. Passing through the host CPU features is the simplest fix
+- **Physical hardware:** Any Intel/AMD processor from 2008 or later should work. If you're on very old hardware, this cannot be worked around
 
 ## See Also
 
