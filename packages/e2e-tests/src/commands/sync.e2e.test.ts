@@ -53,7 +53,7 @@ describe('podkit sync', () => {
       });
     });
 
-    it('fails when no device specified and no iPod connected', async () => {
+    it('fails when named device not found in config', async () => {
       if (!fixturesAvailable) {
         console.log('Skipping: fixtures not available');
         return;
@@ -63,15 +63,10 @@ describe('podkit sync', () => {
       const configPath = await createTempConfig(sourcePath);
       tempConfigPaths.push(configPath);
 
-      const result = await runCli(['--config', configPath, 'sync']);
+      const result = await runCli(['--config', configPath, '--device', 'nonexistent', 'sync']);
 
-      // With smart device resolution, the CLI tries to auto-detect connected iPods.
-      // When none are found, it fails with either "No devices configured" (no config)
-      // or "No iPod found" (auto-detect found nothing).
       expect(result.exitCode).toBe(1);
-      expect(
-        result.stderr.includes('No devices configured') || result.stderr.includes('No iPod found')
-      ).toBe(true);
+      expect(result.stderr).toContain('not found');
     });
 
     it('fails when collection path does not exist', async () => {
