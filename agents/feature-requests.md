@@ -145,7 +145,7 @@ Keep this table updated when creating or closing discussions.
 | 12 | Docker distribution | Distribution | Shipped |
 | 13 | TUI (Terminal UI) experience | Interfaces | Later |
 | 14 | Desktop app (GUI) | Interfaces | Later |
-| 15 | Daemon mode: auto-sync on device plug-in | Daemon & Automation | Next |
+| 15 | Daemon mode: auto-sync on device plug-in | Daemon & Automation | Shipped |
 | 16 | Sync selection and filtering | Sync | Next |
 | 17 | Roadmap (pinned, Announcements) | Meta | — |
 | 22 | Beta Testers Wanted (Announcements) | Meta | — |
