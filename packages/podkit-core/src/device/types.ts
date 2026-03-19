@@ -47,6 +47,8 @@ export interface EjectResult {
   error?: string;
   /** Whether force was required */
   forced?: boolean;
+  /** Number of attempts made (1 = succeeded first try) */
+  attempts?: number;
 }
 
 /**
@@ -186,4 +188,28 @@ export interface IpodIdentity {
   volumeUuid: string;
   /** Human-readable volume name */
   volumeName: string;
+}
+
+/**
+ * Progress events emitted during eject with retry
+ */
+export type EjectProgressEvent =
+  | { phase: 'sync'; message: string }
+  | { phase: 'eject'; attempt: number; maxAttempts: number; message: string }
+  | { phase: 'waiting'; attempt: number; delayMs: number; message: string }
+  | { phase: 'success'; message: string; forced: boolean }
+  | { phase: 'failed'; message: string };
+
+/**
+ * Options for eject-with-retry wrapper
+ */
+export interface EjectWithRetryOptions {
+  /** Force unmount — bypasses retry, goes straight to force unmount */
+  force?: boolean;
+  /** Maximum number of attempts (default: 3) */
+  maxAttempts?: number;
+  /** Delay between retries in milliseconds (default: 2000) */
+  retryDelayMs?: number;
+  /** Progress callback for CLI output */
+  onProgress?: (event: EjectProgressEvent) => void;
 }

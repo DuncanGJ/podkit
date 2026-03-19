@@ -45,7 +45,22 @@ podkit device eject -d nano
 
 `unmount` is an alias for `eject` — `podkit unmount` and `podkit device unmount` work identically.
 
-Ejecting flushes all pending writes and unmounts the volume.
+Ejecting flushes all pending filesystem writes, unmounts the volume, and detaches the disk so it's safe to disconnect.
+
+If the device is temporarily busy (e.g. macOS's Finder or Spotlight is holding a reference), podkit retries the eject automatically up to 3 times before giving up. You'll see progress output:
+
+```
+Ejecting iPod...
+Device busy, waiting 2s before retry...
+Retrying eject (attempt 2/3)...
+iPod ejected. Safe to disconnect.
+```
+
+If all retries fail, use `--force` to force the unmount:
+
+```bash
+podkit eject --force
+```
 
 ### Auto-eject after sync
 
@@ -123,7 +138,7 @@ podkit eject
 podkit eject --force   # Lazy unmount if device is busy
 ```
 
-Like mounting, eject tries `udisksctl unmount` first, falling back to `umount`. The `--force` flag uses `umount -l` (lazy unmount) which detaches even if files are open.
+Like mounting, eject tries `udisksctl unmount` first (followed by `udisksctl power-off` to safely detach the device), falling back to `umount`. If the device is busy, podkit retries automatically up to 3 times. The `--force` flag uses `umount -l` (lazy unmount) which detaches even if files are open.
 
 ### Manual Commands
 

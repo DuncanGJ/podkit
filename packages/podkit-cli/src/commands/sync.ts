@@ -1870,7 +1870,7 @@ export const syncCommand = new Command('sync')
       if (!dryRun && out.isJson) {
         let ejectInfo: SyncOutput['eject'];
         if (options.eject && syncSucceeded) {
-          const ejectResult = await manager.eject(devicePath, { force: false });
+          const ejectResult = await core.ejectWithRetry(manager, devicePath);
           ejectInfo = {
             requested: true,
             success: ejectResult.success,
@@ -1906,8 +1906,19 @@ export const syncCommand = new Command('sync')
       if (syncSucceeded && out.isText) {
         if (options.eject) {
           out.newline();
-          out.print('Ejecting iPod...');
-          const ejectResult = await manager.eject(devicePath, { force: false });
+          const ejectResult = await core.ejectWithRetry(manager, devicePath, {
+            onProgress: (event) => {
+              switch (event.phase) {
+                case 'sync':
+                  out.verbose1(event.message);
+                  break;
+                case 'eject':
+                case 'waiting':
+                  out.print(event.message);
+                  break;
+              }
+            },
+          });
           if (ejectResult.success) {
             out.print('iPod ejected. Safe to disconnect.');
           } else {

@@ -450,6 +450,8 @@ export type {
   IFlashAssessment,
   IFlashEvidence,
   UsbDeviceInfo,
+  EjectProgressEvent,
+  EjectWithRetryOptions,
 } from './device/index.js';
 export {
   getDeviceManager,
@@ -457,6 +459,7 @@ export {
   clearDeviceManagerCache,
   getPlatform,
   isPlatformSupported,
+  ejectWithRetry,
 } from './device/index.js';
 
 // Sound Check (volume normalization)

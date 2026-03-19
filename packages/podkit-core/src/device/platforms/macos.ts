@@ -100,7 +100,10 @@ export class MacOSDeviceManager implements DeviceManager {
 
   async eject(mountPoint: string, options?: EjectOptions): Promise<EjectResult> {
     const force = options?.force ?? false;
-    const args = force ? ['unmount', 'force', mountPoint] : ['unmount', mountPoint];
+
+    // Normal: diskutil eject (unmounts + detaches whole disk — proper for removable media)
+    // Force: diskutil unmount force (diskutil eject has no force flag)
+    const args = force ? ['unmount', 'force', mountPoint] : ['eject', mountPoint];
 
     const { stdout, stderr, code } = await execCommand('diskutil', args);
 
@@ -308,7 +311,7 @@ export class MacOSDeviceManager implements DeviceManager {
 2. Or drag the iPod icon to the Trash
 
 Using command line:
-  diskutil unmount /Volumes/YourIPod
+  diskutil eject /Volumes/YourIPod
   diskutil unmount force /Volumes/YourIPod  # If busy`;
     }
 

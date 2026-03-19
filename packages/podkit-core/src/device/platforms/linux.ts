@@ -467,7 +467,18 @@ export class LinuxDeviceManager implements DeviceManager {
           forced: false,
         };
       }
-      // Fall through to umount
+      // If the device is busy, return the error so the retry wrapper can handle it
+      // rather than falling through to umount (which will also fail with busy)
+      const udisksErr = unmountResult.stderr.trim();
+      if (udisksErr.includes('busy') || udisksErr.includes('target is busy')) {
+        return {
+          success: false,
+          device: mountPoint,
+          error: udisksErr,
+          forced: false,
+        };
+      }
+      // Fall through to umount for other errors (e.g., permission issues)
     }
 
     // Attempt 2: umount

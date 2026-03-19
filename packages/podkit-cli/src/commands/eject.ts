@@ -27,6 +27,7 @@ export interface EjectOutput {
   success: boolean;
   device?: string;
   forced?: boolean;
+  attempts?: number;
   error?: string;
 }
 
@@ -59,10 +60,12 @@ export const ejectCommand = new Command('eject')
     const cliPath = deviceResult.cliPath;
 
     let getDeviceManager: typeof import('@podkit/core').getDeviceManager;
+    let ejectWithRetry: typeof import('@podkit/core').ejectWithRetry;
 
     try {
       const core = await import('@podkit/core');
       getDeviceManager = core.getDeviceManager;
+      ejectWithRetry = core.ejectWithRetry;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load podkit-core';
       out.result<EjectOutput>({ success: false, error: message }, () => {
@@ -126,17 +129,36 @@ export const ejectCommand = new Command('eject')
       return;
     }
 
-    out.print(`Ejecting iPod at ${devicePath}...`);
-
-    const result = await manager.eject(devicePath, { force });
+    const result = await ejectWithRetry(manager, devicePath, {
+      force,
+      onProgress: (event) => {
+        if (!out.isText) return;
+        switch (event.phase) {
+          case 'sync':
+            out.verbose1(event.message);
+            break;
+          case 'eject':
+          case 'waiting':
+            out.print(event.message);
+            break;
+        }
+      },
+    });
 
     if (result.success) {
-      out.result<EjectOutput>({ success: true, device: devicePath, forced: result.forced }, () =>
-        out.success('iPod ejected successfully. Safe to disconnect.')
+      out.result<EjectOutput>(
+        { success: true, device: devicePath, forced: result.forced, attempts: result.attempts },
+        () => out.success('iPod ejected successfully. Safe to disconnect.')
       );
     } else {
       out.result<EjectOutput>(
-        { success: false, device: devicePath, forced: result.forced, error: result.error },
+        {
+          success: false,
+          device: devicePath,
+          forced: result.forced,
+          attempts: result.attempts,
+          error: result.error,
+        },
         () => {
           out.error('Failed to eject iPod.');
           out.newline();

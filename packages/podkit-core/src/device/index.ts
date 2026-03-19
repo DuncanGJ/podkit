@@ -35,6 +35,8 @@ export type {
   EjectOptions,
   MountOptions,
   IpodIdentity,
+  EjectProgressEvent,
+  EjectWithRetryOptions,
 } from './types.js';
 
 export type {
@@ -46,6 +48,9 @@ export type {
 
 export { detectIFlash } from './assessment.js';
 export { lookupIpodModel } from './ipod-models.js';
+
+// Eject with retry
+export { ejectWithRetry, isRetryableError } from './eject.js';
 
 // Manager factory
 export {
