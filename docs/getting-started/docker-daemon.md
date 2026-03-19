@@ -98,6 +98,14 @@ Or mount a config file:
       - /path/to/music:/music:ro
 ```
 
+:::caution
+If using a config file, it must include `version = 1` at the top. Configs without a version field will cause an error directing you to run `podkit migrate`. You can add the version manually or run migrate inside the container:
+
+```bash
+docker compose run --rm podkit migrate
+```
+:::
+
 See [Environment Variables](/reference/environment-variables/) for the full list.
 
 ## Multiple iPods
@@ -121,6 +129,10 @@ artwork = true
 ```
 
 Each device can have its own quality preset, collection, artwork setting, and more. See [Config File Reference](/reference/config-file/) for all device-level options.
+
+:::note
+The daemon currently syncs one iPod at a time. If a second iPod is plugged in while a sync is in progress, it will be detected but skipped until the next poll cycle after the first sync completes. For best results, plug in one iPod at a time and wait for the sync to finish before connecting another.
+:::
 
 ## Notifications with Apprise
 
@@ -245,37 +257,70 @@ Most physical hardware from the last 15 years meets this requirement. Virtual ma
 
 ### Synology NAS
 
-Tested on a Synology DS923+ running DSM 7.3.2.
+Tested end-to-end on a Synology DS923+ running DSM 7.3.2, including daemon auto-detection, sync, and eject.
 
-**Important:** Synology's Container Manager GUI may not support all the Docker options needed for daemon mode. Use Docker Compose via SSH instead:
+**Important:** Synology's Container Manager GUI may not support all the Docker options needed for daemon mode (specifically `privileged: true`). Use Docker Compose via SSH instead.
 
-1. SSH into your Synology: `ssh admin@your-nas`
+#### Setup
 
-2. Docker is at `/usr/local/bin/docker` but may not be on your PATH. Either add it or use the full path:
+1. SSH into your Synology:
+   ```bash
+   ssh your-admin-user@your-nas
+   ```
+
+2. Docker is at `/usr/local/bin/docker` but may not be on your default SSH PATH:
    ```bash
    export PATH=/usr/local/bin:$PATH
    ```
 
-3. Create a project directory and config:
+3. Create a project directory:
    ```bash
    mkdir -p /volume1/docker/podkit/config
-   ```
-
-4. Create `docker-compose.yml` in the project directory. Use the examples from the [Quick Start](#quick-start) or [Notifications](#notifications-with-apprise) sections above.
-
-5. Set `PUID` and `PGID` to match your Synology user (check with `id your-username`).
-
-6. Start the daemon:
-   ```bash
    cd /volume1/docker/podkit
-   docker compose up -d
-   docker compose logs -f
    ```
 
-**Synology-specific notes:**
+4. Find your user's UID and GID (for `PUID`/`PGID`):
+   ```bash
+   id your-username
+   # uid=1026(your-username) gid=100(users) ...
+   ```
+
+5. Create `docker-compose.yml`:
+   ```yaml
+   services:
+     podkit:
+       image: ghcr.io/jvgomg/podkit:latest
+       command: daemon
+       restart: unless-stopped
+       environment:
+         - PUID=1026
+         - PGID=100
+         - PODKIT_MUSIC_PATH=/music
+         - PODKIT_POLL_INTERVAL=5
+       volumes:
+         - ./config:/config
+         - /volume1/music:/music:ro
+       privileged: true
+       healthcheck:
+         test: ["CMD-SHELL", "test $$(( $$(date +%s) - $$(stat -c %Y /tmp/podkit-daemon-health 2>/dev/null || echo 0) )) -lt 60 || exit 1"]
+         interval: 30s
+         timeout: 5s
+         start_period: 10s
+         retries: 3
+   ```
+
+6. Start and verify:
+   ```bash
+   docker compose up -d
+   docker compose logs -f    # Watch for iPod detection
+   docker compose ps          # Check health status
+   ```
+
+#### Synology-specific notes
+
 - Synology uses non-standard block device names (`/dev/usb1p2` instead of `/dev/sdb2`). podkit handles this automatically.
 - Privileged mode is required — Synology's Docker has additional restrictions that prevent mounting even with `CAP_SYS_ADMIN`.
-- If your music is on a Synology shared folder, mount it read-only: `-v /volume1/music:/music:ro`
+- Music on a Synology shared folder should be mounted read-only: `-v /volume1/music:/music:ro`. Adjust the volume number to match your storage pool.
 
 ### Proxmox
 
@@ -300,10 +345,19 @@ For Proxmox users who want to run the daemon:
 - Test Apprise directly: `curl -X POST -d '{"title":"test","body":"hello"}' http://localhost:8000/notify`
 - Ensure `APPRISE_STATELESS_URLS` is set on the Apprise container with a valid notification URL
 
+**Config version error:**
+
+If you see `Your config file is at version 0, but podkit requires version 1`, add `version = 1` as the first line of your `config.toml`, or run:
+
+```bash
+docker compose run --rm podkit migrate
+```
+
 **Sync fails:**
 - Verify your music path is mounted correctly
 - Check collection configuration (env vars or config file)
 - Run a one-off CLI sync to isolate the issue: `docker compose run --rm podkit sync --dry-run`
+
 
 **Illegal instruction crash:**
 
