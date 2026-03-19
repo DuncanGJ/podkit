@@ -55,17 +55,15 @@ RUN echo "**** install runtime dependencies ****" && \
     rm -rf /tmp/*
 
 # Copy entrypoint
-COPY packages/podkit-docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY --chmod=755 packages/podkit-docker/entrypoint.sh /entrypoint.sh
 
 # Copy pre-built musl binaries for this architecture
 # CI organizes binaries as: bin/<arch>/podkit, bin/<arch>/podkit-daemon
 #   amd64 -> bin/amd64/podkit, bin/amd64/podkit-daemon
 #   arm64 -> bin/arm64/podkit, bin/arm64/podkit-daemon
-COPY bin/${TARGETARCH}/podkit /usr/local/bin/podkit
-COPY bin/${TARGETARCH}/podkit-daemon /usr/local/bin/podkit-daemon
-RUN chmod +x /usr/local/bin/podkit /usr/local/bin/podkit-daemon && \
-    printf '{"docker":"%s","cli":"%s","daemon":"%s"}\n' \
+COPY --chmod=755 bin/${TARGETARCH}/podkit /usr/local/bin/podkit
+COPY --chmod=755 bin/${TARGETARCH}/podkit-daemon /usr/local/bin/podkit-daemon
+RUN printf '{"docker":"%s","cli":"%s","daemon":"%s"}\n' \
       "${VERSION}" "${CLI_VERSION}" "${DAEMON_VERSION}" \
       > /usr/local/share/podkit-versions.json
 
