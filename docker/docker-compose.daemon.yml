@@ -24,9 +24,7 @@ services:
     volumes:
       - ./config:/config
       - /path/to/music:/music:ro
-    devices:
-      - /dev/bus/usb:/dev/bus/usb
-    # privileged: true  # Uncomment if --device doesn't work on your platform
+    privileged: true # Required for USB block device access and mounting
     healthcheck:
       # The daemon touches /tmp/podkit-daemon-health after each successful poll.
       # If the file hasn't been updated in 60s, something is wrong.

@@ -91,10 +91,13 @@ if is_podkit_command "${1:-}"; then
     exec su-exec podkit "$@"
   fi
 
-  # Handle 'daemon' command: exec the daemon binary instead of the CLI
+  # Handle 'daemon' command: exec the daemon binary as root.
+  # The daemon needs root to mount/unmount iPod filesystems.
+  # File ownership is still handled correctly because synced files
+  # are written to the iPod's FAT32 filesystem (no Unix permissions).
   if [ "$1" = "daemon" ]; then
     shift
-    exec su-exec podkit podkit-daemon "$@"
+    exec podkit-daemon "$@"
   fi
 
   # All other podkit commands: pass through directly

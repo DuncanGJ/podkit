@@ -12,7 +12,7 @@ Daemon mode is opt-in — the default Docker image still runs the CLI as documen
 ## Prerequisites
 
 - **Linux Docker host** — macOS and Windows Docker Desktop cannot pass USB devices to containers. Use the [CLI binary](/getting-started/installation/) directly or manually run the [Docker image](/getting-started/docker/) on those platforms.
-- **USB passthrough** — the container needs access to `/dev/bus/usb` to detect iPod devices.
+- **USB device access** — the container needs privileged mode (or explicit device passthrough) to detect iPod block devices.
 - **Optional:** [Apprise](https://github.com/caronc/apprise) for notifications (ntfy, Slack, Discord, Telegram, etc.)
 
 ## Quick Start
@@ -31,8 +31,7 @@ services:
       - PODKIT_MUSIC_PATH=/music
     volumes:
       - /path/to/music:/music:ro
-    devices:
-      - /dev/bus/usb:/dev/bus/usb
+    privileged: true
 ```
 
 ```bash
@@ -85,8 +84,7 @@ services:
       - PODKIT_CLEAN_ARTISTS=true
     volumes:
       - /path/to/music:/music:ro
-    devices:
-      - /dev/bus/usb:/dev/bus/usb
+    privileged: true
 ```
 
 Or mount a config file:
@@ -145,8 +143,7 @@ services:
     volumes:
       - ./config:/config
       - /path/to/music:/music:ro
-    devices:
-      - /dev/bus/usb:/dev/bus/usb
+    privileged: true
     healthcheck:
       test: ["CMD-SHELL", "test $$(( $$(date +%s) - $$(stat -c %Y /tmp/podkit-daemon-health 2>/dev/null || echo 0) )) -lt 60 || exit 1"]
       interval: 30s
@@ -206,22 +203,30 @@ docker compose logs -f  # Watch daemon activity
 
 ## USB Passthrough
 
-The daemon needs access to USB devices to detect iPods. There are two approaches:
+The daemon needs access to USB block devices to detect and mount iPods. The container must be able to see block devices like `/dev/sdb1` when an iPod is plugged in.
 
-**Device passthrough (recommended):**
-
-```yaml
-    devices:
-      - /dev/bus/usb:/dev/bus/usb
-```
-
-**Privileged mode (fallback):**
+**Privileged mode (recommended for daemon):**
 
 ```yaml
     privileged: true
 ```
 
-Use privileged mode only if device passthrough doesn't work on your platform. Block device names aren't stable across reboots or re-plugs — the daemon handles this by polling rather than relying on fixed device paths.
+Privileged mode gives the container full device access, allowing it to see dynamically created block devices when iPods are plugged in or unplugged. This is the simplest and most reliable option for the daemon's auto-detection to work.
+
+**Device passthrough (alternative):**
+
+If you know the specific block device for your iPod, you can pass it directly:
+
+```yaml
+    devices:
+      - /dev/sdb:/dev/sdb
+```
+
+This is more restrictive but less secure. Note that block device names can change between reboots or when other USB devices are connected, so this approach is fragile for auto-detection.
+
+:::note
+`--device /dev/bus/usb` passes raw USB bus access but may not be sufficient for the daemon — `lsblk` needs to see block devices (`/dev/sdb1`), not just USB bus nodes. If auto-detection isn't working, switch to privileged mode.
+:::
 
 ## Platform Notes
 
@@ -235,9 +240,10 @@ Use privileged mode only if device passthrough doesn't work on your platform. Bl
 ## Troubleshooting
 
 **iPod not detected:**
-- Verify USB passthrough: `docker compose exec podkit ls /dev/bus/usb/`
-- Try privileged mode if device passthrough isn't working
+- Ensure the container is running with `privileged: true`
+- Check that block devices are visible: `docker compose exec podkit lsblk`
 - Check daemon logs: `docker compose logs podkit`
+- If `lsblk` shows nothing, the container can't see USB block devices — verify privileged mode is enabled
 
 **Notifications not arriving:**
 - Verify the Apprise URL is correct (`http://apprise:8000/notify` if using the sidecar)
