@@ -1,9 +1,10 @@
 ---
 id: TASK-165
 title: 'Daemon: documentation and Synology validation'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-03-18 23:57'
+updated_date: '2026-03-19 15:37'
 labels:
   - daemon
   - docker
@@ -47,11 +48,27 @@ Test the full daemon flow on a Synology NAS:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Daemon mode docs page exists with Docker Compose setup, USB passthrough, Apprise config, and env var reference
-- [ ] #2 Synology-specific setup guide covers Container Manager USB passthrough configuration
-- [ ] #3 Docs note untested compatibility with Unraid and TrueNAS
-- [ ] #4 Existing Docker docs page links to daemon mode documentation
-- [ ] #5 AGENTS.md Docker section updated with daemon mode information
+- [x] #1 Daemon mode docs page exists with Docker Compose setup, USB passthrough, Apprise config, and env var reference
+- [x] #2 Synology-specific setup guide covers Container Manager USB passthrough configuration
+- [x] #3 Docs note untested compatibility with Unraid and TrueNAS
+- [x] #4 Existing Docker docs page links to daemon mode documentation
+- [x] #5 AGENTS.md Docker section updated with daemon mode information
 - [ ] #6 Daemon has been tested end-to-end on Synology NAS hardware (iPod detected, synced, ejected, notifications received)
 - [ ] #7 Any Synology-specific issues discovered during testing are documented or fixed
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Documentation Complete (AC #6, #7 deferred — requires hardware testing)
+
+**Created:**
+- `docs/getting-started/docker-daemon.md` — full daemon mode guide: overview, prerequisites, quick start, how it works, configuration, multiple iPods, Apprise notifications, health monitoring, USB passthrough, platform notes (Synology/Unraid/TrueNAS), troubleshooting
+
+**Updated:**
+- `docs/getting-started/docker.md` — added Daemon Mode section with link to new guide
+- `docs/reference/environment-variables.md` — added Daemon Variables section (PODKIT_POLL_INTERVAL, PODKIT_APPRISE_URL)
+- `AGENTS.md` — added daemon docs to Documentation Map, updated Docker Image section with daemon info
+
+**Docs site builds cleanly:** 56 pages, all internal links valid
+<!-- SECTION:NOTES:END -->

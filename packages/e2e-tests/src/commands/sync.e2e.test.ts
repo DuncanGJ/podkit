@@ -53,7 +53,7 @@ describe('podkit sync', () => {
       });
     });
 
-    it('fails when no device specified', async () => {
+    it('fails when no device specified and no iPod connected', async () => {
       if (!fixturesAvailable) {
         console.log('Skipping: fixtures not available');
         return;
@@ -65,8 +65,13 @@ describe('podkit sync', () => {
 
       const result = await runCli(['--config', configPath, 'sync']);
 
+      // With smart device resolution, the CLI tries to auto-detect connected iPods.
+      // When none are found, it fails with either "No devices configured" (no config)
+      // or "No iPod found" (auto-detect found nothing).
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('No devices configured');
+      expect(
+        result.stderr.includes('No devices configured') || result.stderr.includes('No iPod found')
+      ).toBe(true);
     });
 
     it('fails when collection path does not exist', async () => {
@@ -156,7 +161,7 @@ describe('podkit sync', () => {
       });
     });
 
-    it('shows already synced message when no changes needed', async () => {
+    it('refuses to sync when source is empty (zero-track abort)', async () => {
       await withTarget(async (target) => {
         // Create an empty temp directory as source
         const emptySource = await mkdtemp(join(tmpdir(), 'empty-source-'));
@@ -173,9 +178,11 @@ describe('podkit sync', () => {
             '--dry-run',
           ]);
 
-          expect(result.exitCode).toBe(0);
-          // Both source and iPod are empty - should show no tracks to add
-          expect(result.stdout).toContain('Tracks to add: 0');
+          // Empty source abort: the CLI refuses to sync when zero tracks are found.
+          // This protects against misconfigured paths or downed servers wiping an iPod.
+          expect(result.exitCode).toBe(1);
+          expect(result.stderr).toContain('returned zero tracks');
+          expect(result.stderr).toContain('Check your source configuration');
         } finally {
           await rm(emptySource, { recursive: true, force: true });
         }

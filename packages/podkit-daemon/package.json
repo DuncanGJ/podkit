@@ -1,0 +1,31 @@
+{
+  "name": "@podkit/podkit-daemon",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Daemon for auto-detecting iPods and syncing via the podkit CLI",
+  "type": "module",
+  "main": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build src/main.ts --outdir dist --target node && bun run build:types",
+    "build:types": "tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
+    "compile": "bun build src/main.ts --compile --outfile bin/podkit-daemon",
+    "test": "bun test",
+    "test:unit": "FILES=$(find src -name '*.test.ts' ! -name '*.integration.test.ts' 2>/dev/null); [ -n \"$FILES\" ] && bun test $FILES || echo 'No unit tests found'",
+    "test:integration": "FILES=$(find src -name '*.integration.test.ts' 2>/dev/null); [ -n \"$FILES\" ] && bun test $FILES || echo 'No integration tests found'",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist bin"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

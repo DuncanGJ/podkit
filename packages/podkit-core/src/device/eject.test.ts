@@ -37,6 +37,9 @@ function createMockManager(
     requiresPrivileges() {
       return false;
     },
+    async getUuidForMountPoint() {
+      return null;
+    },
     async assessDevice() {
       return null;
     },

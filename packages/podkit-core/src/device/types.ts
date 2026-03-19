@@ -165,6 +165,18 @@ export interface DeviceManager {
   requiresPrivileges(operation: 'mount' | 'eject'): boolean;
 
   /**
+   * Get the Volume UUID for a given mount point
+   *
+   * Looks up what device is mounted at the specified path and returns
+   * its Volume UUID. Used for matching a CLI-provided path to a
+   * configured device.
+   *
+   * @param mountPoint - Path to the mounted device (e.g., "/Volumes/IPOD")
+   * @returns Volume UUID if found, null otherwise
+   */
+  getUuidForMountPoint(mountPoint: string): Promise<string | null>;
+
+  /**
    * Assess a device's characteristics before mounting
    *
    * Gathers all available OS-level and USB-level information about a device

@@ -9,6 +9,7 @@ import {
   resolveEffectiveDevice,
   resolveDevicePath,
   getDeviceIdentity,
+  autoDetectDevice,
 } from './device.js';
 import type { PodkitConfig } from '../config/types.js';
 import { DEFAULT_TRANSFORMS_CONFIG, DEFAULT_VIDEO_TRANSFORMS_CONFIG } from '../config/types.js';
@@ -228,6 +229,12 @@ function mockManager(devices: PlatformDeviceInfo[] = []): DeviceManager {
     listDevices: async () => devices,
     findIpodDevices: async () => devices,
     findByVolumeUuid: async (uuid: string) => devices.find((d) => d.volumeUuid === uuid) ?? null,
+    getUuidForMountPoint: async (mountPoint: string) => {
+      const device = devices.find(
+        (d) => d.isMounted && d.mountPoint?.replace(/\/+$/, '') === mountPoint.replace(/\/+$/, '')
+      );
+      return device?.volumeUuid ?? null;
+    },
     eject: async () => ({ success: false, device: 'mock', error: 'mock' }),
     mount: async () => ({ success: false, device: 'mock', error: 'mock' }),
     getManualInstructions: () => 'mock',
@@ -341,5 +348,227 @@ describe('resolveDevicePath', () => {
     // Should match despite trailing slash difference
     expect(result.path).toBe('/media/ipod');
     expect(result.error).toBeUndefined();
+  });
+
+  it('auto-matches CLI path to configured device by UUID (Scenario B)', async () => {
+    const device = mockDevice({
+      volumeUuid: 'ABC-123',
+      mountPoint: '/Volumes/IPOD',
+      isMounted: true,
+    });
+    const configWithDevices = makeConfig({
+      devices: {
+        terapod: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD', quality: 'medium' },
+      },
+    });
+    const result = await resolveDevicePath({
+      cliPath: '/Volumes/IPOD',
+      manager: mockManager([device]),
+      config: configWithDevices,
+    });
+    expect(result.path).toBe('/Volumes/IPOD');
+    expect(result.source).toBe('path-matched');
+    expect(result.matchedDevice).toBeDefined();
+    expect(result.matchedDevice?.name).toBe('terapod');
+    expect(result.matchedDevice?.config.quality).toBe('medium');
+  });
+
+  it('does not auto-match when path UUID does not match any config device (Scenario B)', async () => {
+    const device = mockDevice({
+      volumeUuid: 'XYZ-789',
+      mountPoint: '/Volumes/IPOD',
+      isMounted: true,
+    });
+    const configWithDevices = makeConfig({
+      devices: {
+        terapod: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+      },
+    });
+    const result = await resolveDevicePath({
+      cliPath: '/Volumes/IPOD',
+      manager: mockManager([device]),
+      config: configWithDevices,
+    });
+    expect(result.path).toBe('/Volumes/IPOD');
+    expect(result.source).toBe('cli');
+    expect(result.matchedDevice).toBeUndefined();
+  });
+
+  it('skips auto-match when deviceIdentity is already provided', async () => {
+    const device = mockDevice({
+      volumeUuid: 'ABC-123',
+      mountPoint: '/Volumes/IPOD',
+      isMounted: true,
+    });
+    const configWithDevices = makeConfig({
+      devices: {
+        terapod: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+      },
+    });
+    // When deviceIdentity is provided (named device scenario), auto-match is skipped
+    const result = await resolveDevicePath({
+      cliPath: '/Volumes/IPOD',
+      deviceIdentity: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+      manager: mockManager([device]),
+      config: configWithDevices,
+    });
+    expect(result.source).toBe('cli');
+    // matchedDevice should not be set since we already have a named device
+    expect(result.matchedDevice).toBeUndefined();
+  });
+});
+
+// =============================================================================
+// autoDetectDevice — Scenario A
+// =============================================================================
+
+describe('autoDetectDevice', () => {
+  it('auto-selects single matching configured device', async () => {
+    const device = mockDevice({
+      volumeUuid: 'ABC-123',
+      mountPoint: '/Volumes/IPOD',
+      isMounted: true,
+    });
+    const config = makeConfig({
+      devices: {
+        terapod: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD', quality: 'medium' },
+      },
+    });
+    const result = await autoDetectDevice(mockManager([device]), config);
+    expect(result.path).toBe('/Volumes/IPOD');
+    expect(result.source).toBe('auto-detected');
+    expect(result.matchedDevice?.name).toBe('terapod');
+    expect(result.matchedDevice?.config.quality).toBe('medium');
+    expect(result.error).toBeUndefined();
+  });
+
+  it('errors with multiple matching configured devices', async () => {
+    const devices = [
+      mockDevice({
+        identifier: 'disk2s2',
+        volumeUuid: 'ABC-123',
+        mountPoint: '/Volumes/TERAPOD',
+        isMounted: true,
+      }),
+      mockDevice({
+        identifier: 'disk3s2',
+        volumeUuid: 'DEF-456',
+        mountPoint: '/Volumes/NANOPOD',
+        isMounted: true,
+      }),
+    ];
+    const config = makeConfig({
+      devices: {
+        terapod: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+        nanopod: { volumeUuid: 'DEF-456', volumeName: 'NANOPOD' },
+      },
+    });
+    const result = await autoDetectDevice(mockManager(devices), config);
+    expect(result.path).toBeUndefined();
+    expect(result.error).toContain('Multiple configured iPods detected');
+    expect(result.error).toContain('terapod');
+    expect(result.error).toContain('nanopod');
+  });
+
+  it('uses single connected iPod with global settings when no config match', async () => {
+    const device = mockDevice({
+      volumeUuid: 'UNRECOGNIZED-UUID',
+      mountPoint: '/Volumes/IPOD',
+      isMounted: true,
+    });
+    const config = makeConfig({
+      devices: {
+        terapod: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+      },
+    });
+    const result = await autoDetectDevice(mockManager([device]), config);
+    expect(result.path).toBe('/Volumes/IPOD');
+    expect(result.source).toBe('auto-detected');
+    // No matchedDevice since UUID didn't match any config
+    expect(result.matchedDevice).toBeUndefined();
+    // Should provide a hint about saving settings
+    expect(result.hint).toContain('podkit device add');
+  });
+
+  it('errors when no iPod connected', async () => {
+    const config = makeConfig({
+      devices: {
+        terapod: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+      },
+    });
+    const result = await autoDetectDevice(mockManager([]), config);
+    expect(result.path).toBeUndefined();
+    expect(result.error).toContain('No iPod found');
+  });
+
+  it('errors with matched device that is not mounted', async () => {
+    const device = mockDevice({
+      volumeUuid: 'ABC-123',
+      isMounted: false,
+      mountPoint: undefined,
+    });
+    const config = makeConfig({
+      devices: {
+        terapod: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+      },
+    });
+    const result = await autoDetectDevice(mockManager([device]), config);
+    expect(result.path).toBeUndefined();
+    expect(result.error).toContain('not mounted');
+    expect(result.matchedDevice?.name).toBe('terapod');
+  });
+
+  it('errors when multiple iPods connected but none match config', async () => {
+    const devices = [
+      mockDevice({
+        identifier: 'disk2s2',
+        volumeUuid: 'UNKNOWN-1',
+        mountPoint: '/Volumes/IPOD1',
+        isMounted: true,
+      }),
+      mockDevice({
+        identifier: 'disk3s2',
+        volumeUuid: 'UNKNOWN-2',
+        mountPoint: '/Volumes/IPOD2',
+        isMounted: true,
+      }),
+    ];
+    const config = makeConfig({
+      devices: {
+        terapod: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+      },
+    });
+    const result = await autoDetectDevice(mockManager(devices), config);
+    expect(result.path).toBeUndefined();
+    expect(result.error).toContain('2 iPods detected');
+    expect(result.error).toContain('none match');
+  });
+
+  it('works with no configured devices at all', async () => {
+    const device = mockDevice({
+      volumeUuid: 'ABC-123',
+      mountPoint: '/Volumes/IPOD',
+      isMounted: true,
+    });
+    const config = makeConfig();
+    const result = await autoDetectDevice(mockManager([device]), config);
+    expect(result.path).toBe('/Volumes/IPOD');
+    expect(result.matchedDevice).toBeUndefined();
+    expect(result.hint).toContain('podkit device add');
+  });
+
+  it('matches case-insensitively on UUID', async () => {
+    const device = mockDevice({
+      volumeUuid: 'abc-123',
+      mountPoint: '/Volumes/IPOD',
+      isMounted: true,
+    });
+    const config = makeConfig({
+      devices: {
+        terapod: { volumeUuid: 'ABC-123', volumeName: 'TERAPOD' },
+      },
+    });
+    const result = await autoDetectDevice(mockManager([device]), config);
+    expect(result.matchedDevice?.name).toBe('terapod');
   });
 });

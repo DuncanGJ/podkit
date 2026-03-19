@@ -1,0 +1,55 @@
+# docker/docker-compose.daemon.yml
+#
+# Docker Compose for podkit daemon mode with notifications.
+# Auto-detects iPods and syncs them when plugged in.
+#
+# Setup:
+#   1. Copy this file and customize for your environment
+#   2. Configure notification services in Apprise (see https://github.com/caronc/apprise)
+#   3. Run: docker compose -f docker-compose.daemon.yml up -d
+#
+services:
+  podkit:
+    image: ghcr.io/jvgomg/podkit:latest
+    command: daemon
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - PODKIT_POLL_INTERVAL=5
+      - PODKIT_APPRISE_URL=http://apprise:8000/notify
+      - PODKIT_MUSIC_PATH=/music
+      # Or use a config file:
+      # - PODKIT_CONFIG=/config/config.toml
+    volumes:
+      - ./config:/config
+      - /path/to/music:/music:ro
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    # privileged: true  # Uncomment if --device doesn't work on your platform
+    healthcheck:
+      # The daemon touches /tmp/podkit-daemon-health after each successful poll.
+      # If the file hasn't been updated in 60s, something is wrong.
+      test:
+        [
+          'CMD-SHELL',
+          'test $$(( $$(date +%s) - $$(stat -c %Y /tmp/podkit-daemon-health 2>/dev/null || echo 0) )) -lt 60 || exit 1',
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  apprise:
+    image: caronc/apprise:latest
+    restart: unless-stopped
+    ports:
+      - '8000:8000' # Optional: expose for testing
+    environment:
+      # Configure your notification services here.
+      # See: https://github.com/caronc/apprise/wiki
+      - APPRISE_STATELESS_URLS=ntfy://your-topic
+      # Examples:
+      # - APPRISE_STATELESS_URLS=slack://tokenA/tokenB/channel
+      # - APPRISE_STATELESS_URLS=discord://webhook_id/webhook_token
+      # - APPRISE_STATELESS_URLS=tgram://bot_token/chat_id

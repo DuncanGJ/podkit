@@ -45,6 +45,7 @@ import {
   formatDeviceLookupMessage,
   parseCliDeviceArg,
   resolveEffectiveDevice,
+  autoDetectDevice,
 } from '../device-resolver.js';
 import type { IPodVideo, CollectionVideo, CollectionAdapter } from '@podkit/core';
 import { MediaType } from '@podkit/core';
@@ -165,6 +166,15 @@ export interface UpdateBreakdown {
 }
 
 /**
+ * Summary of video content by type
+ */
+export interface VideoSummary {
+  movieCount: number;
+  showCount: number;
+  episodeCount: number;
+}
+
+/**
  * JSON output structure for sync command
  */
 export interface SyncOutput {
@@ -186,6 +196,9 @@ export interface SyncOutput {
     estimatedSize: number;
     estimatedTime: number;
     soundCheckTracks?: number;
+    albumCount?: number;
+    artistCount?: number;
+    videoSummary?: VideoSummary;
   };
   operations?: Array<{
     type:
@@ -510,7 +523,8 @@ function getEffectiveBitrateTolerance(
 // Music Sync Helpers
 // =============================================================================
 
-interface MusicSyncContext {
+/** @internal Exported for testing only */
+export interface MusicSyncContext {
   out: OutputContext;
   collection: ResolvedCollection;
   sourcePath: string;
@@ -534,7 +548,8 @@ interface MusicSyncContext {
   core: typeof import('@podkit/core');
 }
 
-interface MusicSyncResult {
+/** @internal Exported for testing only */
+export interface MusicSyncResult {
   success: boolean;
   completed: number;
   failed: number;
@@ -544,8 +559,10 @@ interface MusicSyncResult {
 
 /**
  * Sync a single music collection
+ *
+ * @internal Exported for testing only
  */
-async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResult> {
+export async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResult> {
   const {
     out,
     collection,
@@ -645,6 +662,30 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
   }
 
   spinner.stop(`Found ${formatNumber(collectionTracks.length)} tracks in source`);
+
+  // Safety check: refuse to sync when adapter returns zero tracks.
+  // An empty result likely indicates a misconfigured path or downed server,
+  // and proceeding could cause mass deletion if --delete is enabled.
+  if (collectionTracks.length === 0) {
+    const message = `Collection '${collection.name}' returned zero tracks — skipping sync. Check your source configuration.`;
+    await adapter.disconnect();
+    if (out.isJson) {
+      return {
+        success: false,
+        completed: 0,
+        failed: 0,
+        jsonOutput: {
+          success: false,
+          dryRun,
+          source: sourcePath,
+          device: devicePath,
+          error: message,
+        },
+      };
+    }
+    out.error(message);
+    return { success: false, completed: 0, failed: 0 };
+  }
 
   if (scanWarnings.length > 0) {
     out.print(
@@ -864,7 +905,8 @@ async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicSyncResu
   return { success: failed === 0, completed, failed, artworkMissingBaseline };
 }
 
-interface MusicDryRunContext {
+/** @internal Exported for testing only */
+export interface MusicDryRunContext {
   out: OutputContext;
   sourcePath: string;
   devicePath: string;
@@ -881,7 +923,8 @@ interface MusicDryRunContext {
   core: typeof import('@podkit/core');
 }
 
-function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
+/** @internal Exported for testing only */
+export function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
   const {
     out,
     sourcePath,
@@ -1087,6 +1130,16 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
     }
   }
 
+  // Compute unique album and artist counts from tracks being added
+  let albumCount: number | undefined;
+  let artistCount: number | undefined;
+  if (diff.toAdd.length > 0) {
+    const uniqueAlbums = new Set(diff.toAdd.map((t) => t.album).filter(Boolean));
+    const uniqueArtists = new Set(diff.toAdd.map((t) => t.albumArtist || t.artist).filter(Boolean));
+    albumCount = uniqueAlbums.size;
+    artistCount = uniqueArtists.size;
+  }
+
   return {
     success: true,
     dryRun: true,
@@ -1109,6 +1162,8 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
         diff.toAdd.length > 0
           ? diff.toAdd.filter((t) => t.soundcheck !== undefined).length
           : undefined,
+      albumCount,
+      artistCount,
     },
     operations,
     planWarnings: planWarningInfos.length > 0 ? planWarningInfos : undefined,
@@ -1120,7 +1175,8 @@ function buildMusicDryRunOutput(ctx: MusicDryRunContext): SyncOutput {
 // Video Sync Helpers
 // =============================================================================
 
-interface VideoSyncContext {
+/** @internal Exported for testing only */
+export interface VideoSyncContext {
   out: OutputContext;
   collection: ResolvedCollection;
   sourcePath: string;
@@ -1134,7 +1190,8 @@ interface VideoSyncContext {
   core: typeof import('@podkit/core');
 }
 
-interface VideoSyncResult {
+/** @internal Exported for testing only */
+export interface VideoSyncResult {
   success: boolean;
   completed: number;
   failed: number;
@@ -1143,8 +1200,10 @@ interface VideoSyncResult {
 
 /**
  * Sync a single video collection (handles both dry-run and execution)
+ *
+ * @internal Exported for testing only
  */
-async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoSyncResult> {
+export async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoSyncResult> {
   const {
     out,
     collection,
@@ -1189,6 +1248,31 @@ async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoSyncResu
     spinner.stop();
     const message = err instanceof Error ? err.message : 'Failed to scan source';
     out.error(`Failed to scan video source: ${message}`);
+    return { success: false, completed: 0, failed: 0 };
+  }
+
+  // Safety check: refuse to sync when adapter returns zero videos.
+  // An empty result likely indicates a misconfigured path,
+  // and proceeding could cause mass deletion if --delete is enabled.
+  if (collectionVideos.length === 0) {
+    spinner.stop(`Found 0 videos in source`);
+    const message = `Collection '${collection.name}' returned zero videos — skipping sync. Check your source configuration.`;
+    await videoAdapter.disconnect();
+    if (out.isJson) {
+      return {
+        success: false,
+        completed: 0,
+        failed: 0,
+        jsonOutput: {
+          success: false,
+          dryRun,
+          source: sourcePath,
+          device: devicePath,
+          error: message,
+        },
+      };
+    }
+    out.error(message);
     return { success: false, completed: 0, failed: 0 };
   }
 
@@ -1301,6 +1385,56 @@ async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoSyncResu
     out.newline();
 
     await videoAdapter.disconnect();
+
+    // Build JSON output for video dry-run
+    if (out.isJson) {
+      // Count video types from tracks being added
+      const moviesToAdd = videoDiff.toAdd.filter((v) => v.contentType === 'movie').length;
+      const showsToAdd = videoDiff.toAdd.filter((v) => v.contentType === 'tvshow');
+      const uniqueShows = new Set(showsToAdd.map((v) => v.seriesTitle).filter(Boolean));
+
+      const videoOperations: NonNullable<SyncOutput['operations']> = videoPlan.operations.map(
+        (op) => ({
+          type: op.type as
+            | 'video-transcode'
+            | 'video-copy'
+            | 'video-remove'
+            | 'video-update-metadata',
+          track: core.getOperationDisplayName(op),
+          status: 'pending' as const,
+        })
+      );
+
+      const jsonOutput: SyncOutput = {
+        success: true,
+        dryRun: true,
+        source: sourcePath,
+        device: devicePath,
+        plan: {
+          tracksToAdd: videoDiff.toAdd.length,
+          tracksToRemove: removeOrphans ? videoDiff.toRemove.length : 0,
+          tracksToUpdate: videoDiff.toUpdate.length,
+          tracksToUpgrade: 0,
+          tracksToTranscode: videoSummary.transcodeCount,
+          tracksToCopy: videoSummary.copyCount,
+          tracksExisting: videoDiff.existing.length,
+          estimatedSize: videoPlan.estimatedSize,
+          estimatedTime: videoPlan.estimatedTime,
+          videoSummary:
+            videoDiff.toAdd.length > 0
+              ? {
+                  movieCount: moviesToAdd,
+                  showCount: uniqueShows.size,
+                  episodeCount: showsToAdd.length,
+                }
+              : undefined,
+        },
+        operations: videoOperations,
+      };
+
+      return { success: true, completed: 0, failed: 0, jsonOutput };
+    }
+
     return { success: true, completed: 0, failed: 0 };
   }
 
@@ -1474,51 +1608,61 @@ export const syncCommand = new Command('sync')
     const cliDeviceArg = parseCliDeviceArg(globalOpts.device, config);
     const deviceResult = resolveEffectiveDevice(cliDeviceArg, undefined, config);
 
-    if (!deviceResult.success) {
+    // When no --device flag and no default configured, defer to auto-detect
+    // (Scenario A). Auto-detection requires DeviceManager from @podkit/core,
+    // so the actual detection happens after the core import below.
+    const resolvedDevice = deviceResult.success ? deviceResult.device : undefined;
+    const cliPath = deviceResult.success ? deviceResult.cliPath : undefined;
+    const needsAutoDetect = !deviceResult.success && cliDeviceArg.type === 'none';
+
+    if (!deviceResult.success && !needsAutoDetect) {
       out.result(errorOutput(deviceResult.error), () => out.error(deviceResult.error));
       process.exitCode = 1;
       return;
     }
 
-    const resolvedDevice = deviceResult.device;
-    const cliPath = deviceResult.cliPath;
+    // Derive all effective settings from device config.
+    // Called once now and potentially re-called after auto-matching.
+    function deriveSettings(dc: DeviceConfig | undefined) {
+      return {
+        transforms: getEffectiveTransforms(config.transforms, dc),
+        videoTransforms: getEffectiveVideoTransforms(config.videoTransforms, dc),
+        quality: options.audioQuality
+          ? (options.audioQuality as QualityPreset)
+          : options.quality
+            ? (options.quality as QualityPreset)
+            : getEffectiveAudioQuality(config, dc),
+        videoQuality: options.videoQuality
+          ? (options.videoQuality as VideoQualityPreset)
+          : options.quality && isVideoQualityCompatible(options.quality as QualityPreset)
+            ? (options.quality as VideoQualityPreset)
+            : getEffectiveVideoQuality(config, dc),
+        artwork:
+          options.artwork !== undefined ? options.artwork : getEffectiveArtwork(config.artwork, dc),
+        skipUpgrades:
+          options.skipUpgrades !== undefined
+            ? options.skipUpgrades
+            : getEffectiveSkipUpgrades(config.skipUpgrades, dc),
+        encoding: options.encoding
+          ? (options.encoding as import('@podkit/core').EncodingMode)
+          : getEffectiveEncoding(config, dc),
+        customBitrate: getEffectiveCustomBitrate(config, dc),
+        bitrateTolerance: getEffectiveBitrateTolerance(config, dc),
+      };
+    }
 
-    // Get effective settings from device config
-    const deviceConfig = resolvedDevice?.config;
-    const effectiveTransforms = getEffectiveTransforms(config.transforms, deviceConfig);
-    const effectiveVideoTransforms = getEffectiveVideoTransforms(
-      config.videoTransforms,
-      deviceConfig
-    );
-
-    // Audio quality: CLI --audio-quality > CLI --quality > device/global resolution
-    const effectiveQuality = options.audioQuality
-      ? (options.audioQuality as QualityPreset)
-      : options.quality
-        ? (options.quality as QualityPreset)
-        : getEffectiveAudioQuality(config, deviceConfig);
-
-    // Video quality: CLI --video-quality > CLI --quality (if video-compatible) > device/global resolution
-    const effectiveVideoQuality = options.videoQuality
-      ? (options.videoQuality as VideoQualityPreset)
-      : options.quality && isVideoQualityCompatible(options.quality as QualityPreset)
-        ? (options.quality as VideoQualityPreset)
-        : getEffectiveVideoQuality(config, deviceConfig);
-
-    const effectiveArtwork =
-      options.artwork !== undefined
-        ? options.artwork
-        : getEffectiveArtwork(config.artwork, deviceConfig);
-    const effectiveSkipUpgrades =
-      options.skipUpgrades !== undefined
-        ? options.skipUpgrades
-        : getEffectiveSkipUpgrades(config.skipUpgrades, deviceConfig);
-    // Resolve encoding settings
-    const effectiveEncoding = options.encoding
-      ? (options.encoding as import('@podkit/core').EncodingMode)
-      : getEffectiveEncoding(config, deviceConfig);
-    const effectiveCustomBitrate = getEffectiveCustomBitrate(config, deviceConfig);
-    const effectiveBitrateTolerance = getEffectiveBitrateTolerance(config, deviceConfig);
+    let deviceConfig = resolvedDevice?.config;
+    let derived = deriveSettings(deviceConfig);
+    // Unpack into local variables that downstream code uses
+    let effectiveTransforms = derived.transforms;
+    let effectiveVideoTransforms = derived.videoTransforms;
+    let effectiveQuality = derived.quality;
+    let effectiveVideoQuality = derived.videoQuality;
+    let effectiveArtwork = derived.artwork;
+    let effectiveSkipUpgrades = derived.skipUpgrades;
+    let effectiveEncoding = derived.encoding;
+    let effectiveCustomBitrate = derived.customBitrate;
+    let effectiveBitrateTolerance = derived.bitrateTolerance;
 
     // ----- Resolve collections -----
     const allCollections = resolveCollections(config, options.collection, syncType);
@@ -1610,19 +1754,27 @@ export const syncCommand = new Command('sync')
 
     // ----- Resolve device path -----
     const manager = core.getDeviceManager();
-    const deviceIdentity = getDeviceIdentity(resolvedDevice);
+    let resolved: Awaited<ReturnType<typeof resolveDevicePath>>;
 
-    if (deviceIdentity?.volumeUuid) {
-      out.print(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, out.isVerbose));
+    if (needsAutoDetect) {
+      // Scenario A: no --device flag, no default — auto-detect connected iPod
+      resolved = await autoDetectDevice(manager, config);
+    } else {
+      const deviceIdentity = getDeviceIdentity(resolvedDevice);
+
+      if (deviceIdentity?.volumeUuid) {
+        out.print(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, out.isVerbose));
+      }
+
+      resolved = await resolveDevicePath({
+        cliDevice: cliPath,
+        deviceIdentity,
+        manager,
+        requireMounted: true,
+        quiet: globalOpts.quiet,
+        config,
+      });
     }
-
-    const resolved = await resolveDevicePath({
-      cliDevice: cliPath,
-      deviceIdentity,
-      manager,
-      requireMounted: true,
-      quiet: globalOpts.quiet,
-    });
 
     if (!resolved.path) {
       out.result(errorOutput(resolved.error ?? formatDeviceError(resolved)), () =>
@@ -1630,6 +1782,28 @@ export const syncCommand = new Command('sync')
       );
       process.exitCode = 1;
       return;
+    }
+
+    // If auto-matching found a configured device, apply its settings
+    if (resolved.matchedDevice) {
+      deviceConfig = resolved.matchedDevice.config;
+      derived = deriveSettings(deviceConfig);
+      effectiveTransforms = derived.transforms;
+      effectiveVideoTransforms = derived.videoTransforms;
+      effectiveQuality = derived.quality;
+      effectiveVideoQuality = derived.videoQuality;
+      effectiveArtwork = derived.artwork;
+      effectiveSkipUpgrades = derived.skipUpgrades;
+      effectiveEncoding = derived.encoding;
+      effectiveCustomBitrate = derived.customBitrate;
+      effectiveBitrateTolerance = derived.bitrateTolerance;
+
+      out.verbose1(`Auto-matched iPod to configured device '${resolved.matchedDevice.name}'`);
+    }
+
+    // Show hint if resolver provided one (e.g., "Run 'podkit device add'")
+    if (resolved.hint) {
+      out.tip(resolved.hint);
     }
 
     const devicePath = resolved.path;
@@ -1831,6 +2005,10 @@ export const syncCommand = new Command('sync')
               ipod,
               core,
             });
+
+            if (result.jsonOutput && out.isJson) {
+              out.json(result.jsonOutput);
+            }
 
             totalCompleted += result.completed;
             totalFailed += result.failed;

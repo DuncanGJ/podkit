@@ -1,9 +1,10 @@
 ---
 id: TASK-164
 title: 'Daemon: health check and production hardening'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-18 23:56'
+updated_date: '2026-03-19 15:21'
 labels:
   - daemon
   - docker
@@ -46,11 +47,25 @@ Update the compose example with `restart: unless-stopped` and the HEALTHCHECK in
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Docker HEALTHCHECK instruction verifies the daemon is alive and polling
-- [ ] #2 Daemon handles SIGTERM gracefully — waits for in-progress sync to finish (or ejects device) before exiting
-- [ ] #3 Daemon handles SIGINT gracefully (same as SIGTERM)
-- [ ] #4 Device removal mid-sync is detected and handled without crashing (logs error, sends error notification)
-- [ ] #5 Device detection is debounced to prevent rapid plug/unplug from triggering multiple syncs
-- [ ] #6 Docker Compose example includes restart: unless-stopped policy
-- [ ] #7 Docker Compose example includes HEALTHCHECK configuration
+- [x] #1 Docker HEALTHCHECK instruction verifies the daemon is alive and polling
+- [x] #2 Daemon handles SIGTERM gracefully — waits for in-progress sync to finish (or ejects device) before exiting
+- [x] #3 Daemon handles SIGINT gracefully (same as SIGTERM)
+- [x] #4 Device removal mid-sync is detected and handled without crashing (logs error, sends error notification)
+- [x] #5 Device detection is debounced to prevent rapid plug/unplug from triggering multiple syncs
+- [x] #6 Docker Compose example includes restart: unless-stopped policy
+- [x] #7 Docker Compose example includes HEALTHCHECK configuration
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Implementation Complete
+
+- `health-check.ts` — file-based health check (touch/check `/tmp/podkit-daemon-health`)
+- Health file touched after each successful poll cycle in `device-poller.ts`
+- HEALTHCHECK in `docker-compose.daemon.yml` (checks file age < 60s)
+- **Debounce:** devices must appear in 2 consecutive polls before `device-appeared` emits (pending → known promotion)
+- **Mid-sync disconnect:** `_currentDevice` + `_deviceDisconnected` tracking, better error messages for disconnected devices, eject failures logged at warn level
+- **Graceful shutdown:** already implemented in Phase 2 (`waitForIdle()` + SIGTERM/SIGINT)
+- 8 new tests (5 health check + 5 debounce + 3 mid-sync disconnect, minus overlap with existing)
+<!-- SECTION:NOTES:END -->

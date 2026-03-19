@@ -41,7 +41,7 @@ chown podkit:podkit /ipod 2>/dev/null || true
 # -----------------------------------------------------------------------------
 
 # List of known podkit subcommands
-PODKIT_COMMANDS="sync device collection init eject mount unmount completions"
+PODKIT_COMMANDS="sync device collection init eject mount unmount completions daemon"
 
 # Check if the first argument is a podkit subcommand
 is_podkit_command() {
@@ -89,6 +89,12 @@ if is_podkit_command "${1:-}"; then
       set -- podkit "$@"
     fi
     exec su-exec podkit "$@"
+  fi
+
+  # Handle 'daemon' command: exec the daemon binary instead of the CLI
+  if [ "$1" = "daemon" ]; then
+    shift
+    exec su-exec podkit podkit-daemon "$@"
   fi
 
   # All other podkit commands: pass through directly

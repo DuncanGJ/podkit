@@ -1,9 +1,10 @@
 ---
 id: TASK-163
 title: 'Daemon: Apprise notifications (pre-sync summary, post-sync status, errors)'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-18 23:56'
+updated_date: '2026-03-19 15:21'
 labels:
   - daemon
   - docker
@@ -46,14 +47,26 @@ See PRD doc-004 (Docker Daemon Mode) for full notification content examples and 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Apprise Client POSTs notifications to PODKIT_APPRISE_URL when configured
-- [ ] #2 Notifications are skipped gracefully when PODKIT_APPRISE_URL is not set (daemon works without notifications)
-- [ ] #3 Apprise Client failures are logged but do not block or abort the sync cycle
-- [ ] #4 Pre-sync notification includes device name and concise summary of planned changes (tracks, albums, artists to add; removals; updates)
-- [ ] #5 Pre-sync notification includes video summary (movies, TV shows) when video operations are present
-- [ ] #6 Post-sync notification includes success/failure status, completed/failed counts, and duration
-- [ ] #7 Error notifications are sent when mount, sync, or eject fails, with the error message
-- [ ] #8 Notification Formatter handles edge cases: music-only, video-only, mixed, zero additions, all failures
-- [ ] #9 Docker Compose example includes Apprise sidecar service configuration
-- [ ] #10 Unit tests for Notification Formatter covering all edge cases
+- [x] #1 Apprise Client POSTs notifications to PODKIT_APPRISE_URL when configured
+- [x] #2 Notifications are skipped gracefully when PODKIT_APPRISE_URL is not set (daemon works without notifications)
+- [x] #3 Apprise Client failures are logged but do not block or abort the sync cycle
+- [x] #4 Pre-sync notification includes device name and concise summary of planned changes (tracks, albums, artists to add; removals; updates)
+- [x] #5 Pre-sync notification includes video summary (movies, TV shows) when video operations are present
+- [x] #6 Post-sync notification includes success/failure status, completed/failed counts, and duration
+- [x] #7 Error notifications are sent when mount, sync, or eject fails, with the error message
+- [x] #8 Notification Formatter handles edge cases: music-only, video-only, mixed, zero additions, all failures
+- [x] #9 Docker Compose example includes Apprise sidecar service configuration
+- [x] #10 Unit tests for Notification Formatter covering all edge cases
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Implementation Complete
+
+- `apprise-client.ts` — fetch-based HTTP client, no-op when URL undefined, fire-and-forget with logging
+- `notification-formatter.ts` — pure functions for pre-sync (with album/artist/video enrichment), post-sync, and error notifications
+- Wired into `sync-orchestrator.ts` — notifications at dry-run, sync complete, and all error stages
+- `docker/docker-compose.daemon.yml` — daemon + Apprise sidecar example with ntfy/Slack/Discord/Telegram examples
+- 22 notification tests (17 formatter + 5 client)
+<!-- SECTION:NOTES:END -->

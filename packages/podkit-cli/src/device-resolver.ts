@@ -29,8 +29,8 @@ import {
 // Re-exports from new resolvers module
 // =============================================================================
 
-export type { ResolvedDevice, DeviceIdentity } from './resolvers/index.js';
-export { parseCliDeviceArg, resolveEffectiveDevice } from './resolvers/index.js';
+export type { ResolvedDevice, DeviceIdentity, MatchedDevice } from './resolvers/index.js';
+export { parseCliDeviceArg, resolveEffectiveDevice, autoDetectDevice } from './resolvers/index.js';
 
 // =============================================================================
 // Backward-Compatible Wrappers
@@ -49,6 +49,8 @@ export interface ResolveDeviceOptions {
   requireMounted?: boolean;
   /** Suppress console output */
   quiet?: boolean;
+  /** Full config for UUID→device matching when a CLI path is given */
+  config?: PodkitConfig;
 }
 
 /**
@@ -103,6 +105,7 @@ export async function resolveDevicePath(
     deviceIdentity: options.deviceIdentity,
     manager: options.manager,
     requireMounted: options.requireMounted,
+    config: options.config,
   };
   return resolveDevicePathCore(newOptions);
 }

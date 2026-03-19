@@ -194,17 +194,36 @@ export function resolveEffectiveDevice(
 // =============================================================================
 
 /**
+ * A configured device that was auto-matched by UUID
+ */
+export interface MatchedDevice {
+  /** Device name from config */
+  name: string;
+  /** Device configuration */
+  config: import('../config/types.js').DeviceConfig;
+}
+
+/**
  * Result of resolving device to physical path
  */
 export interface DevicePathResult {
   /** Resolved device path, if found */
   path?: string;
   /** How the device was found */
-  source: 'cli' | 'uuid' | 'none';
+  source: 'cli' | 'uuid' | 'auto-detected' | 'path-matched' | 'none';
   /** Device info if found via UUID */
   deviceInfo?: PlatformDeviceInfo;
   /** Error message if resolution failed */
   error?: string;
+  /**
+   * Configured device matched by UUID auto-detection.
+   * Present when a CLI path or auto-detected iPod was matched to a
+   * configured device by its Volume UUID. The caller should apply
+   * device-specific config from this field.
+   */
+  matchedDevice?: MatchedDevice;
+  /** Hint message (not an error) to show the user */
+  hint?: string;
 }
 
 /**
@@ -219,6 +238,12 @@ export interface DevicePathOptions {
   manager: DeviceManager;
   /** Whether to require the device to be mounted (default: true) */
   requireMounted?: boolean;
+  /**
+   * Full config for UUID→device matching (Scenario B).
+   * When a CLI path is given, the resolver reads the UUID at that path
+   * and matches it against configured devices. Pass config to enable this.
+   */
+  config?: import('../config/types.js').PodkitConfig;
 }
 
 /**
@@ -232,7 +257,7 @@ export interface DevicePathOptions {
  * @returns Device path result
  */
 export async function resolveDevicePath(options: DevicePathOptions): Promise<DevicePathResult> {
-  const { cliPath, deviceIdentity, manager, requireMounted = true } = options;
+  const { cliPath, deviceIdentity, manager, requireMounted = true, config } = options;
 
   // Priority 1: CLI path takes precedence
   if (cliPath) {
@@ -261,6 +286,20 @@ export async function resolveDevicePath(options: DevicePathOptions): Promise<Dev
       }
       // UUID not found among connected devices — can't validate, proceed with path.
       // This is expected on platforms without device detection (e.g., Linux/Docker).
+    }
+
+    // Scenario B: CLI path given without a named device — try to match by UUID
+    // Look up what's mounted at this path and match against configured devices
+    if (!deviceIdentity && config?.devices) {
+      const matched = await matchPathToConfigDevice(cliPath, config, manager);
+      if (matched) {
+        return {
+          path: cliPath,
+          source: 'path-matched',
+          matchedDevice: matched.matchedDevice,
+          deviceInfo: matched.deviceInfo,
+        };
+      }
     }
 
     return {
@@ -317,6 +356,150 @@ export async function resolveDevicePath(options: DevicePathOptions): Promise<Dev
   return {
     source: 'none',
     error: 'No iPod configured. Run: podkit device add -d <name>',
+  };
+}
+
+// =============================================================================
+// Auto-Detection (Scenario A & B helpers)
+// =============================================================================
+
+/**
+ * Build a UUID→device name map from config.devices
+ */
+function buildUuidMap(
+  devices: Record<string, import('../config/types.js').DeviceConfig>
+): Map<string, { name: string; config: import('../config/types.js').DeviceConfig }> {
+  const map = new Map<
+    string,
+    { name: string; config: import('../config/types.js').DeviceConfig }
+  >();
+  for (const [name, deviceConfig] of Object.entries(devices)) {
+    if (deviceConfig.volumeUuid) {
+      map.set(deviceConfig.volumeUuid.toUpperCase(), { name, config: deviceConfig });
+    }
+  }
+  return map;
+}
+
+/**
+ * Match a CLI path to a configured device by reading the UUID at that mount point
+ * and looking it up in config.devices. (Scenario B)
+ */
+async function matchPathToConfigDevice(
+  mountPath: string,
+  config: import('../config/types.js').PodkitConfig,
+  manager: DeviceManager
+): Promise<{ matchedDevice: MatchedDevice; deviceInfo?: PlatformDeviceInfo } | null> {
+  if (!config.devices) return null;
+
+  const uuid = await manager.getUuidForMountPoint(mountPath);
+  if (!uuid) return null;
+
+  const uuidMap = buildUuidMap(config.devices);
+  const match = uuidMap.get(uuid.toUpperCase());
+  if (!match) return null;
+
+  // Also get device info for the matched UUID
+  const deviceInfo = await manager.findByVolumeUuid(uuid);
+
+  return {
+    matchedDevice: { name: match.name, config: match.config },
+    deviceInfo: deviceInfo ?? undefined,
+  };
+}
+
+/**
+ * Auto-detect a connected iPod and match it to a configured device (Scenario A)
+ *
+ * Called when no --device flag is given and no default device is configured.
+ * Scans for connected iPods and matches their UUIDs against config.devices.
+ *
+ * @returns DevicePathResult with the matched device info, or an error
+ */
+export async function autoDetectDevice(
+  manager: DeviceManager,
+  config: import('../config/types.js').PodkitConfig
+): Promise<DevicePathResult> {
+  const ipods = await manager.findIpodDevices();
+
+  if (ipods.length === 0) {
+    return {
+      source: 'none',
+      error: 'No iPod found. Is it connected and mounted?',
+    };
+  }
+
+  // Build UUID→device name map from config
+  const uuidMap = config.devices ? buildUuidMap(config.devices) : new Map();
+
+  // Match detected iPods against configured devices
+  const matches: Array<{
+    deviceInfo: PlatformDeviceInfo;
+    matchedDevice: MatchedDevice;
+  }> = [];
+
+  for (const ipod of ipods) {
+    if (ipod.volumeUuid) {
+      const match = uuidMap.get(ipod.volumeUuid.toUpperCase());
+      if (match) {
+        matches.push({
+          deviceInfo: ipod,
+          matchedDevice: { name: match.name, config: match.config },
+        });
+      }
+    }
+  }
+
+  // One match → auto-select
+  if (matches.length === 1) {
+    const { deviceInfo, matchedDevice } = matches[0]!;
+    if (!deviceInfo.isMounted || !deviceInfo.mountPoint) {
+      return {
+        source: 'auto-detected',
+        deviceInfo,
+        matchedDevice,
+        error: `iPod '${matchedDevice.name}' found but not mounted`,
+      };
+    }
+    return {
+      path: deviceInfo.mountPoint,
+      source: 'auto-detected',
+      deviceInfo,
+      matchedDevice,
+    };
+  }
+
+  // Multiple matches → error
+  if (matches.length > 1) {
+    const names = matches.map((m) => m.matchedDevice.name).join(', ');
+    return {
+      source: 'none',
+      error: `Multiple configured iPods detected: ${names}. Specify with --device <name>`,
+    };
+  }
+
+  // No config match — use the iPod with global settings if exactly one is connected
+  if (ipods.length === 1) {
+    const ipod = ipods[0]!;
+    if (!ipod.isMounted || !ipod.mountPoint) {
+      return {
+        source: 'none',
+        deviceInfo: ipod,
+        error: 'iPod found but not mounted',
+      };
+    }
+    return {
+      path: ipod.mountPoint,
+      source: 'auto-detected',
+      deviceInfo: ipod,
+      hint: "Tip: Run 'podkit device add' to save device-specific settings",
+    };
+  }
+
+  // Multiple iPods connected but none match config
+  return {
+    source: 'none',
+    error: `${ipods.length} iPods detected but none match configured devices. Specify with --device <name> or --device <path>`,
   };
 }
 

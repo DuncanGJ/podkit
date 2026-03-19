@@ -6,9 +6,14 @@
 # Multi-arch: linux/amd64, linux/arm64
 # Pre-built musl binaries are copied in per-architecture from CI artifacts.
 #
-# Usage:
+# Usage (CLI — default):
 #   docker run -v ./config:/config -v /path/to/music:/music:ro -v /media/ipod:/ipod \
 #     -e PUID=1000 -e PGID=1000 ghcr.io/jvgomg/podkit:latest sync
+#
+# Usage (daemon — opt-in, auto-detects and syncs iPods on plug-in):
+#   docker run -v ./config:/config -v /path/to/music:/music:ro \
+#     --device /dev/bus/usb -e PUID=1000 -e PGID=1000 \
+#     ghcr.io/jvgomg/podkit:latest daemon
 #
 
 FROM alpine:3.21
@@ -49,12 +54,13 @@ RUN echo "**** install runtime dependencies ****" && \
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Copy pre-built musl binary for this architecture
-# CI organizes binaries as: bin/<arch>/podkit
-#   amd64 -> bin/amd64/podkit
-#   arm64 -> bin/arm64/podkit
+# Copy pre-built musl binaries for this architecture
+# CI organizes binaries as: bin/<arch>/podkit, bin/<arch>/podkit-daemon
+#   amd64 -> bin/amd64/podkit, bin/amd64/podkit-daemon
+#   arm64 -> bin/arm64/podkit, bin/arm64/podkit-daemon
 COPY bin/${TARGETARCH}/podkit /usr/local/bin/podkit
-RUN chmod +x /usr/local/bin/podkit
+COPY bin/${TARGETARCH}/podkit-daemon /usr/local/bin/podkit-daemon
+RUN chmod +x /usr/local/bin/podkit /usr/local/bin/podkit-daemon
 
 VOLUME /config
 

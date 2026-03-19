@@ -131,6 +131,9 @@ Read these documents based on what you're working on:
 | Roadmap | [docs/project/roadmap.md](docs/project/roadmap.md) |
 | Feedback & feature requests (user-facing) | [docs/project/feedback.md](docs/project/feedback.md) |
 | Docker | [docs/getting-started/docker.md](docs/getting-started/docker.md) |
+| Docker daemon mode | [docs/getting-started/docker-daemon.md](docs/getting-started/docker-daemon.md) |
+| Config migrations | [docs/developers/config-migrations.md](docs/developers/config-migrations.md) |
+| Config migration examples | `packages/podkit-cli/src/config/migrations/examples/` |
 
 ## Feature Requests & GitHub Discussions
 
@@ -515,6 +518,7 @@ podkit is distributed as a Docker image at `ghcr.io/jvgomg/podkit`. See [docs/ge
 | Dockerfile | `docker/Dockerfile` |
 | Entrypoint script | `docker/entrypoint.sh` |
 | Docker Compose example | `docker/docker-compose.yml` |
+| Daemon Compose example | `docker/docker-compose.daemon.yml` |
 | CI workflow | `.github/workflows/docker.yml` |
 
 **Architecture:**
@@ -528,6 +532,7 @@ podkit is distributed as a Docker image at `ghcr.io/jvgomg/podkit`. See [docs/ge
 1. Creates user/group matching PUID/PGID
 2. `init` command generates a config file into the mounted /config volume
 3. `sync` command auto-injects `--device /ipod`
+4. `daemon` command runs `podkit-daemon` (separate binary, polls for iPods and auto-syncs)
 
 Collections can be configured via environment variables (e.g., `PODKIT_MUSIC_PATH=/music`) — no config file required. See [docs/reference/environment-variables.md](docs/reference/environment-variables.md) for details.
 
@@ -536,12 +541,14 @@ Collections can be configured via environment variables (e.g., `PODKIT_MUSIC_PAT
 - The entrypoint passes `PODKIT_CONFIG=/config/config.toml` by default
 - `PODKIT_TIPS=false` is set in the Dockerfile (tips aren't useful in Docker context)
 
-**Future considerations (daemon mode):**
-- When daemon mode lands, the entrypoint's default CMD should switch from `sync` to `daemon`
-- USB auto-detect in Docker requires `--privileged` or `--device /dev/bus/usb` passthrough
-- udev rules inside the container would handle iPod connect/disconnect events
-- Process supervision (s6-overlay or similar) becomes relevant for long-running containers
-- Health check endpoint/command should be added for Docker orchestration
+**Daemon mode:**
+- Opt-in via `command: daemon` in Docker Compose (CLI remains the default)
+- Separate binary `podkit-daemon` polls for iPod devices and auto-syncs
+- Requires USB passthrough (`--device /dev/bus/usb` or `--privileged`)
+- Supports Apprise notifications via `PODKIT_APPRISE_URL`
+- File-based health check at `/tmp/podkit-daemon-health`
+- See [docs/getting-started/docker-daemon.md](docs/getting-started/docker-daemon.md) for user docs
+- Daemon entry point: `packages/podkit-daemon/src/main.ts`
 
 ## Code Conventions
 
@@ -633,6 +640,54 @@ Before merging a Version Packages PR, add a hand-written release summary above t
 - Focus on what changes mean for the user's experience, not just what was implemented
 - For bug fixes, be light-hearted about tricky issues and communicate the user-facing impact
 - Include links to relevant docs pages so users can learn more
+
+## Config Migrations
+
+podkit uses a versioned config system with a migration engine. The config file has a `version` field (positive integer). Configs without a version field are version 0 (pre-versioning era).
+
+### When a Migration is Needed
+
+**Required** for:
+- Breaking config restructures (renaming/removing sections)
+- Breaking field changes (type changes, renames, removals)
+- New required fields that must have a value
+
+**Not required** for:
+- New optional fields with defaults (existing configs work without them)
+- Internal-only changes that don't affect the config file
+- Documentation-only changes
+
+### How Config Versions Work
+
+- `CURRENT_CONFIG_VERSION` in `packages/podkit-cli/src/config/version.ts` is the latest version
+- Running any command with an outdated config → hard error pointing to `podkit migrate`
+- `podkit migrate` detects the version, shows pending migrations, runs them sequentially, backs up the original, and writes the updated config
+- Migrations work with raw TOML strings (not typed config objects) so they can handle incompatible structures
+
+### How to Create a Migration
+
+1. Increment `CURRENT_CONFIG_VERSION` in `packages/podkit-cli/src/config/version.ts`
+2. Create a new migration file: `packages/podkit-cli/src/config/migrations/NNNN-description.ts`
+3. Register it in `packages/podkit-cli/src/config/migrations/registry.ts`
+4. Add tests in a corresponding `.test.ts` file
+5. See example migrations in `packages/podkit-cli/src/config/migrations/examples/` for templates
+
+### Migration Types
+
+- **Automatic** (`type: 'automatic'`): Deterministic transformations, no user input needed
+- **Interactive** (`type: 'interactive'`): Uses `context.prompt` to ask user for decisions. User can abort at any point — aborting leaves the config unchanged.
+
+### Key Files
+
+| Purpose | Path |
+|---------|------|
+| Version constant | `packages/podkit-cli/src/config/version.ts` |
+| Migration types | `packages/podkit-cli/src/config/migrations/types.ts` |
+| Migration engine | `packages/podkit-cli/src/config/migrations/engine.ts` |
+| Migration registry | `packages/podkit-cli/src/config/migrations/registry.ts` |
+| Migrate command | `packages/podkit-cli/src/commands/migrate.ts` |
+| Example migrations | `packages/podkit-cli/src/config/migrations/examples/` |
+| Test utilities | `packages/podkit-cli/src/config/migrations/test-utils.ts` |
 
 ## Entry Points
 

@@ -82,6 +82,12 @@ docker compose run --rm podkit init       # Generate config
 # Edit config/config.toml, then sync
 ```
 
+## Daemon Mode
+
+For automatic syncing when an iPod is plugged in, use daemon mode. The daemon runs as a persistent Docker service that detects iPods and syncs them without manual intervention.
+
+See the [Docker Daemon Mode](/getting-started/docker-daemon/) guide for setup instructions.
+
 ## Volume Mounts
 
 | Mount | Required | Mode | Purpose |
@@ -203,4 +209,5 @@ You can also configure Subsonic sources in a config file — see [Subsonic Sourc
 
 - [Configuration Guide](/user-guide/configuration) — Full config documentation
 - [Environment Variables](/reference/environment-variables) — All environment variables
+- [Docker Daemon Mode](/getting-started/docker-daemon/) — Automatically sync iPods when plugged in
 - [Config File Reference](/reference/config-file) — Complete config schema

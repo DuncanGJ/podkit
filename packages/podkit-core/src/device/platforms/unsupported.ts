@@ -62,6 +62,10 @@ export class UnsupportedDeviceManager implements DeviceManager {
     return false;
   }
 
+  async getUuidForMountPoint(_mountPoint: string): Promise<string | null> {
+    return null;
+  }
+
   async assessDevice(_diskIdentifier: string): Promise<DeviceAssessment | null> {
     return null;
   }

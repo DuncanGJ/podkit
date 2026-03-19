@@ -110,6 +110,15 @@ For a Subsonic collection named `navidrome`, the password is resolved in this or
 
 The collection name is uppercased and hyphens are replaced with underscores. For example, a collection named `my-server` uses `PODKIT_MUSIC_MY_SERVER_PASSWORD`.
 
+## Daemon Variables
+
+These variables are used by the podkit daemon (Docker daemon mode). See the [Docker Daemon Mode](/getting-started/docker-daemon/) guide for setup instructions.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PODKIT_POLL_INTERVAL` | `5` | How often to check for new iPod devices, in seconds |
+| `PODKIT_APPRISE_URL` | (unset) | Apprise notification endpoint URL (e.g., `http://apprise:8000/notify`) |
+
 ## Configuration Priority
 
 Settings are merged from multiple sources. Later sources override earlier ones:

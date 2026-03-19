@@ -68,10 +68,12 @@ export {
   parseCliDeviceArg,
   resolveEffectiveDevice,
   resolveDevicePath,
+  autoDetectDevice,
   formatDevicePathError,
   formatDeviceLookupMessage,
   type DevicePathResult,
   type DevicePathOptions,
+  type MatchedDevice,
 } from './device.js';
 
 // Collection resolution

@@ -146,7 +146,16 @@ export class MacOSDeviceManager implements DeviceManager {
     }
 
     // Already mounted — return existing mount point
+    // If an explicit target was requested but the device is already mounted elsewhere, warn
     if (device.isMounted && device.mountPoint) {
+      if (options?.target && device.mountPoint !== options.target) {
+        return {
+          success: false,
+          device: deviceId,
+          mountPoint: device.mountPoint,
+          error: `Device is already mounted at ${device.mountPoint} (requested target: ${options.target}). Unmount first to remount at a different path.`,
+        };
+      }
       return {
         success: true,
         device: deviceId,
@@ -159,18 +168,34 @@ export class MacOSDeviceManager implements DeviceManager {
     const sudoMountCommand = `mount -t msdos ${devicePath} ${sudoMountPoint}`;
 
     if (options?.dryRun) {
+      // When a target is provided, show the diskutil mount with -mountPoint;
+      // otherwise show the sudo mount command (for iFlash / large FAT32 fallback)
+      const dryRunCommand = options?.target
+        ? `diskutil mount -mountPoint ${sudoMountPoint} ${diskId}`
+        : `sudo ${sudoMountCommand}`;
       return {
         success: true,
         device: deviceId,
         mountPoint: sudoMountPoint,
-        dryRunCommand: `sudo ${sudoMountCommand}`,
+        dryRunCommand,
       };
     }
 
     // Attempt 1: diskutil mount — works without elevated privileges for volumes
     // that macOS is willing to mount (standard-size FAT32 volumes, etc.)
-    const diskutilResult = await execCommand('diskutil', ['mount', diskId]);
+    // When a target path is specified, use -mountPoint to direct diskutil.
+    const diskutilArgs = options?.target
+      ? ['mount', '-mountPoint', sudoMountPoint, diskId]
+      : ['mount', diskId];
+    const diskutilResult = await execCommand('diskutil', diskutilArgs);
     if (diskutilResult.code === 0) {
+      if (options?.target) {
+        return {
+          success: true,
+          device: deviceId,
+          mountPoint: sudoMountPoint,
+        };
+      }
       // Re-fetch to get the actual mount point assigned by diskutil
       const mounted = await this.getPlatformDeviceInfo(diskId);
       return {
@@ -382,6 +407,22 @@ Replace diskXsY with your actual device identifier`;
       mountPoint: isMounted ? mountPoint : undefined,
       mediaType,
     };
+  }
+
+  async getUuidForMountPoint(mountPoint: string): Promise<string | null> {
+    const devices = await this.listDevices();
+    const normalized = mountPoint.replace(/\/+$/, '');
+
+    for (const device of devices) {
+      if (device.isMounted && device.mountPoint) {
+        const deviceNormalized = device.mountPoint.replace(/\/+$/, '');
+        if (deviceNormalized === normalized) {
+          return device.volumeUuid || null;
+        }
+      }
+    }
+
+    return null;
   }
 
   async assessDevice(diskIdentifier: string): Promise<DeviceAssessment | null> {

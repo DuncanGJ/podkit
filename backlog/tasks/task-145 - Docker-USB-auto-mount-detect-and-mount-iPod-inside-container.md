@@ -1,10 +1,10 @@
 ---
 id: TASK-145
 title: 'Docker USB auto-mount: detect and mount iPod inside container'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-03-18 01:01'
-updated_date: '2026-03-18 02:24'
+updated_date: '2026-03-19 12:52'
 labels:
   - docker
   - future
@@ -82,3 +82,9 @@ When the container auto-mounts an iPod (future), UUID validation becomes critica
 
 For the multi-device Docker Compose pattern (separate service per iPod), UUID validation prevents the auto-mount from picking the wrong device when multiple iPods are connected simultaneously.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Subsumed by TASK-162 (daemon device polling and sync orchestration) and the broader Docker daemon PRD (doc-004). The daemon's device poller handles iPod detection, mounting, and ejection. The CLI's smart device resolution (TASK-161) handles UUID-based device matching. All acceptance criteria from this task are covered by the combination of TASK-161 and TASK-162.
+<!-- SECTION:FINAL_SUMMARY:END -->

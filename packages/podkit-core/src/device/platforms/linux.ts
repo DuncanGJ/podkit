@@ -337,7 +337,16 @@ export class LinuxDeviceManager implements DeviceManager {
     const device = devices.find((d) => d.identifier === baseName);
 
     // Already mounted — return existing mount point
+    // If an explicit target was requested but the device is already mounted elsewhere, warn
     if (device?.isMounted && device.mountPoint) {
+      if (options?.target && device.mountPoint !== options.target) {
+        return {
+          success: false,
+          device: deviceId,
+          mountPoint: device.mountPoint,
+          error: `Device is already mounted at ${device.mountPoint} (requested target: ${options.target}). Unmount first to remount at a different path.`,
+        };
+      }
       return {
         success: true,
         device: deviceId,
@@ -346,10 +355,13 @@ export class LinuxDeviceManager implements DeviceManager {
     }
 
     const mountTarget = options?.target ?? `/tmp/podkit-${device?.volumeName || 'ipod'}`;
+    const hasExplicitTarget = !!options?.target;
 
     // Attempt 1: udisksctl (unprivileged)
+    // Skip udisksctl when an explicit target is specified — udisksctl picks its
+    // own mount point (/media/user/LABEL) and doesn't support a custom target.
     let udisksctlError: string | undefined;
-    if (await this.hasUdisksctl()) {
+    if (!hasExplicitTarget && (await this.hasUdisksctl())) {
       if (options?.dryRun) {
         return {
           success: true,
@@ -376,6 +388,7 @@ export class LinuxDeviceManager implements DeviceManager {
     }
 
     // Attempt 2: mount -t vfat (may require root)
+    // When an explicit target is specified, this is the only path taken.
     const mountCommand = `mount -t vfat ${devicePath} ${mountTarget}`;
 
     if (options?.dryRun) {
@@ -517,6 +530,26 @@ export class LinuxDeviceManager implements DeviceManager {
       error: errorMessage || 'Eject failed',
       forced: force,
     };
+  }
+
+  // ------------------------------------------------------------------
+  // UUID lookup by mount point
+  // ------------------------------------------------------------------
+
+  async getUuidForMountPoint(mountPoint: string): Promise<string | null> {
+    const devices = await this.listDevices();
+    const normalized = mountPoint.replace(/\/+$/, '');
+
+    for (const device of devices) {
+      if (device.isMounted && device.mountPoint) {
+        const deviceNormalized = device.mountPoint.replace(/\/+$/, '');
+        if (deviceNormalized === normalized) {
+          return device.volumeUuid || null;
+        }
+      }
+    }
+
+    return null;
   }
 
   // ------------------------------------------------------------------

@@ -7,6 +7,7 @@
 
 export type {
   SyncOutput,
+  VideoSummary,
   ErrorInfo,
   PlanWarningInfo,
   ExecutionWarningInfo,

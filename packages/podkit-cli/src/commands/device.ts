@@ -2478,12 +2478,14 @@ const ejectSubcommand = new Command('eject')
 
 interface MountOptions {
   disk?: string;
+  target?: string;
   dryRun?: boolean;
 }
 
 const mountSubcommand = new Command('mount')
   .description('mount an iPod device')
   .option('--disk <identifier>', 'disk identifier (e.g., /dev/disk4s2)')
+  .option('--target <path>', 'mount point path (default: /tmp/podkit-{volumeName})')
   .option('--dry-run', 'show mount command without executing')
   .action(async (options: MountOptions) => {
     const { config, globalOpts } = getContext();
@@ -2595,8 +2597,10 @@ const mountSubcommand = new Command('mount')
       out.print(`Mounting iPod: ${displayName}...`);
     }
 
+    const mountTarget = options.target ?? (volumeName ? `/tmp/podkit-${volumeName}` : undefined);
+
     const result = await manager.mount(deviceId, {
-      target: volumeName ? `/tmp/podkit-${volumeName}` : undefined,
+      target: mountTarget,
       dryRun,
     });
 
