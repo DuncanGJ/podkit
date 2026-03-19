@@ -460,6 +460,7 @@ export {
   getPlatform,
   isPlatformSupported,
   ejectWithRetry,
+  stripPartitionSuffix,
 } from './device/index.js';
 
 // Sound Check (volume normalization)

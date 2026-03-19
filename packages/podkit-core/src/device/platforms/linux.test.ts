@@ -6,7 +6,12 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { parseLsblkJson, collectPartitions, LinuxDeviceManager } from './linux.js';
+import {
+  parseLsblkJson,
+  collectPartitions,
+  stripPartitionSuffix,
+  LinuxDeviceManager,
+} from './linux.js';
 
 // ---------------------------------------------------------------------------
 // parseLsblkJson
@@ -460,6 +465,44 @@ describe('collectPartitions', () => {
     ];
 
     expect(collectPartitions(devices)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// stripPartitionSuffix
+// ---------------------------------------------------------------------------
+
+describe('stripPartitionSuffix', () => {
+  it('strips digit suffix from standard device names (sdb1 → sdb)', () => {
+    expect(stripPartitionSuffix('sdb1')).toBe('sdb');
+  });
+
+  it('strips digit suffix from standard device names (sda2 → sda)', () => {
+    expect(stripPartitionSuffix('sda2')).toBe('sda');
+  });
+
+  it('strips pN suffix from Synology USB devices (usb1p2 → usb1)', () => {
+    expect(stripPartitionSuffix('usb1p2')).toBe('usb1');
+  });
+
+  it('strips pN suffix from NVMe devices (nvme0n1p2 → nvme0n1)', () => {
+    expect(stripPartitionSuffix('nvme0n1p2')).toBe('nvme0n1');
+  });
+
+  it('strips pN suffix from eMMC devices (mmcblk0p1 → mmcblk0)', () => {
+    expect(stripPartitionSuffix('mmcblk0p1')).toBe('mmcblk0');
+  });
+
+  it('passes through bare disk name without partition suffix (sdb → sdb)', () => {
+    expect(stripPartitionSuffix('sdb')).toBe('sdb');
+  });
+
+  it('passes through bare NVMe disk name without partition suffix (nvme0n1 → nvme0n1)', () => {
+    expect(stripPartitionSuffix('nvme0n1')).toBe('nvme0n1');
+  });
+
+  it('passes through bare eMMC disk name without partition suffix (mmcblk0 → mmcblk0)', () => {
+    expect(stripPartitionSuffix('mmcblk0')).toBe('mmcblk0');
   });
 });
 

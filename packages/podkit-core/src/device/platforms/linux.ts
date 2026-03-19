@@ -150,6 +150,46 @@ export function parseLsblkJson(jsonString: string): PlatformDeviceInfo[] {
 }
 
 // ---------------------------------------------------------------------------
+// Partition suffix stripping
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip partition suffix from a block device name to get the base disk name.
+ *
+ * Linux uses two naming conventions for partitions:
+ * - Standard (base ends in letter): `sdb1` → `sdb`, `sda2` → `sda`
+ * - NVMe/Synology/eMMC (base ends in digit): `nvme0n1p2` → `nvme0n1`, `usb1p2` → `usb1`, `mmcblk0p1` → `mmcblk0`
+ *
+ * When the base disk name ends in a digit, partitions use a `p` separator
+ * before the partition number. This function handles both conventions.
+ *
+ * Bare disk names without a partition suffix pass through unchanged.
+ */
+export function stripPartitionSuffix(name: string): string {
+  // Convention 1: NVMe, eMMC, Synology USB, and similar devices where
+  // the base disk name ends in a digit and partitions use a "p" separator.
+  // Examples: nvme0n1p2 → nvme0n1, usb1p2 → usb1, mmcblk0p1 → mmcblk0
+  const pSuffixMatch = name.match(/^(.+\d)p\d+$/);
+  if (pSuffixMatch) {
+    return pSuffixMatch[1]!;
+  }
+
+  // Convention 2: Standard SCSI/IDE/virtio devices (sd*, hd*, vd*, xvd*)
+  // where the disk name ends in a letter and partitions append digits directly.
+  // Examples: sda1 → sda, vdb2 → vdb, xvda1 → xvda
+  //
+  // We match specific known prefixes rather than any all-alpha name to avoid
+  // stripping trailing digits from bare disk names like mmcblk0 or loop0.
+  const standardMatch = name.match(/^((?:sd|hd|vd|xvd|dasd)[a-z])\d+$/);
+  if (standardMatch) {
+    return standardMatch[1]!;
+  }
+
+  // No partition suffix detected — return unchanged
+  return name;
+}
+
+// ---------------------------------------------------------------------------
 // USB identity from /sys
 // ---------------------------------------------------------------------------
 
@@ -160,8 +200,8 @@ export function parseLsblkJson(jsonString: string): PlatformDeviceInfo[] {
  * device matches the given name (e.g., "sda"). Returns vendor/product IDs.
  */
 function findUsbIdentity(blockDeviceName: string): UsbDeviceInfo | undefined {
-  // Strip partition suffix to get the base device (sda1 → sda)
-  const baseName = blockDeviceName.replace(/\d+$/, '');
+  // Strip partition suffix to get the base device (sda1 → sda, nvme0n1p2 → nvme0n1)
+  const baseName = stripPartitionSuffix(blockDeviceName);
 
   try {
     // Check /sys/block/<device>/device for a symlink to the USB device

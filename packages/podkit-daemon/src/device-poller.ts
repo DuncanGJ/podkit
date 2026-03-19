@@ -11,6 +11,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { EventEmitter } from 'node:events';
+import { stripPartitionSuffix } from '@podkit/core';
 import { log } from './logger.js';
 import { touchHealthFile } from './health-check.js';
 
@@ -114,8 +115,8 @@ const APPLE_VENDOR_ID = '05ac';
  * idVendor. Returns the raw hex string (e.g. "05ac") or undefined.
  */
 export function readUsbVendorId(partitionName: string): string | undefined {
-  // Strip partition number to get base disk: sdb1 -> sdb
-  const baseName = partitionName.replace(/\d+$/, '');
+  // Strip partition suffix to get base disk: sdb1 -> sdb, nvme0n1p2 -> nvme0n1
+  const baseName = stripPartitionSuffix(partitionName);
 
   try {
     const deviceLink = `/sys/block/${baseName}/device`;
