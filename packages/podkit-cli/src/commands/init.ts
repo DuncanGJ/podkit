@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { DEFAULT_CONFIG_PATH, DEFAULT_CONFIG } from '../config/index.js';
-import { getContext } from '../context.js';
+import { DEFAULT_CONFIG_PATH, DEFAULT_CONFIG, CURRENT_CONFIG_VERSION } from '../config/index.js';
+import type { GlobalOptions } from '../config/index.js';
 import { OutputContext } from '../output/index.js';
 
 /**
@@ -13,6 +13,8 @@ import { OutputContext } from '../output/index.js';
  */
 export const CONFIG_TEMPLATE = `# podkit configuration
 # Docs: https://jvgomg.github.io/podkit/user-guide/configuration
+
+version = ${CURRENT_CONFIG_VERSION}
 
 # Music collections
 # Uncomment and edit to add your music library:
@@ -139,8 +141,10 @@ export const initCommand = new Command('init')
   .description('create a default configuration file')
   .option('-f, --force', 'overwrite existing config file')
   .option('--path <path>', 'config file path', DEFAULT_CONFIG_PATH)
-  .action(async (options) => {
-    const { globalOpts } = getContext();
+  .action(async (options, command) => {
+    // init bypasses preAction config loading (no context set),
+    // so read global options directly from the root command
+    const globalOpts = command.parent.opts() as GlobalOptions;
     const out = OutputContext.fromGlobalOpts(globalOpts);
 
     const configPath = options.path as string;

@@ -121,7 +121,9 @@ async function createMusicConfig(musicPath: string): Promise<string> {
   const configPath = join(tempDir, 'config.toml');
   await writeFile(
     configPath,
-    `[music.test]
+    `version = 1
+
+[music.test]
 path = "${musicPath}"
 
 [defaults]
@@ -140,7 +142,9 @@ async function createVideoConfig(videoPath: string): Promise<string> {
   const configPath = join(tempDir, 'config.toml');
   await writeFile(
     configPath,
-    `[video.test]
+    `version = 1
+
+[video.test]
 path = "${videoPath}"
 
 [defaults]
@@ -157,7 +161,7 @@ async function createEmptyConfig(): Promise<string> {
   const tempDir = join(tmpdir(), `podkit-test-${Date.now()}`);
   await mkdir(tempDir, { recursive: true });
   const configPath = join(tempDir, 'config.toml');
-  await writeFile(configPath, `# Empty config\n`);
+  await writeFile(configPath, `version = 1\n# Empty config\n`);
   return configPath;
 }
 
@@ -529,7 +533,9 @@ music = "test"
     configPath = join(tempDir, 'config.toml');
     await writeFile(
       configPath,
-      `[music.mylib]
+      `version = 1
+
+[music.mylib]
 path = "${AUDIO_FIXTURES_PATH}"
 # No defaults section
 `

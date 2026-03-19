@@ -122,6 +122,7 @@ Read these documents based on what you're working on:
 | Sync tags | [docs/reference/sync-tags.md](docs/reference/sync-tags.md) |
 | Demo GIF package | [packages/demo/README.md](packages/demo/README.md) |
 | Lima VMs (cross-platform testing) | [tools/lima/README.md](tools/lima/README.md) |
+| Config migrations | [docs/developers/config-migrations.md](docs/developers/config-migrations.md) |
 | Device hardware testing | [docs/developers/device-hardware-testing.md](docs/developers/device-hardware-testing.md) |
 | Package READMEs | `packages/*/README.md` |
 | Feature requests | [agents/feature-requests.md](agents/feature-requests.md) |
@@ -668,9 +669,10 @@ podkit uses a versioned config system with a migration engine. The config file h
 
 1. Increment `CURRENT_CONFIG_VERSION` in `packages/podkit-cli/src/config/version.ts`
 2. Create a new migration file: `packages/podkit-cli/src/config/migrations/NNNN-description.ts`
-3. Register it in `packages/podkit-cli/src/config/migrations/registry.ts`
-4. Add tests in a corresponding `.test.ts` file
-5. See example migrations in `packages/podkit-cli/src/config/migrations/examples/` for templates
+3. Implement the `Migration` interface (see `packages/podkit-cli/src/config/migrations/types.ts`)
+4. Register it in `packages/podkit-cli/src/config/migrations/registry.ts`
+5. Add tests in a corresponding `.test.ts` file
+6. See example migrations in `packages/podkit-cli/src/config/migrations/examples/` for templates covering 6 common scenarios
 
 ### Migration Types
 
@@ -688,6 +690,9 @@ podkit uses a versioned config system with a migration engine. The config file h
 | Migrate command | `packages/podkit-cli/src/commands/migrate.ts` |
 | Example migrations | `packages/podkit-cli/src/config/migrations/examples/` |
 | Test utilities | `packages/podkit-cli/src/config/migrations/test-utils.ts` |
+
+See [docs/developers/config-migrations.md](docs/developers/config-migrations.md) for the full developer guide.
+
 
 ## Entry Points
 

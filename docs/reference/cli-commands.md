@@ -28,6 +28,7 @@ These options work with all commands:
 | Command | Description |
 |---------|-------------|
 | [`podkit init`](#podkit-init) | Create a default configuration file |
+| [`podkit migrate`](#podkit-migrate) | Migrate config file to the latest version |
 | [`podkit sync`](#podkit-sync) | Sync music and/or video collections to iPod |
 | [`podkit device`](#podkit-device) | Device management commands |
 | [`podkit collection`](#podkit-collection) | Collection management commands |
@@ -62,6 +63,49 @@ podkit init --force
 # Create config at a custom path
 podkit init --path ~/my-podkit-config.toml
 ```
+
+## `podkit migrate`
+
+Migrate the config file to the latest version. Run this when podkit reports that your config is outdated.
+
+```bash
+podkit migrate [options]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `-n, --dry-run` | Show what would change without writing |
+| `-y, --yes` | Skip the confirmation prompt |
+
+### Examples
+
+```bash
+# Preview changes without applying
+podkit migrate --dry-run
+
+# Apply migrations (with confirmation prompt)
+podkit migrate
+
+# Apply without prompting (for scripts)
+podkit migrate --yes
+
+# Migrate a config at a non-default path
+podkit migrate --config /path/to/config.toml
+```
+
+### Behavior
+
+1. Reads the current config version
+2. Lists all pending migrations (version chain from current to latest)
+3. For interactive migrations, prompts for user input — aborting leaves the config unchanged
+4. Shows a diff of the changes
+5. Asks for confirmation (unless `--yes` is passed)
+6. Backs up the original file (e.g., `config.toml.backup.2026-01-01`)
+7. Writes the migrated config
+
+If the config is already at the latest version, the command reports success with no changes.
 
 ## `podkit sync`
 

@@ -11,7 +11,13 @@ import {
 } from './loader.js';
 import { DEFAULT_CONFIG, ENV_KEYS } from './defaults.js';
 import { DEFAULT_TRANSFORMS_CONFIG } from './types.js';
+import { CURRENT_CONFIG_VERSION } from './version.js';
 import type { GlobalOptions, PartialConfig } from './types.js';
+
+/** Prefix TOML content with the current version field for tests */
+function v(toml: string): string {
+  return `version = ${CURRENT_CONFIG_VERSION}\n${toml}`;
+}
 
 describe('config loader', () => {
   let tempDir: string;
@@ -60,9 +66,23 @@ describe('config loader', () => {
       expect(result).toBeUndefined();
     });
 
+    it('throws on config with no version field (version 0)', () => {
+      const configPath = path.join(tempDir, 'config.toml');
+      fs.writeFileSync(configPath, 'quality = "high"\n');
+
+      expect(() => loadConfigFile(configPath)).toThrow('podkit migrate');
+    });
+
+    it('throws on config with invalid version type', () => {
+      const configPath = path.join(tempDir, 'config.toml');
+      fs.writeFileSync(configPath, 'version = "foo"\nquality = "high"\n');
+
+      expect(() => loadConfigFile(configPath)).toThrow('Invalid config version');
+    });
+
     it('parses tips option from config file', () => {
       const configPath = path.join(tempDir, 'tips.toml');
-      fs.writeFileSync(configPath, 'tips = false\n');
+      fs.writeFileSync(configPath, v('tips = false\n'));
 
       const result = loadConfigFile(configPath);
       expect(result).toEqual({ tips: false });
@@ -72,10 +92,10 @@ describe('config loader', () => {
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 quality = "medium"
 artwork = false
-`
+`)
       );
 
       const result = loadConfigFile(configPath);
@@ -89,9 +109,9 @@ artwork = false
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 quality = "invalid"
-`
+`)
       );
 
       expect(() => loadConfigFile(configPath)).toThrow(/Invalid quality value/);
@@ -102,7 +122,7 @@ quality = "invalid"
     for (const preset of validPresets) {
       it(`accepts quality = "${preset}"`, () => {
         const configPath = path.join(tempDir, 'config.toml');
-        fs.writeFileSync(configPath, `quality = "${preset}"`);
+        fs.writeFileSync(configPath, v(`quality = "${preset}"`));
 
         const result = loadConfigFile(configPath);
         expect(result?.quality).toBe(preset);
@@ -113,7 +133,7 @@ quality = "invalid"
     for (const preset of invalidPresets) {
       it(`rejects invalid preset "${preset}"`, () => {
         const configPath = path.join(tempDir, 'config.toml');
-        fs.writeFileSync(configPath, `quality = "${preset}"`);
+        fs.writeFileSync(configPath, v(`quality = "${preset}"`));
 
         expect(() => loadConfigFile(configPath)).toThrow(/Invalid quality/);
       });
@@ -122,7 +142,7 @@ quality = "invalid"
     // encoding tests
     it('parses encoding option', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `encoding = "cbr"`);
+      fs.writeFileSync(configPath, v(`encoding = "cbr"`));
 
       const result = loadConfigFile(configPath);
       expect(result?.encoding).toBe('cbr');
@@ -130,7 +150,7 @@ quality = "invalid"
 
     it('accepts encoding = "vbr"', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `encoding = "vbr"`);
+      fs.writeFileSync(configPath, v(`encoding = "vbr"`));
 
       const result = loadConfigFile(configPath);
       expect(result?.encoding).toBe('vbr');
@@ -138,7 +158,7 @@ quality = "invalid"
 
     it('throws on invalid encoding', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `encoding = "abr"`);
+      fs.writeFileSync(configPath, v(`encoding = "abr"`));
 
       expect(() => loadConfigFile(configPath)).toThrow(/Invalid encoding value/);
     });
@@ -146,7 +166,7 @@ quality = "invalid"
     // customBitrate tests
     it('parses customBitrate option', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `customBitrate = 256`);
+      fs.writeFileSync(configPath, v(`customBitrate = 256`));
 
       const result = loadConfigFile(configPath);
       expect(result?.customBitrate).toBe(256);
@@ -154,14 +174,14 @@ quality = "invalid"
 
     it('throws on customBitrate below 64', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `customBitrate = 32`);
+      fs.writeFileSync(configPath, v(`customBitrate = 32`));
 
       expect(() => loadConfigFile(configPath)).toThrow(/Invalid customBitrate/);
     });
 
     it('throws on customBitrate above 320', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `customBitrate = 400`);
+      fs.writeFileSync(configPath, v(`customBitrate = 400`));
 
       expect(() => loadConfigFile(configPath)).toThrow(/Invalid customBitrate/);
     });
@@ -169,7 +189,7 @@ quality = "invalid"
     // bitrateTolerance tests
     it('parses bitrateTolerance option', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `bitrateTolerance = 0.25`);
+      fs.writeFileSync(configPath, v(`bitrateTolerance = 0.25`));
 
       const result = loadConfigFile(configPath);
       expect(result?.bitrateTolerance).toBe(0.25);
@@ -177,7 +197,7 @@ quality = "invalid"
 
     it('throws on bitrateTolerance above 1.0', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `bitrateTolerance = 1.5`);
+      fs.writeFileSync(configPath, v(`bitrateTolerance = 1.5`));
 
       expect(() => loadConfigFile(configPath)).toThrow(/Invalid bitrateTolerance/);
     });
@@ -187,9 +207,9 @@ quality = "invalid"
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 audioQuality = "max"
-`
+`)
       );
 
       const result = loadConfigFile(configPath);
@@ -200,9 +220,9 @@ audioQuality = "max"
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 audioQuality = "invalid"
-`
+`)
       );
 
       expect(() => loadConfigFile(configPath)).toThrow(/Invalid audioQuality/);
@@ -210,14 +230,14 @@ audioQuality = "invalid"
 
     it('rejects invalid preset "lossless" for audioQuality', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `audioQuality = "lossless"`);
+      fs.writeFileSync(configPath, v(`audioQuality = "lossless"`));
 
       expect(() => loadConfigFile(configPath)).toThrow(/Invalid audioQuality/);
     });
 
     it('rejects invalid preset "high-cbr" for audioQuality', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `audioQuality = "high-cbr"`);
+      fs.writeFileSync(configPath, v(`audioQuality = "high-cbr"`));
 
       expect(() => loadConfigFile(configPath)).toThrow(/Invalid audioQuality/);
     });
@@ -227,9 +247,9 @@ audioQuality = "invalid"
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 videoQuality = "medium"
-`
+`)
       );
 
       const result = loadConfigFile(configPath);
@@ -240,9 +260,9 @@ videoQuality = "medium"
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 videoQuality = "invalid"
-`
+`)
       );
 
       expect(() => loadConfigFile(configPath)).toThrow(/Invalid videoQuality value/);
@@ -250,7 +270,7 @@ videoQuality = "invalid"
 
     it('handles empty config file', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, '# Empty config\n');
+      fs.writeFileSync(configPath, v('# Empty config\n'));
 
       const result = loadConfigFile(configPath);
       expect(result).toEqual({});
@@ -260,9 +280,9 @@ videoQuality = "invalid"
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 quality = "missing end quote
-`
+`)
       );
 
       expect(() => loadConfigFile(configPath)).toThrow();
@@ -272,9 +292,9 @@ quality = "missing end quote
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 artwork = "yes"
-`
+`)
       );
 
       const result = loadConfigFile(configPath);
@@ -284,7 +304,7 @@ artwork = "yes"
 
     it('parses skipUpgrades = true', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `skipUpgrades = true`);
+      fs.writeFileSync(configPath, v(`skipUpgrades = true`));
 
       const result = loadConfigFile(configPath);
       expect(result?.skipUpgrades).toBe(true);
@@ -292,7 +312,7 @@ artwork = "yes"
 
     it('parses skipUpgrades = false', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `skipUpgrades = false`);
+      fs.writeFileSync(configPath, v(`skipUpgrades = false`));
 
       const result = loadConfigFile(configPath);
       expect(result?.skipUpgrades).toBe(false);
@@ -300,7 +320,7 @@ artwork = "yes"
 
     it('ignores skipUpgrades with wrong type (string instead of boolean)', () => {
       const configPath = path.join(tempDir, 'config.toml');
-      fs.writeFileSync(configPath, `skipUpgrades = "yes"`);
+      fs.writeFileSync(configPath, v(`skipUpgrades = "yes"`));
 
       const result = loadConfigFile(configPath);
       // String "yes" should not be parsed as skipUpgrades since type check is strict
@@ -312,11 +332,11 @@ artwork = "yes"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [cleanArtists]
 drop = false
 format = "feat. {}"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -333,9 +353,9 @@ format = "feat. {}"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 cleanArtists = true
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -349,9 +369,9 @@ cleanArtists = true
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [cleanArtists]
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -362,10 +382,10 @@ cleanArtists = true
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [cleanArtists]
 enabled = false
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -376,10 +396,10 @@ enabled = false
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [cleanArtists]
 drop = true
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -390,10 +410,10 @@ drop = true
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [cleanArtists]
 format = "with {}"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -404,10 +424,10 @@ format = "with {}"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [cleanArtists]
 format = "no placeholder here"
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/must contain "{}"/);
@@ -417,10 +437,10 @@ format = "no placeholder here"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [cleanArtists]
 enabled = "true"
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "enabled"/);
@@ -430,10 +450,10 @@ enabled = "true"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [cleanArtists]
 drop = "yes"
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "drop"/);
@@ -443,10 +463,10 @@ drop = "yes"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [cleanArtists]
 format = 123
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "format"/);
@@ -456,9 +476,9 @@ format = 123
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 quality = "high"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -476,10 +496,10 @@ quality = "high"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [music.main]
 path = "/Volumes/Media/music/library"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -494,13 +514,13 @@ path = "/Volumes/Media/music/library"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [music.main]
 path = "/Volumes/Media/music/library"
 
 [music.dj]
 path = "/Volumes/Media/dj-sets"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -514,12 +534,12 @@ path = "/Volumes/Media/dj-sets"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [music.work]
 type = "subsonic"
 url = "https://music.work.com"
 username = "james"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -535,11 +555,11 @@ username = "james"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [music.main]
 path = "/music"
 type = "invalid"
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Invalid type "invalid"/);
@@ -549,10 +569,10 @@ type = "invalid"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [music.main]
 # missing path
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Missing or invalid "path"/);
@@ -562,11 +582,11 @@ type = "invalid"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [music.work]
 type = "subsonic"
 username = "james"
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Missing or invalid "url"/);
@@ -576,11 +596,11 @@ username = "james"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [music.work]
 type = "subsonic"
 url = "https://music.work.com"
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Missing or invalid "username"/);
@@ -592,10 +612,10 @@ url = "https://music.work.com"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [video.movies]
 path = "/Volumes/Media/movies"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -609,13 +629,13 @@ path = "/Volumes/Media/movies"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [video.movies]
 path = "/Volumes/Media/movies"
 
 [video.shows]
 path = "/Volumes/Media/tv-shows"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -629,10 +649,10 @@ path = "/Volumes/Media/tv-shows"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [video.movies]
 # missing path
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Missing or invalid "path"/);
@@ -644,11 +664,11 @@ path = "/Volumes/Media/tv-shows"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 volumeUuid = "ABC-123"
 volumeName = "TERAPOD"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -663,7 +683,7 @@ volumeName = "TERAPOD"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 volumeUuid = "ABC-123"
 volumeName = "TERAPOD"
@@ -671,7 +691,7 @@ quality = "high"
 audioQuality = "max"
 videoQuality = "medium"
 artwork = true
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -689,14 +709,14 @@ artwork = true
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 volumeUuid = "ABC-123"
 volumeName = "TERAPOD"
 
 [devices.terapod.cleanArtists]
 format = "feat. {}"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -709,7 +729,7 @@ format = "feat. {}"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 volumeUuid = "ABC-123"
 volumeName = "TERAPOD"
@@ -720,7 +740,7 @@ volumeUuid = "DEF-456"
 volumeName = "NANO"
 quality = "low"
 artwork = false
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -734,10 +754,10 @@ artwork = false
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 volumeName = "TERAPOD"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -749,10 +769,10 @@ volumeName = "TERAPOD"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 volumeUuid = "ABC-123"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -764,10 +784,10 @@ volumeUuid = "ABC-123"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 quality = "high"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -780,12 +800,12 @@ quality = "high"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 volumeUuid = "ABC-123"
 volumeName = "TERAPOD"
 quality = "invalid"
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Invalid quality value "invalid"/);
@@ -795,12 +815,12 @@ quality = "invalid"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 volumeUuid = "ABC-123"
 volumeName = "TERAPOD"
 videoQuality = "invalid"
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Invalid videoQuality value "invalid"/);
@@ -810,12 +830,12 @@ videoQuality = "invalid"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 volumeUuid = "ABC-123"
 volumeName = "TERAPOD"
 artwork = "yes"
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "artwork"/);
@@ -825,12 +845,12 @@ artwork = "yes"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.nano]
 volumeUuid = "ABC-123"
 volumeName = "NANO"
 skipUpgrades = true
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -841,12 +861,12 @@ skipUpgrades = true
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [devices.terapod]
 volumeUuid = "ABC-123"
 volumeName = "TERAPOD"
 skipUpgrades = "yes"
-`
+`)
         );
 
         expect(() => loadConfigFile(configPath)).toThrow(/Invalid type for "skipUpgrades"/);
@@ -858,7 +878,7 @@ skipUpgrades = "yes"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [music.main]
 path = "/music"
 
@@ -869,7 +889,7 @@ volumeName = "TERAPOD"
 [defaults]
 music = "main"
 device = "terapod"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -883,13 +903,13 @@ device = "terapod"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 [video.movies]
 path = "/movies"
 
 [defaults]
 video = "movies"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -902,7 +922,7 @@ video = "movies"
         const configPath = path.join(tempDir, 'config.toml');
         fs.writeFileSync(
           configPath,
-          `
+          v(`
 # Music collections
 [music.main]
 path = "/Volumes/Media/music/library"
@@ -944,7 +964,7 @@ artwork = false
 music = "main"
 video = "movies"
 device = "terapod"
-`
+`)
         );
 
         const result = loadConfigFile(configPath);
@@ -1730,12 +1750,12 @@ device = "terapod"
       const configPath = path.join(tempDir, 'custom.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 quality = "medium"
 
 [music.main]
 path = "/custom/music"
-`
+`)
       );
 
       const globalOpts: GlobalOptions = {
@@ -1776,9 +1796,9 @@ path = "/custom/music"
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 cleanArtists = true
-`
+`)
       );
 
       const globalOpts: GlobalOptions = {
@@ -1801,9 +1821,9 @@ cleanArtists = true
       const configPath = path.join(tempDir, 'config.toml');
       fs.writeFileSync(
         configPath,
-        `
+        v(`
 quality = "low"
-`
+`)
       );
 
       const globalOpts: GlobalOptions = {

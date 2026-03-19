@@ -41,7 +41,7 @@ chown podkit:podkit /ipod 2>/dev/null || true
 # -----------------------------------------------------------------------------
 
 # List of known podkit subcommands
-PODKIT_COMMANDS="sync device collection init eject mount unmount completions daemon"
+PODKIT_COMMANDS="sync device collection init migrate eject mount unmount completions daemon"
 
 # Check if the first argument is a podkit subcommand
 is_podkit_command() {

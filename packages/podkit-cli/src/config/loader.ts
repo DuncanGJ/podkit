@@ -39,6 +39,7 @@ import {
   VIDEO_QUALITY_PRESETS,
 } from './types.js';
 import { DEFAULT_CONFIG, DEFAULT_CONFIG_PATH, ENV_KEYS } from './defaults.js';
+import { readConfigVersion, checkConfigVersion } from './version.js';
 
 /**
  * Build a quality validation error message.
@@ -85,6 +86,15 @@ export function loadConfigFile(configPath: string): PartialConfig | undefined {
   }
 
   const content = fs.readFileSync(configPath, 'utf-8');
+
+  // Check config version before full parsing — version check works even
+  // when config structure is incompatible with current types
+  const version = readConfigVersion(content);
+  const versionError = checkConfigVersion(version);
+  if (versionError) {
+    throw new Error(versionError);
+  }
+
   const parsed = parseTOML(content) as ConfigFileContent;
 
   const config: PartialConfig = {};

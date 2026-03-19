@@ -12,6 +12,7 @@ import { deviceCommand } from './commands/device.js';
 import { collectionCommand } from './commands/collection.js';
 import { ejectCommand } from './commands/eject.js';
 import { mountCommand } from './commands/mount.js';
+import { migrateCommand } from './commands/migrate.js';
 import { completionsCommand, completeCommand } from './commands/completions.js';
 import { loadConfig, DEFAULT_CONFIG_PATH } from './config/index.js';
 import type { GlobalOptions } from './config/index.js';
@@ -57,7 +58,7 @@ program.hook('preAction', (thisCommand, actionCommand) => {
   for (let cmd: Command | null = actionCommand; cmd && cmd !== thisCommand; cmd = cmd.parent) {
     cmdChain.unshift(cmd.name());
   }
-  if (cmdChain[0] === '__complete') return;
+  if (cmdChain[0] === '__complete' || cmdChain[0] === 'migrate' || cmdChain[0] === 'init') return;
 
   const globalOpts = thisCommand.opts() as GlobalOptions;
 
@@ -82,6 +83,7 @@ program.hook('preAction', (thisCommand, actionCommand) => {
 // Register commands
 // Core workflow commands
 program.addCommand(initCommand);
+program.addCommand(migrateCommand);
 program.addCommand(syncCommand);
 
 // Entity management commands

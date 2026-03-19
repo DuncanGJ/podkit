@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { configExists, createConfigFile, formatSuccessMessage, CONFIG_TEMPLATE } from './init.js';
-import { DEFAULT_CONFIG } from '../config/index.js';
+import { DEFAULT_CONFIG, CURRENT_CONFIG_VERSION } from '../config/index.js';
 
 describe('init command', () => {
   let tempDir: string;
@@ -23,6 +23,10 @@ describe('init command', () => {
       // Should contain ADR-008 format sections
       expect(CONFIG_TEMPLATE).toContain('[music.main]');
       expect(CONFIG_TEMPLATE).toContain('[devices.ipod]');
+    });
+
+    it('includes version field matching CURRENT_CONFIG_VERSION', () => {
+      expect(CONFIG_TEMPLATE).toContain(`version = ${CURRENT_CONFIG_VERSION}`);
     });
 
     it('uses default values from DEFAULT_CONFIG in device section', () => {

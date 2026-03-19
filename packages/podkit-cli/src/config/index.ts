@@ -53,6 +53,9 @@ export {
 // Defaults
 export { DEFAULT_CONFIG, DEFAULT_CONFIG_PATH, ENV_PREFIX, ENV_KEYS } from './defaults.js';
 
+// Version detection
+export { CURRENT_CONFIG_VERSION, readConfigVersion, checkConfigVersion } from './version.js';
+
 // Loader functions
 export {
   loadConfig,
@@ -62,6 +65,23 @@ export {
   mergeConfigs,
   type LoadConfigResult,
 } from './loader.js';
+
+// Migration engine
+export type {
+  Migration,
+  MigrationContext,
+  MigrationResult,
+  AppliedMigration,
+  PromptUtils,
+  FsUtils,
+  ChoiceOption,
+} from './migrations/index.js';
+export {
+  MigrationAbortError,
+  runMigrations,
+  getPendingMigrations,
+  registry as migrationRegistry,
+} from './migrations/index.js';
 
 // Writer functions
 export {

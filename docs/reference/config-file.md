@@ -65,6 +65,19 @@ music = "main"
 video = "movies"
 ```
 
+## version
+
+**Type:** Integer
+**Required:** Yes (added automatically by `podkit init` and `podkit migrate`)
+
+The config file version. Used by podkit to detect outdated configs and guide users through migrations.
+
+```toml
+version = 1
+```
+
+If this field is missing, the config is treated as version 0 (pre-versioning). Running any podkit command with an outdated config will show an error directing you to run `podkit migrate`.
+
 ## Global Settings
 
 These apply to all devices unless overridden at the device level.
