@@ -108,6 +108,22 @@ docker compose run --rm podkit migrate
 
 See [Environment Variables](/reference/environment-variables/) for the full list.
 
+## Finding Your iPod's UUID
+
+To configure named devices, you need each iPod's volume UUID. Run `device scan` to discover it:
+
+```bash
+docker run --rm --privileged ghcr.io/jvgomg/podkit device scan
+```
+
+This prints each connected iPod's volume name, UUID, size, and mount status. Copy the UUID into your config file (see below).
+
+For JSON output (useful in scripts):
+
+```bash
+docker run --rm --privileged ghcr.io/jvgomg/podkit device scan --format json
+```
+
 ## Multiple iPods
 
 If you have multiple iPods, configure named devices in your config file with their volume UUIDs. When an iPod is plugged in, podkit automatically matches it by UUID and applies the correct settings.

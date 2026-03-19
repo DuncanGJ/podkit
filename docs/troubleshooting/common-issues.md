@@ -15,9 +15,10 @@ Solutions for frequently encountered problems with podkit.
 
 **Solutions:**
 1. Make sure the iPod is mounted (visible in Finder/Files)
-2. Check the mount point: `ls /Volumes/` (macOS) or `lsblk` (Linux)
-3. Try specifying the path directly: `podkit sync --device /Volumes/IPOD`
-4. On macOS with large iFlash cards, see [macOS Mounting Issues](/troubleshooting/macos-mounting)
+2. Run `podkit device scan` to check if podkit can see the iPod
+3. Check the mount point: `ls /Volumes/` (macOS) or `lsblk` (Linux)
+4. Try specifying the path directly: `podkit sync --device /Volumes/IPOD`
+5. On macOS with large iFlash cards, see [macOS Mounting Issues](/troubleshooting/macos-mounting)
 
 ### "Cannot read iPod database"
 

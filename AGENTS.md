@@ -54,6 +54,7 @@ podkit sync --dry-run                   # Sync all collections (music + video)
 podkit sync -t music -c main --dry-run  # Sync specific music collection
 podkit sync -d myipod                   # Sync to named device
 podkit sync -d /Volumes/iPod            # Sync to device by path
+podkit device scan                      # Scan for connected iPods
 podkit device info                      # Show device status
 podkit device music --format json       # List music on device
 ```

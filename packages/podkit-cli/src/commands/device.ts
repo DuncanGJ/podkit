@@ -6,6 +6,7 @@
  * @example
  * ```bash
  * podkit device                       # list configured devices
+ * podkit device scan                  # scan for connected iPods
  * podkit device add -d <name>         # detect and add iPod
  * podkit device remove -d <name>      # remove from config
  * podkit device info [-d name]        # config + live status
@@ -351,6 +352,19 @@ export interface DeviceDefaultOutput {
   error?: string;
 }
 
+export interface DeviceScanOutput {
+  success: boolean;
+  devices?: Array<{
+    volumeName: string;
+    volumeUuid: string;
+    identifier: string;
+    size: number;
+    isMounted: boolean;
+    mountPoint?: string;
+  }>;
+  error?: string;
+}
+
 // =============================================================================
 // Re-export display utilities for backward compatibility
 // =============================================================================
@@ -465,6 +479,80 @@ function parseFormat(filetype: string | undefined): string {
 
   return filetype;
 }
+
+// =============================================================================
+// Scan subcommand
+// =============================================================================
+
+const scanSubcommand = new Command('scan')
+  .description('scan for connected iPod devices')
+  .action(async () => {
+    const { globalOpts } = getContext();
+    const out = OutputContext.fromGlobalOpts(globalOpts);
+
+    // Load core dependencies
+    let getDeviceManager: typeof import('@podkit/core').getDeviceManager;
+    try {
+      const core = await import('@podkit/core');
+      getDeviceManager = core.getDeviceManager;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load podkit-core';
+      out.result<DeviceScanOutput>({ success: false, error: message }, () => {
+        out.error('Failed to load podkit-core.');
+        out.verbose1(`Details: ${message}`);
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    const manager = getDeviceManager();
+
+    if (!manager.isSupported) {
+      const error = `Device scanning is not supported on ${manager.platform}.`;
+      out.result<DeviceScanOutput>({ success: false, error }, () => {
+        out.error(error);
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    const ipods = await manager.findIpodDevices();
+
+    if (ipods.length === 0) {
+      out.result<DeviceScanOutput>({ success: true, devices: [] }, () => {
+        out.print('No iPod devices found.');
+        out.newline();
+        out.print('Make sure your iPod is connected and mounted.');
+      });
+      return;
+    }
+
+    const devices = ipods.map((d) => ({
+      volumeName: d.volumeName,
+      volumeUuid: d.volumeUuid,
+      identifier: d.identifier,
+      size: d.size,
+      isMounted: d.isMounted,
+      ...(d.mountPoint ? { mountPoint: d.mountPoint } : {}),
+    }));
+
+    out.result<DeviceScanOutput>({ success: true, devices }, () => {
+      out.print(`Found ${ipods.length} iPod${ipods.length === 1 ? '' : 's'}:`);
+      out.newline();
+
+      for (const device of ipods) {
+        out.print(`  ${bold(device.volumeName || '(unnamed)')}`);
+        out.print(`    Volume UUID:  ${device.volumeUuid || '(unknown)'}`);
+        out.print(`    Size:         ${formatBytes(device.size)}`);
+        if (device.isMounted && device.mountPoint) {
+          out.print(`    Mounted:      ${device.mountPoint}`);
+        } else {
+          out.print(`    Mounted:      no`);
+        }
+        out.newline();
+      }
+    });
+  });
 
 // =============================================================================
 // List subcommand
@@ -3083,6 +3171,7 @@ const defaultSubcommand = new Command('default')
 
 export const deviceCommand = new Command('device')
   .description('manage iPod devices')
+  .addCommand(scanSubcommand)
   .addCommand(listSubcommand)
   .addCommand(addSubcommand)
   .addCommand(removeSubcommand)

@@ -44,11 +44,14 @@ You can also sync from a **Navidrome** or other Subsonic-compatible server — s
 ## 3. Register Your iPod
 
 1. Connect your iPod and wait for it to mount (it should appear in Finder on macOS)
-2. Register it with podkit:
-
-```bash
-podkit device add -d myipod
-```
+2. Optionally, preview what's connected:
+   ```bash
+   podkit device scan
+   ```
+3. Register it with podkit:
+   ```bash
+   podkit device add -d myipod
+   ```
 
 podkit auto-detects the connected iPod and saves its identity to your config. Since this is your first device, it's set as the default.
 

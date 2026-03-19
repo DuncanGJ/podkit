@@ -194,6 +194,15 @@ List all configured devices.
 podkit device list
 ```
 
+### `podkit device scan`
+
+Scan for connected iPod devices. Shows volume name, UUID, size, and mount status for each detected iPod. Useful for finding the volume UUID needed to configure devices.
+
+```bash
+podkit device scan
+podkit device scan --format json
+```
+
 ### `podkit device add`
 
 Detect a connected iPod and add it to the config.

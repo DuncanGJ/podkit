@@ -57,13 +57,21 @@ volumeName = "CLASSIC"
 
 ### Finding the Volume UUID
 
-On macOS, use `diskutil` to find the UUID of your mounted iPod:
+The easiest way to find your iPod's volume UUID is with the `scan` command:
+
+```bash
+podkit device scan
+```
+
+This shows the volume name, UUID, size, and mount point for each connected iPod.
+
+Alternatively, you can use platform tools directly. On macOS:
 
 ```bash
 diskutil info /Volumes/IPOD | grep "Volume UUID"
 ```
 
-On Linux, use `blkid`:
+On Linux:
 
 ```bash
 sudo blkid /dev/sdX1
