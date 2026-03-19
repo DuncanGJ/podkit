@@ -4,8 +4,8 @@
  * Tests use manual mocking of the SubsonicAPI to avoid real network calls.
  */
 
-import { describe, it, expect } from 'bun:test';
-import { SubsonicAdapter } from './subsonic.js';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { SubsonicAdapter, SubsonicConnectionError } from './subsonic.js';
 import type { SubsonicAdapterConfig } from './subsonic.js';
 import type { Child, AlbumWithSongsID3 } from 'subsonic-api';
 import { replayGainToSoundcheck } from '../sync/soundcheck.js';
@@ -520,5 +520,180 @@ describe('SubsonicAdapter artwork presence detection', () => {
     expect(fetchCount).toBe(2);
     expect(t1.hasArtwork).toBe(true);
     expect(t2.hasArtwork).toBe(false);
+  });
+});
+
+// =============================================================================
+// Connection Retry Tests
+// =============================================================================
+
+describe('SubsonicAdapter connection retries', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  /**
+   * Create an adapter with a mocked globalThis.fetch.
+   * The mock must be installed BEFORE creating the adapter because
+   * createRetryFetch captures globalThis.fetch at construction time.
+   */
+  function createAdapterWithMockedFetch(mockFetch: typeof globalThis.fetch) {
+    globalThis.fetch = mockFetch;
+    return new SubsonicAdapter({
+      url: 'https://music.example.com',
+      username: 'testuser',
+      password: 'testpass',
+    });
+  }
+
+  it('retries connection errors up to 3 times then throws SubsonicConnectionError', async () => {
+    let fetchCount = 0;
+    const adapter = createAdapterWithMockedFetch(async () => {
+      fetchCount++;
+      throw new TypeError('fetch failed');
+    });
+
+    const error = await adapter.connect().catch((e) => e);
+    expect(error).toBeInstanceOf(SubsonicConnectionError);
+    expect(fetchCount).toBe(3);
+  });
+
+  it('error message includes the server URL', async () => {
+    const adapter = createAdapterWithMockedFetch(async () => {
+      throw new TypeError('fetch failed');
+    });
+
+    const error = await adapter.connect().catch((e) => e);
+    expect(error.message).toContain('https://music.example.com');
+  });
+
+  it('error message includes retry count and diagnostic hints', async () => {
+    const adapter = createAdapterWithMockedFetch(async () => {
+      throw new TypeError('fetch failed');
+    });
+
+    const error = await adapter.connect().catch((e) => e);
+    expect(error.message).toContain('after 3 attempts');
+    expect(error.message).toContain('Check that the server is running');
+    expect(error.message).toContain('Docker');
+  });
+
+  it('SubsonicConnectionError has url property', async () => {
+    const adapter = createAdapterWithMockedFetch(async () => {
+      throw new TypeError('fetch failed');
+    });
+
+    const error = await adapter.connect().catch((e) => e);
+    expect(error).toBeInstanceOf(SubsonicConnectionError);
+    expect(error.url).toBe('https://music.example.com');
+  });
+
+  it('retries on DNS resolution failure (ENOTFOUND)', async () => {
+    let fetchCount = 0;
+    const adapter = createAdapterWithMockedFetch(async () => {
+      fetchCount++;
+      const err = new Error('getaddrinfo ENOTFOUND music.example.com');
+      throw err;
+    });
+
+    await expect(adapter.connect()).rejects.toBeInstanceOf(SubsonicConnectionError);
+    expect(fetchCount).toBe(3);
+  });
+
+  it('retries on connection refused (ECONNREFUSED)', async () => {
+    let fetchCount = 0;
+    const adapter = createAdapterWithMockedFetch(async () => {
+      fetchCount++;
+      throw new Error('connect ECONNREFUSED 192.168.1.100:4533');
+    });
+
+    await expect(adapter.connect()).rejects.toBeInstanceOf(SubsonicConnectionError);
+    expect(fetchCount).toBe(3);
+  });
+
+  it('retries on timeout (ETIMEDOUT)', async () => {
+    let fetchCount = 0;
+    const adapter = createAdapterWithMockedFetch(async () => {
+      fetchCount++;
+      throw new Error('connect ETIMEDOUT 10.0.0.1:443');
+    });
+
+    await expect(adapter.connect()).rejects.toBeInstanceOf(SubsonicConnectionError);
+    expect(fetchCount).toBe(3);
+  });
+
+  it('succeeds on retry after transient connection failure', async () => {
+    let fetchCount = 0;
+    const adapter = createAdapterWithMockedFetch(async () => {
+      fetchCount++;
+      if (fetchCount < 3) {
+        throw new TypeError('fetch failed');
+      }
+      // Return a successful Subsonic ping response
+      return new Response(
+        JSON.stringify({
+          'subsonic-response': { status: 'ok', version: '1.16.1' },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    });
+
+    // Should not throw — succeeds on 3rd attempt
+    await adapter.connect();
+    expect(fetchCount).toBe(3);
+  });
+
+  it('does not retry on non-connection errors', async () => {
+    let fetchCount = 0;
+    const adapter = createAdapterWithMockedFetch(async () => {
+      fetchCount++;
+      // A non-connection error (e.g., thrown by middleware)
+      throw new Error('some other error');
+    });
+
+    // Should fail immediately without retrying
+    // The error wrapping in connect() catches it as a generic connection failure
+    await expect(adapter.connect()).rejects.toThrow(/Failed to connect/);
+    expect(fetchCount).toBe(1);
+  });
+
+  it('does not retry when server returns HTTP 401 (authentication failure)', async () => {
+    let fetchCount = 0;
+    const adapter = createAdapterWithMockedFetch(async () => {
+      fetchCount++;
+      // HTTP 401 is returned as a Response, not thrown — fetch() resolves for HTTP errors.
+      // The subsonic-api library parses the response and may throw its own error,
+      // but the fetch layer itself succeeds. We verify fetch is called only once.
+      return new Response(
+        JSON.stringify({
+          'subsonic-response': {
+            status: 'failed',
+            error: { code: 40, message: 'Wrong username or password' },
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    });
+
+    // The adapter wraps the "status: failed" response into an error
+    await expect(adapter.connect()).rejects.toThrow(/Failed to connect/);
+    // fetch was called exactly once — no retries for auth failures
+    expect(fetchCount).toBe(1);
+  });
+
+  it('does not retry when server returns HTTP 403 (forbidden)', async () => {
+    let fetchCount = 0;
+    const adapter = createAdapterWithMockedFetch(async () => {
+      fetchCount++;
+      return new Response('Forbidden', {
+        status: 403,
+        headers: { 'content-type': 'text/plain' },
+      });
+    });
+
+    await expect(adapter.connect()).rejects.toThrow(/Failed to connect/);
+    expect(fetchCount).toBe(1);
   });
 });

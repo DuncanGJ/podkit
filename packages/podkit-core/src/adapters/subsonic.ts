@@ -38,6 +38,130 @@ export interface SubsonicAdapterConfig {
 const MIN_ARTWORK_BYTES = 100;
 
 /**
+ * Maximum number of retry attempts for connection-level failures
+ * (DNS resolution, connection refused, timeout).
+ */
+const MAX_RETRIES = 3;
+
+/**
+ * Timeout per request in milliseconds (30 seconds).
+ * Prevents indefinite hangs on unresponsive servers.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Base delay for exponential backoff between retries (in milliseconds).
+ * Retry 1: 1s, Retry 2: 2s, Retry 3: 4s
+ */
+const RETRY_BASE_DELAY_MS = 1_000;
+
+/**
+ * Check if an error is a connection-level failure that should be retried.
+ *
+ * Connection errors from fetch() are thrown as TypeError (per the Fetch spec).
+ * This includes DNS resolution failures, connection refused, network unreachable,
+ * and AbortError from our timeout signal. HTTP errors (4xx, 5xx) are NOT retried
+ * because they indicate the server received the request — retrying won't help for
+ * auth failures (401/403), bad requests (400), or server errors (500).
+ */
+function isConnectionError(error: unknown): boolean {
+  if (error instanceof TypeError) return true;
+  if (error instanceof DOMException && error.name === 'AbortError') return true;
+  // Node.js fetch may throw non-TypeError for connection issues
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return (
+      msg.includes('econnrefused') ||
+      msg.includes('enotfound') ||
+      msg.includes('etimedout') ||
+      msg.includes('econnreset') ||
+      msg.includes('enetunreach') ||
+      msg.includes('ehostunreach') ||
+      msg.includes('fetch failed') ||
+      msg.includes('dns') ||
+      msg.includes('abort')
+    );
+  }
+  return false;
+}
+
+/**
+ * Create a fetch wrapper that adds a per-request timeout and retries
+ * on connection-level failures with exponential backoff.
+ *
+ * This prevents the Subsonic adapter from spinning indefinitely when
+ * the server is unreachable (DNS failure, connection refused, timeout).
+ *
+ * @param serverUrl - The server URL, included in error messages for diagnostics
+ * @param timeoutMs - Per-request timeout in milliseconds
+ */
+function createRetryFetch(serverUrl: string, timeoutMs: number = REQUEST_TIMEOUT_MS) {
+  const retryFetch = async (
+    input: string | URL | Request,
+    init?: RequestInit
+  ): Promise<Response> => {
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+          const response = await globalThis.fetch(input, {
+            ...init,
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          return response;
+        } catch (error) {
+          clearTimeout(timeoutId);
+          throw error;
+        }
+      } catch (error) {
+        lastError = error;
+
+        if (!isConnectionError(error)) {
+          // Not a connection error — don't retry (e.g., HTTP errors thrown by middleware)
+          throw error;
+        }
+
+        if (attempt < MAX_RETRIES) {
+          // Exponential backoff: 1s, 2s, 4s
+          const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // All retries exhausted — throw a descriptive error
+    const reason = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new SubsonicConnectionError(serverUrl, reason);
+  };
+  return retryFetch as typeof fetch;
+}
+
+/**
+ * Error thrown when the Subsonic server cannot be reached after all retry attempts.
+ * Includes the server URL and a helpful diagnostic message for Docker/network users.
+ */
+export class SubsonicConnectionError extends Error {
+  readonly url: string;
+
+  constructor(url: string, reason: string) {
+    super(
+      `Failed to connect to Subsonic server at ${url} after ${MAX_RETRIES} attempts. ` +
+        `${reason}. ` +
+        `Check that the server is running and the URL is correct. ` +
+        `If running in Docker, ensure the container can reach the server ` +
+        `(check DNS, network mode, and firewall settings).`
+    );
+    this.name = 'SubsonicConnectionError';
+    this.url = url;
+  }
+}
+
+/**
  * Map file suffix to AudioFileType
  */
 function suffixToFileType(suffix: string | undefined): AudioFileType {
@@ -160,6 +284,7 @@ export class SubsonicAdapter implements CollectionAdapter {
         username: config.username,
         password: config.password,
       },
+      fetch: createRetryFetch(config.url),
     });
   }
 
@@ -174,6 +299,10 @@ export class SubsonicAdapter implements CollectionAdapter {
       }
       this.connected = true;
     } catch (error) {
+      // Re-throw SubsonicConnectionError directly (already has a descriptive message)
+      if (error instanceof SubsonicConnectionError) {
+        throw error;
+      }
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to connect to Subsonic server at ${this.config.url}: ${message}`);
     }

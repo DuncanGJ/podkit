@@ -27,7 +27,11 @@ export { DirectoryAdapter, createDirectoryAdapter } from './adapters/directory.j
 export type { DirectoryAdapterConfig, ScanProgress, ScanWarning } from './adapters/directory.js';
 
 // Subsonic adapter
-export { SubsonicAdapter, createSubsonicAdapter } from './adapters/subsonic.js';
+export {
+  SubsonicAdapter,
+  createSubsonicAdapter,
+  SubsonicConnectionError,
+} from './adapters/subsonic.js';
 
 export type { SubsonicAdapterConfig } from './adapters/subsonic.js';
 
