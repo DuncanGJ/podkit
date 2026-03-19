@@ -48,7 +48,7 @@ import {
   autoDetectDevice,
 } from '../device-resolver.js';
 import type { IPodVideo, CollectionVideo, CollectionAdapter } from '@podkit/core';
-import { MediaType } from '@podkit/core';
+import { MediaType, isMusicMediaType } from '@podkit/core';
 import {
   OutputContext,
   formatBytes,
@@ -700,7 +700,7 @@ export async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicS
 
   // Compute diff
   const diffSpinner = out.spinner('Computing sync diff...');
-  const ipodTracks = ipod.getTracks();
+  const ipodTracks = ipod.getTracks().filter((t) => isMusicMediaType(t.mediaType));
   const isAlacPreset = effectiveQuality === 'max' && deviceSupportsAlac;
 
   // Resolve quality for sync tag comparison:
