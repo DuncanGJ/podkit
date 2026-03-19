@@ -539,8 +539,10 @@ describe('SubsonicAdapter connection retries', () => {
    * The mock must be installed BEFORE creating the adapter because
    * createRetryFetch captures globalThis.fetch at construction time.
    */
-  function createAdapterWithMockedFetch(mockFetch: typeof globalThis.fetch) {
-    globalThis.fetch = mockFetch;
+  function createAdapterWithMockedFetch(
+    mockFetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>
+  ) {
+    globalThis.fetch = mockFetch as typeof globalThis.fetch;
     return new SubsonicAdapter({
       url: 'https://music.example.com',
       username: 'testuser',
