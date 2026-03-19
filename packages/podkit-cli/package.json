@@ -23,6 +23,7 @@
     "test:unit": "FILES=$(find src -name '*.test.ts' ! -name '*.integration.test.ts' 2>/dev/null); [ -n \"$FILES\" ] && bun test $FILES || echo 'No unit tests found'",
     "test:integration": "FILES=$(find src -name '*.integration.test.ts' 2>/dev/null); [ -n \"$FILES\" ] && bun test $FILES || echo 'No integration tests found'",
     "compile": "bash scripts/compile.sh",
+    "install:dev": "bash scripts/install-dev.sh",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist bin"
   },

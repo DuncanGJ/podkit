@@ -19,7 +19,7 @@
  * ```
  */
 
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import * as path from 'node:path';
 import { existsSync, statSync } from '../utils/fs.js';
 import { confirmNo } from '../utils/confirm.js';
@@ -215,7 +215,7 @@ function resolveVideoCollectionArg(collectionName?: string):
 
 const listSubcommand = new Command('list')
   .description('list configured collections')
-  .option('-t, --type <type>', 'filter by type: music or video')
+  .addOption(new Option('-t, --type <type>', 'filter by type').choices(['music', 'video']))
   .action((options: { type?: string }) => {
     const { globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
@@ -248,7 +248,7 @@ const listSubcommand = new Command('list')
 
 const addSubcommand = new Command('add')
   .description('add a new collection')
-  .option('-t, --type <type>', 'collection type: music or video')
+  .addOption(new Option('-t, --type <type>', 'collection type').choices(['music', 'video']))
   .option('-c, --collection <name>', 'collection name (used as identifier)')
   .option('--path <path>', 'path to the collection directory')
   .action(async (options: { type?: string; collection?: string; path?: string }) => {
@@ -607,7 +607,9 @@ const musicSubcommand = new Command('music')
   .option('--tracks', 'list all tracks')
   .option('--albums', 'list albums with track counts')
   .option('--artists', 'list artists with album/track counts')
-  .option('--format <fmt>', 'output format: table, json, csv', 'table')
+  .addOption(
+    new Option('--format <fmt>', 'output format').choices(['table', 'json', 'csv']).default('table')
+  )
   .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
   .action(async (options: ContentListOptions & { collection?: string }) => {
     const name = options.collection;
@@ -765,7 +767,9 @@ const videoSubcommand = new Command('video')
   .option('--tracks', 'list all tracks')
   .option('--albums', 'list albums with track counts')
   .option('--artists', 'list artists with album/track counts')
-  .option('--format <fmt>', 'output format: table, json, csv', 'table')
+  .addOption(
+    new Option('--format <fmt>', 'output format').choices(['table', 'json', 'csv']).default('table')
+  )
   .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
   .action(async (options: ContentListOptions & { collection?: string }) => {
     const name = options.collection;
@@ -906,7 +910,7 @@ export interface CollectionDefaultOutput {
 
 const defaultSubcommand = new Command('default')
   .description('set or show the default collection')
-  .option('-t, --type <type>', 'collection type: music or video')
+  .addOption(new Option('-t, --type <type>', 'collection type').choices(['music', 'video']))
   .option(
     '-c, --collection <name>',
     'collection name (omit to show current default, use --clear to unset)'

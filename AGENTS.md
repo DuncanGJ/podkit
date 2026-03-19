@@ -480,11 +480,29 @@ See [packages/demo/README.md](packages/demo/README.md) for full details.
 
 The `podkit completions` command generates shell completion scripts (zsh, bash) by walking the Commander.js command tree at runtime. Completions are **auto-generated from the actual CLI structure** — there is no static completion file to maintain.
 
+The completion system supports three tiers:
+1. **Subcommands and flags** — auto-generated from the Commander.js tree
+2. **Static argument values** — options using `.choices()` or `.addOption(new Option(...).choices([...]))` auto-complete their values (e.g. `--quality` → `max`, `high`, `medium`, `low`)
+3. **Dynamic argument values** — `--device` and `--collection` complete with names from the user's config via a hidden `__complete` command
+
 **Impact on CLI changes:**
 
 - Adding or removing commands, subcommands, or options requires **no changes** to the completions system. The generator reads the Commander.js program tree dynamically, so new commands automatically appear in completions.
-- If you introduce a Commander.js pattern the generator doesn't handle (e.g. custom argument completions with dynamic values like device names from config), you'll need to update the generation logic in `packages/podkit-cli/src/commands/completions.ts`.
-- The generator currently handles: subcommands, aliases, short/long options, flag arguments, and `argChoices`. Test with `podkit completions zsh | head -40` after CLI changes to spot-check.
+- When adding an option with known values, use `.addOption(new Option(...).choices([...]))` instead of `.option()` — the completion generator picks up `argChoices` automatically.
+- For options with a custom parse function (like sync's repeatable `-t, --type`), use `new Option()` with manual `argChoices` assignment to preserve the parser while exposing choices for completions.
+- The hidden `__complete` command reads the config file directly (no validation) and outputs names. Dynamic completions for new option types require updating `extractCommandTree` (to tag the option) and the zsh/bash generators.
+- The `--cmd` flag on `completions zsh/bash` controls which binary the dynamic helpers call. This is important for dev binaries with non-standard names (e.g. `podkit-dev`).
+
+**Testing completions during development:**
+
+```bash
+bun run --filter podkit install:dev   # Build and install podkit-dev binary
+# Add to ~/.zshrc:
+#   source <(podkit-dev completions zsh --cmd podkit-dev)
+#   compdef _podkit podkit-dev
+```
+
+See [docs/developers/development.md](docs/developers/development.md) for full setup.
 
 ## Docker Image
 

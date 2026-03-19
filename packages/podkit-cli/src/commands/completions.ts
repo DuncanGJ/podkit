@@ -16,6 +16,8 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { Command } from 'commander';
+import { parse as parseTOML } from 'smol-toml';
+import { DEFAULT_CONFIG_PATH } from '../config/index.js';
 
 /** Marker comment used to identify the completions line in shell config files */
 const CONFIG_MARKER = '# podkit shell completions';
@@ -52,7 +54,7 @@ export function buildConfigBlock(shell: ShellInfo, aliasCmd?: string, aliasName?
   // The sourced script registers _podkit for "podkit", so prod completions
   // work when the binary is on PATH. We additionally create a dev function
   // under a separate name (default "pk") so dev and prod don't conflict.
-  const sourceLine = `source <(${quietAlias} completions ${shell.name})`;
+  const sourceLine = `source <(${quietAlias} completions ${shell.name} --cmd "${quietAlias}")`;
   const funcLine = `${name}() { ${quietAlias} "$@"; }`;
 
   const compLine = shell.name === 'zsh' ? `compdef _podkit ${name}` : `complete -F _podkit ${name}`;
@@ -121,9 +123,14 @@ export function detectShell(): ShellInfo | null {
 /**
  * Check if completions are already installed in a config file.
  */
-export function isAlreadyInstalled(configFile: string): boolean {
+export function isAlreadyInstalled(configFile: string, aliasName?: string): boolean {
   try {
     const content = fs.readFileSync(configFile, 'utf-8');
+    if (aliasName) {
+      // Check for the dev function specifically (e.g. "podkit-dev() {")
+      return content.includes(`${aliasName}() {`);
+    }
+    // Check for the standard source line (but not a dev alias source line)
     return content.includes('podkit completions');
   } catch {
     return false;
@@ -144,17 +151,19 @@ export const completionsCommand = new Command('completions').description(
 completionsCommand
   .command('zsh')
   .description('Print zsh completion script')
-  .action(() => {
+  .option('--cmd <command>', 'CLI command for dynamic completions (default: podkit)')
+  .action((opts: { cmd?: string }) => {
     const rootCommand = getRootCommand();
-    console.log(generateZshCompletions(rootCommand));
+    console.log(generateZshCompletions(rootCommand, opts.cmd || detectInvokeCommand()));
   });
 
 completionsCommand
   .command('bash')
   .description('Print bash completion script')
-  .action(() => {
+  .option('--cmd <command>', 'CLI command for dynamic completions (default: podkit)')
+  .action((opts: { cmd?: string }) => {
     const rootCommand = getRootCommand();
-    console.log(generateBashCompletions(rootCommand));
+    console.log(generateBashCompletions(rootCommand, opts.cmd || detectInvokeCommand()));
   });
 
 completionsCommand
@@ -180,14 +189,15 @@ completionsCommand
       process.exit(1);
     }
 
-    const block = buildConfigBlock(shell, opts.alias, opts.alias ? opts.name : undefined);
+    const aliasName = opts.alias ? opts.name : undefined;
+    const block = buildConfigBlock(shell, opts.alias, aliasName);
     const displayLines = block
       .trim()
       .split('\n')
       .filter((l) => !l.startsWith('#'));
 
     if (opts.append) {
-      if (isAlreadyInstalled(shell.configFile)) {
+      if (isAlreadyInstalled(shell.configFile, aliasName)) {
         console.log(`Completions are already installed in ${shell.configFile}`);
         return;
       }
@@ -205,7 +215,7 @@ completionsCommand
         process.exit(1);
       }
     } else {
-      if (isAlreadyInstalled(shell.configFile)) {
+      if (isAlreadyInstalled(shell.configFile, aliasName)) {
         console.log(`Completions are already installed in ${shell.configFile}`);
         console.log('');
         console.log(`If completions aren't working, restart your shell or run:`);
@@ -242,6 +252,29 @@ function getRootCommand(): Command {
   return rootCommand;
 }
 
+/**
+ * Detect the command used to invoke the CLI, for use in generated completion scripts.
+ *
+ * Uses the basename of the binary (e.g. 'podkit-dev' for /Users/x/.local/bin/podkit-dev),
+ * or detects 'bun run' invocations and reconstructs the full command.
+ */
+export function detectInvokeCommand(): string {
+  const args = process.argv;
+
+  // Bun run: argv = ['bun', 'run', '--silent', '--cwd', '/path', 'podkit', 'completions', 'zsh']
+  const bunIndex = args.findIndex((a) => a.endsWith('/bun') || a === 'bun');
+  if (bunIndex >= 0 && args[bunIndex + 1] === 'run') {
+    const completionsIndex = args.indexOf('completions');
+    if (completionsIndex > bunIndex) {
+      return args.slice(bunIndex, completionsIndex).join(' ');
+    }
+  }
+
+  // Compiled binary: Bun reports argv[0] as 'bun', not the actual binary name.
+  // Fall back to 'podkit' — callers can override via --cmd for non-standard names.
+  return 'podkit';
+}
+
 // --- Completion script generation ---
 
 interface CommandInfo {
@@ -259,6 +292,7 @@ interface OptionInfo {
   short?: string;
   takesArg: boolean;
   choices?: string[];
+  dynamicCompletion?: 'devices' | 'collections';
 }
 
 function extractCommandTree(cmd: Command): CommandInfo {
@@ -273,11 +307,16 @@ function extractCommandTree(cmd: Command): CommandInfo {
     if (opt.argChoices) {
       info.choices = opt.argChoices;
     }
+    if (info.long === '--device') {
+      info.dynamicCompletion = 'devices';
+    } else if (info.long === '--collection') {
+      info.dynamicCompletion = 'collections';
+    }
     return info;
   });
 
   const subcommands: CommandInfo[] = cmd.commands
-    .filter((sub: Command) => sub.name() !== 'completions')
+    .filter((sub: Command) => sub.name() !== 'completions' && sub.name() !== '__complete')
     .map((sub: Command) => extractCommandTree(sub));
 
   return {
@@ -296,7 +335,19 @@ function zshEscape(s: string): string {
 function zshOptionSpec(opt: OptionInfo): string[] {
   const specs: string[] = [];
   const desc = zshEscape(opt.description);
-  const argSuffix = opt.takesArg ? (opt.choices ? `: :(${opt.choices.join(' ')})` : ': : ') : '';
+
+  let argSuffix = '';
+  if (opt.takesArg) {
+    if (opt.choices) {
+      argSuffix = `: :(${opt.choices.join(' ')})`;
+    } else if (opt.dynamicCompletion === 'devices') {
+      argSuffix = ': :_podkit_devices';
+    } else if (opt.dynamicCompletion === 'collections') {
+      argSuffix = ': :_podkit_collections';
+    } else {
+      argSuffix = ': : ';
+    }
+  }
 
   if (opt.short && opt.long) {
     specs.push(`'(${opt.short} ${opt.long})'${opt.short}'[${desc}]${argSuffix}'`);
@@ -380,7 +431,7 @@ function generateZshFunctions(cmd: CommandInfo, path: string[] = []): string[] {
   return lines;
 }
 
-export function generateZshCompletions(program: Command): string {
+export function generateZshCompletions(program: Command, invokeCmd = 'podkit'): string {
   const tree = extractCommandTree(program);
   const lines: string[] = [];
 
@@ -388,6 +439,24 @@ export function generateZshCompletions(program: Command): string {
   lines.push('# Auto-generated by podkit completions zsh');
   lines.push('# To activate, add to your ~/.zshrc:');
   lines.push('#   source <(podkit completions zsh)');
+  lines.push('');
+
+  // CLI command used for dynamic completions (matches whatever invoked this script)
+  lines.push(`_podkit_cmd="${invokeCmd}"`);
+  lines.push('');
+
+  // Dynamic completion helpers
+  lines.push('_podkit_devices() {');
+  lines.push('  local -a devices');
+  lines.push('  devices=(${(f)"$($_podkit_cmd __complete devices 2>/dev/null)"})');
+  lines.push("  [[ ${#devices} -gt 0 ]] && _describe -t devices 'device' devices");
+  lines.push('}');
+  lines.push('');
+  lines.push('_podkit_collections() {');
+  lines.push('  local -a collections');
+  lines.push('  collections=(${(f)"$($_podkit_cmd __complete collections 2>/dev/null)"})');
+  lines.push("  [[ ${#collections} -gt 0 ]] && _describe -t collections 'collection' collections");
+  lines.push('}');
   lines.push('');
 
   lines.push(...generateZshFunctions(tree));
@@ -398,13 +467,15 @@ export function generateZshCompletions(program: Command): string {
   return lines.join('\n');
 }
 
-export function generateBashCompletions(program: Command): string {
+export function generateBashCompletions(program: Command, invokeCmd = 'podkit'): string {
   const tree = extractCommandTree(program);
 
   const lines: string[] = [];
   lines.push('# Auto-generated by podkit completions bash');
   lines.push('# To activate, add to your ~/.bashrc:');
   lines.push('#   source <(podkit completions bash)');
+  lines.push('');
+  lines.push(`_podkit_cmd="${invokeCmd}"`);
   lines.push('');
 
   const commandMap = new Map<string, { subcommands: string[]; options: string[] }>();
@@ -427,12 +498,59 @@ export function generateBashCompletions(program: Command): string {
   lines.push('    i=$((i + 1))');
   lines.push('  done');
   lines.push('');
+
+  // Emit argument value completions for options with known choices
+  const choicesMap = new Map<string, string[]>();
+  collectBashChoices(tree, choicesMap);
+
+  // Group by identical choices to combine flags
+  const choiceGroups = new Map<string, string[]>();
+  for (const [flag, choices] of choicesMap) {
+    const key = choices.join(' ');
+    const group = choiceGroups.get(key) || [];
+    group.push(flag);
+    choiceGroups.set(key, group);
+  }
+
+  // Collect dynamic completions
+  const dynamicMap = new Map<string, string>();
+  collectBashDynamic(tree, dynamicMap);
+
+  // Group dynamic by completion type
+  const dynamicGroups = new Map<string, string[]>();
+  for (const [flag, completionType] of dynamicMap) {
+    const group = dynamicGroups.get(completionType) || [];
+    group.push(flag);
+    dynamicGroups.set(completionType, group);
+  }
+
+  if (choiceGroups.size > 0 || dynamicGroups.size > 0) {
+    lines.push('  # Complete argument values for options with known choices');
+    lines.push('  case "$prev" in');
+    for (const [choicesKey, flags] of choiceGroups) {
+      lines.push(`    ${flags.join('|')})`);
+      lines.push(`      COMPREPLY=($(compgen -W "${choicesKey}" -- "$cur"))`);
+      lines.push(`      return 0`);
+      lines.push(`      ;;`);
+    }
+    for (const [completionType, flags] of dynamicGroups) {
+      lines.push(`    ${flags.join('|')})`);
+      lines.push(
+        `      COMPREPLY=($(compgen -W "$($_podkit_cmd __complete ${completionType} 2>/dev/null)" -- "$cur"))`
+      );
+      lines.push(`      return 0`);
+      lines.push(`      ;;`);
+    }
+    lines.push('  esac');
+    lines.push('');
+  }
+
   lines.push('  local completions=""');
   lines.push('  case "$cmd_path" in');
 
-  for (const [path, info] of commandMap) {
+  for (const [cmdPath, info] of commandMap) {
     const words = [...info.subcommands, ...info.options].join(' ');
-    lines.push(`    "${path}")`);
+    lines.push(`    "${cmdPath}")`);
     lines.push(`      completions="${words}"`);
     lines.push(`      ;;`);
   }
@@ -470,3 +588,101 @@ function collectBashCommands(
     collectBashCommands(sub, [...path, sub.name], map);
   }
 }
+
+function collectBashChoices(cmd: CommandInfo, choicesMap: Map<string, string[]>): void {
+  for (const opt of cmd.options) {
+    if (opt.choices && opt.choices.length > 0) {
+      if (opt.long) choicesMap.set(opt.long, opt.choices);
+      if (opt.short) choicesMap.set(opt.short, opt.choices);
+    }
+  }
+  for (const sub of cmd.subcommands) {
+    collectBashChoices(sub, choicesMap);
+  }
+}
+
+function collectBashDynamic(cmd: CommandInfo, dynamicMap: Map<string, string>): void {
+  for (const opt of cmd.options) {
+    if (opt.dynamicCompletion) {
+      if (opt.long) dynamicMap.set(opt.long, opt.dynamicCompletion);
+      if (opt.short) dynamicMap.set(opt.short, opt.dynamicCompletion);
+    }
+  }
+  for (const sub of cmd.subcommands) {
+    collectBashDynamic(sub, dynamicMap);
+  }
+}
+
+// --- Dynamic completion helpers ---
+
+/**
+ * Read the config file for completion purposes.
+ * Returns the raw parsed TOML content, or undefined if unavailable.
+ * This is intentionally lightweight — no validation, just key extraction.
+ */
+export function loadCompletionConfig(): Record<string, any> | undefined {
+  try {
+    const configPath = process.env.PODKIT_CONFIG ?? DEFAULT_CONFIG_PATH;
+    const content = fs.readFileSync(configPath, 'utf-8');
+    return parseTOML(content) as Record<string, any>;
+  } catch {
+    return undefined;
+  }
+}
+
+export const completeCommand = new Command('__complete')
+  .description('completion helper (internal)')
+  .helpOption(false);
+
+completeCommand
+  .command('devices')
+  .description('list device names')
+  .action(() => {
+    const config = loadCompletionConfig();
+    if (config?.devices && typeof config.devices === 'object') {
+      for (const name of Object.keys(config.devices)) {
+        console.log(name);
+      }
+    }
+  });
+
+completeCommand
+  .command('collections')
+  .description('list all collection names')
+  .action(() => {
+    const config = loadCompletionConfig();
+    const names = new Set<string>();
+    if (config?.music && typeof config.music === 'object') {
+      for (const name of Object.keys(config.music)) names.add(name);
+    }
+    if (config?.video && typeof config.video === 'object') {
+      for (const name of Object.keys(config.video)) names.add(name);
+    }
+    for (const name of names) {
+      console.log(name);
+    }
+  });
+
+completeCommand
+  .command('music-collections')
+  .description('list music collection names')
+  .action(() => {
+    const config = loadCompletionConfig();
+    if (config?.music && typeof config.music === 'object') {
+      for (const name of Object.keys(config.music)) {
+        console.log(name);
+      }
+    }
+  });
+
+completeCommand
+  .command('video-collections')
+  .description('list video collection names')
+  .action(() => {
+    const config = loadCompletionConfig();
+    if (config?.video && typeof config.video === 'object') {
+      for (const name of Object.keys(config.video)) {
+        console.log(name);
+      }
+    }
+  });

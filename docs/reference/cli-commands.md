@@ -589,6 +589,12 @@ podkit mount --disk /dev/disk4s2
 
 Generate and install shell completion scripts for tab completion support. The completions are generated from the actual CLI command tree, so they stay in sync automatically.
 
+Completions include:
+
+- **Subcommands and flags** — all commands, subcommands, aliases, and options
+- **Static argument values** — options like `--quality`, `--type`, `--encoding`, and `--format` offer their known values (e.g. `max`, `high`, `medium`, `low`)
+- **Dynamic argument values** — `--device` and `--collection` complete with names from your config file
+
 ### `podkit completions install`
 
 Detect your shell and show setup instructions. This is the easiest way to get started.
@@ -617,12 +623,6 @@ podkit completions install
 
 # Do it automatically
 podkit completions install --append
-
-# Development: create a "pk" function wrapping bun run (with completions)
-podkit completions install --alias "bun run podkit"
-
-# Development: use a custom function name
-podkit completions install --alias "bun run podkit" --name podkit-dev
 ```
 
 ### `podkit completions zsh`
@@ -633,6 +633,10 @@ Print the zsh completion script to stdout.
 podkit completions zsh
 ```
 
+| Option | Description |
+|--------|-------------|
+| `--cmd <command>` | CLI command for dynamic completions (default: `podkit`). Use when the binary has a different name, e.g. `--cmd podkit-dev`. |
+
 ### `podkit completions bash`
 
 Print the bash completion script to stdout.
@@ -640,6 +644,23 @@ Print the bash completion script to stdout.
 ```bash
 podkit completions bash
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--cmd <command>` | CLI command for dynamic completions (default: `podkit`). |
+
+### What Gets Completed
+
+| Context | Completions |
+|---------|-------------|
+| `podkit <TAB>` | Subcommands: `init`, `sync`, `device`, `collection`, `eject`, `mount` |
+| `podkit sync --<TAB>` | Flags: `--dry-run`, `--quality`, `--type`, `--filter`, ... |
+| `podkit sync --quality <TAB>` | Values: `max`, `high`, `medium`, `low` |
+| `podkit sync --type <TAB>` | Values: `music`, `video` |
+| `podkit sync --encoding <TAB>` | Values: `vbr`, `cbr` |
+| `podkit device music --format <TAB>` | Values: `table`, `json`, `csv` |
+| `podkit sync -d <TAB>` | Device names from config |
+| `podkit sync -c <TAB>` | Collection names from config |
 
 ### Examples
 
@@ -650,18 +671,14 @@ podkit completions install --append
 # See what would be added first
 podkit completions install
 
-# Development — creates "pk" as a shorthand for "bun run podkit" with completions
-# (doesn't shadow the "podkit" binary, so both work side by side)
-podkit completions install --alias "bun run podkit"
-podkit completions install --alias "bun run podkit" --append
-
 # Activate in current shell session (temporary)
 source <(podkit completions zsh)
 
 # Test completions after setup
-podkit <TAB>          # Shows: init sync device collection eject mount
-podkit sync --<TAB>   # Shows: --dry-run --quality --filter ...
-podkit device <TAB>   # Shows: list add remove set info music video ...
+podkit <TAB>                    # Shows subcommands
+podkit sync --quality <TAB>     # Shows: max high medium low
+podkit sync -c <TAB>            # Shows collection names from config
+podkit sync -d <TAB>            # Shows device names from config
 ```
 
 ## Display Fields

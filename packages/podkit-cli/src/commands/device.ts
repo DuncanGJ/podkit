@@ -18,7 +18,7 @@
  * podkit device init [-d name]        # initialize iPod database
  * ```
  */
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { confirm, confirmNo } from '../utils/confirm.js';
 import { existsSync, statfsSync } from '../utils/fs.js';
 import { getContext } from '../context.js';
@@ -585,10 +585,31 @@ const addSubcommand = new Command('add')
   .description('detect connected iPod and add to config')
   .option('--path <path>', 'explicit path to iPod mount point')
   .option('-y, --yes', 'skip confirmation prompts')
-  .option('--quality <preset>', 'transcoding quality preset: max, high, medium, low')
-  .option('--audio-quality <preset>', 'audio quality (overrides --quality): max, high, medium, low')
-  .option('--video-quality <preset>', 'video quality (overrides --quality): max, high, medium, low')
-  .option('--encoding <mode>', 'encoding mode: vbr, cbr')
+  .addOption(
+    new Option('--quality <preset>', 'transcoding quality preset').choices([
+      'max',
+      'high',
+      'medium',
+      'low',
+    ])
+  )
+  .addOption(
+    new Option('--audio-quality <preset>', 'audio quality (overrides --quality)').choices([
+      'max',
+      'high',
+      'medium',
+      'low',
+    ])
+  )
+  .addOption(
+    new Option('--video-quality <preset>', 'video quality (overrides --quality)').choices([
+      'max',
+      'high',
+      'medium',
+      'low',
+    ])
+  )
+  .addOption(new Option('--encoding <mode>', 'encoding mode').choices(['vbr', 'cbr']))
   .option('--artwork', 'sync artwork to this device')
   .option('--no-artwork', 'do not sync artwork to this device')
   .action(async (options: AddOptions & { path?: string }) => {
@@ -1598,7 +1619,9 @@ const musicSubcommand = new Command('music')
   .option('--tracks', 'list all tracks')
   .option('--albums', 'list albums with track counts')
   .option('--artists', 'list artists with album/track counts')
-  .option('--format <fmt>', 'output format: table, json, csv', 'table')
+  .addOption(
+    new Option('--format <fmt>', 'output format').choices(['table', 'json', 'csv']).default('table')
+  )
   .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
   .action(async (options: MusicVideoOptions) => {
     const { config, globalOpts } = getContext();
@@ -1756,7 +1779,9 @@ const videoSubcommand = new Command('video')
   .option('--tracks', 'list all tracks')
   .option('--albums', 'list albums with track counts')
   .option('--artists', 'list artists with album/track counts')
-  .option('--format <fmt>', 'output format: table, json, csv', 'table')
+  .addOption(
+    new Option('--format <fmt>', 'output format').choices(['table', 'json', 'csv']).default('table')
+  )
   .option('--fields <list>', 'fields to show (comma-separated, for --tracks)')
   .action(async (options: MusicVideoOptions) => {
     const { config, globalOpts } = getContext();
@@ -2831,10 +2856,31 @@ interface SetOptions {
 
 const setSubcommand = new Command('set')
   .description('update device settings (quality, artwork)')
-  .option('--quality <preset>', 'transcoding quality preset: max, high, medium, low')
-  .option('--audio-quality <preset>', 'audio quality (overrides --quality): max, high, medium, low')
-  .option('--video-quality <preset>', 'video quality (overrides --quality): max, high, medium, low')
-  .option('--encoding <mode>', 'encoding mode: vbr, cbr')
+  .addOption(
+    new Option('--quality <preset>', 'transcoding quality preset').choices([
+      'max',
+      'high',
+      'medium',
+      'low',
+    ])
+  )
+  .addOption(
+    new Option('--audio-quality <preset>', 'audio quality (overrides --quality)').choices([
+      'max',
+      'high',
+      'medium',
+      'low',
+    ])
+  )
+  .addOption(
+    new Option('--video-quality <preset>', 'video quality (overrides --quality)').choices([
+      'max',
+      'high',
+      'medium',
+      'low',
+    ])
+  )
+  .addOption(new Option('--encoding <mode>', 'encoding mode').choices(['vbr', 'cbr']))
   .option('--artwork', 'sync artwork to this device')
   .option('--no-artwork', 'do not sync artwork to this device')
   .option('--clear-quality', 'remove quality setting (use global default)')

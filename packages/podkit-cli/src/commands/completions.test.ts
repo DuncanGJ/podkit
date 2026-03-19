@@ -2,13 +2,15 @@ import { describe, expect, it, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import {
   generateZshCompletions,
   generateBashCompletions,
   detectShell,
   isAlreadyInstalled,
   buildConfigBlock,
+  completeCommand,
+  loadCompletionConfig,
 } from './completions.js';
 
 function createTestProgram(): Command {
@@ -23,8 +25,11 @@ function createTestProgram(): Command {
     .command('sync')
     .description('sync collections to iPod')
     .option('-n, --dry-run', 'preview changes')
-    .option('-t, --type <type>', 'content type')
-    .option('--quality <preset>', 'quality preset');
+    .option('-c, --collection <name>', 'collection name')
+    .addOption(new Option('-t, --type <type>', 'content type').choices(['music', 'video']))
+    .addOption(
+      new Option('--quality <preset>', 'quality preset').choices(['max', 'high', 'medium', 'low'])
+    );
 
   const device = program.command('device').description('manage devices');
   device.command('list').description('list devices');
@@ -81,7 +86,9 @@ describe('completions', () => {
       const program = createTestProgram();
       const output = generateZshCompletions(program);
 
-      expect(output).toMatch(/--device'\[.*\]: : '/);
+      // --device uses dynamic completion, not generic ': : '
+      expect(output).toContain('_podkit_devices');
+      // --verbose is a boolean flag, no argument suffix
       expect(output).not.toMatch(/--verbose'\[.*\]: : '/);
     });
 
@@ -92,6 +99,31 @@ describe('completions', () => {
       const output = generateZshCompletions(program);
 
       expect(output).toContain('does thing\\: very well');
+    });
+
+    it('includes choices for options with argChoices', () => {
+      const program = createTestProgram();
+      const output = generateZshCompletions(program);
+
+      expect(output).toContain(':(music video)');
+      expect(output).toContain(':(max high medium low)');
+    });
+
+    it('includes dynamic completion helpers', () => {
+      const program = createTestProgram();
+      const output = generateZshCompletions(program);
+
+      expect(output).toContain('_podkit_devices()');
+      expect(output).toContain('_podkit_collections()');
+      expect(output).toContain('__complete devices');
+      expect(output).toContain('__complete collections');
+    });
+
+    it('uses dynamic completion for --device option', () => {
+      const program = createTestProgram();
+      const output = generateZshCompletions(program);
+
+      expect(output).toContain(': :_podkit_devices');
     });
   });
 
@@ -127,6 +159,84 @@ describe('completions', () => {
       expect(output).toContain('"podkit device"');
       expect(output).toContain('"podkit device list"');
       expect(output).toContain('"podkit device add"');
+    });
+
+    it('completes argument values for options with choices', () => {
+      const program = createTestProgram();
+      const output = generateBashCompletions(program);
+
+      expect(output).toContain('case "$prev" in');
+      expect(output).toContain('max high medium low');
+      expect(output).toContain('music video');
+    });
+
+    it('includes dynamic completion for device and collection', () => {
+      const program = createTestProgram();
+      const output = generateBashCompletions(program);
+
+      expect(output).toContain('__complete devices');
+      expect(output).toContain('__complete collections');
+    });
+  });
+
+  describe('__complete command', () => {
+    it('has expected subcommands', () => {
+      expect(completeCommand.name()).toBe('__complete');
+      expect(completeCommand.commands.map((c) => c.name())).toContain('devices');
+      expect(completeCommand.commands.map((c) => c.name())).toContain('collections');
+      expect(completeCommand.commands.map((c) => c.name())).toContain('music-collections');
+      expect(completeCommand.commands.map((c) => c.name())).toContain('video-collections');
+    });
+  });
+
+  describe('loadCompletionConfig', () => {
+    it('returns undefined when config does not exist', () => {
+      const originalEnv = process.env.PODKIT_CONFIG;
+      process.env.PODKIT_CONFIG = '/nonexistent/path/config.toml';
+      try {
+        const result = loadCompletionConfig();
+        expect(result).toBeUndefined();
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.PODKIT_CONFIG = originalEnv;
+        } else {
+          delete process.env.PODKIT_CONFIG;
+        }
+      }
+    });
+
+    it('parses device and collection names from config', () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'podkit-complete-test-'));
+      const configPath = path.join(tempDir, 'config.toml');
+      fs.writeFileSync(
+        configPath,
+        `
+[music.main]
+path = "/music"
+
+[video.shows]
+path = "/video"
+
+[devices.terapod]
+volumeUuid = "ABC-123"
+`
+      );
+      const originalEnv = process.env.PODKIT_CONFIG;
+      process.env.PODKIT_CONFIG = configPath;
+      try {
+        const result = loadCompletionConfig();
+        expect(result).toBeDefined();
+        expect(Object.keys(result!.music)).toEqual(['main']);
+        expect(Object.keys(result!.video)).toEqual(['shows']);
+        expect(Object.keys(result!.devices)).toEqual(['terapod']);
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.PODKIT_CONFIG = originalEnv;
+        } else {
+          delete process.env.PODKIT_CONFIG;
+        }
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
     });
   });
 
@@ -221,6 +331,23 @@ describe('completions', () => {
 
       expect(isAlreadyInstalled(configFile)).toBe(false);
     });
+
+    it('returns false for alias check when only production completions exist', () => {
+      const configFile = path.join(tempDir, '.zshrc');
+      fs.writeFileSync(configFile, '# stuff\nsource <(podkit completions zsh)\n# more stuff\n');
+
+      expect(isAlreadyInstalled(configFile, 'podkit-dev')).toBe(false);
+    });
+
+    it('returns true for alias check when dev function exists', () => {
+      const configFile = path.join(tempDir, '.zshrc');
+      fs.writeFileSync(
+        configFile,
+        'source <(podkit completions zsh)\npodkit-dev() { bun run podkit "$@"; }\n'
+      );
+
+      expect(isAlreadyInstalled(configFile, 'podkit-dev')).toBe(true);
+    });
   });
 
   describe('buildConfigBlock', () => {
@@ -247,11 +374,12 @@ describe('completions', () => {
     it('creates dev function under default name "pk" with completions', () => {
       const block = buildConfigBlock(zshShell, 'bun run podkit');
       const cwd = process.cwd();
+      const quietAlias = `bun run --silent --cwd ${cwd} podkit`;
 
-      // Sources completions (registers _podkit for "podkit" — prod)
-      expect(block).toContain(`source <(bun run --silent --cwd ${cwd} podkit completions zsh)`);
+      // Sources completions with --cmd so dynamic helpers use the dev command
+      expect(block).toContain(`source <(${quietAlias} completions zsh --cmd "${quietAlias}")`);
       // Creates dev function under "pk" (not "podkit" — avoids shadowing prod binary)
-      expect(block).toContain(`pk() { bun run --silent --cwd ${cwd} podkit "$@"; }`);
+      expect(block).toContain(`pk() { ${quietAlias} "$@"; }`);
       // Wires completions to the dev function name
       expect(block).toContain('compdef _podkit pk');
       // Does NOT create a "podkit" function
@@ -269,9 +397,10 @@ describe('completions', () => {
     it('generates bash complete for dev function', () => {
       const block = buildConfigBlock(bashShell, 'bun run podkit');
       const cwd = process.cwd();
+      const quietAlias = `bun run --silent --cwd ${cwd} podkit`;
 
-      expect(block).toContain(`source <(bun run --silent --cwd ${cwd} podkit completions bash)`);
-      expect(block).toContain(`pk() { bun run --silent --cwd ${cwd} podkit "$@"; }`);
+      expect(block).toContain(`source <(${quietAlias} completions bash --cmd "${quietAlias}")`);
+      expect(block).toContain(`pk() { ${quietAlias} "$@"; }`);
       expect(block).toContain('complete -F _podkit pk');
       expect(block).not.toContain('compdef');
     });
@@ -292,16 +421,20 @@ describe('completions', () => {
       expect(block).not.toContain('--silent --silent');
     });
 
-    it('does not double-add --cwd', () => {
+    it('does not double-add --cwd to the alias command', () => {
       const block = buildConfigBlock(zshShell, 'bun run --cwd /some/path podkit');
-      expect(block).toContain('--cwd /some/path');
-      expect(block).not.toMatch(/--cwd.*--cwd/);
+      // The alias itself should only have --cwd once
+      const funcLine = block.split('\n').find((l) => l.includes('pk()'));
+      expect(funcLine).toBeDefined();
+      expect(funcLine!.match(/--cwd/g)?.length).toBe(1);
     });
 
     it('works with non-bun alias commands', () => {
       const block = buildConfigBlock(zshShell, './bin/podkit-dev');
 
-      expect(block).toContain('source <(./bin/podkit-dev completions zsh)');
+      expect(block).toContain(
+        'source <(./bin/podkit-dev completions zsh --cmd "./bin/podkit-dev")'
+      );
       expect(block).toContain('pk() { ./bin/podkit-dev "$@"; }');
     });
 

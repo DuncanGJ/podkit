@@ -208,6 +208,31 @@ podkit --version
 FFmpeg is still required at runtime for transcoding.
 :::
 
+## Installing a Dev Binary
+
+You can build and install a `podkit-dev` binary for testing features that need a real binary on PATH (e.g. shell completions):
+
+```bash
+bun run --filter podkit install:dev
+```
+
+This compiles the CLI from the current source tree using `bun build --compile` and installs it to `~/.local/bin/podkit-dev`. To rebuild after making changes, run the same command again.
+
+To set up shell completions for the dev binary, add to your `~/.zshrc`:
+
+```bash
+source <(podkit-dev completions zsh --cmd podkit-dev)
+compdef _podkit podkit-dev
+```
+
+This gives you full tab completion including dynamic values (device names, collection names from your config). The `--cmd podkit-dev` flag tells the completion script to use the dev binary for dynamic lookups.
+
+To remove the dev binary:
+
+```bash
+bun run --filter podkit install:dev -- --clean
+```
+
 ## Running Tests
 
 ```bash

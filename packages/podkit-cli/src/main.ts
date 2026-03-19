@@ -12,7 +12,7 @@ import { deviceCommand } from './commands/device.js';
 import { collectionCommand } from './commands/collection.js';
 import { ejectCommand } from './commands/eject.js';
 import { mountCommand } from './commands/mount.js';
-import { completionsCommand } from './commands/completions.js';
+import { completionsCommand, completeCommand } from './commands/completions.js';
 import { loadConfig, DEFAULT_CONFIG_PATH } from './config/index.js';
 import type { GlobalOptions } from './config/index.js';
 import { setContext } from './context.js';
@@ -52,6 +52,13 @@ function increaseVerbosity(_value: string, previous: number): number {
  * 4. CLI arguments
  */
 program.hook('preAction', (thisCommand, actionCommand) => {
+  // Skip config loading for internal completion helper — it reads config directly
+  const cmdChain = [];
+  for (let cmd: Command | null = actionCommand; cmd && cmd !== thisCommand; cmd = cmd.parent) {
+    cmdChain.unshift(cmd.name());
+  }
+  if (cmdChain[0] === '__complete') return;
+
   const globalOpts = thisCommand.opts() as GlobalOptions;
 
   // Get command-specific options that affect config
@@ -87,5 +94,6 @@ program.addCommand(mountCommand);
 
 // Utility commands
 program.addCommand(completionsCommand);
+program.addCommand(completeCommand, { hidden: true });
 
 program.parse();
