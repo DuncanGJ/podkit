@@ -140,7 +140,9 @@ async function createConfigFile(
   // Use ADR-008 format with music collection and global cleanArtists
   // Note: Device is passed via --device flag, not config
   // IMPORTANT: Top-level keys must come before any [section] headers in TOML
-  let content = `# Global settings
+  let content = `version = 1
+
+# Global settings
 quality = "low"
 `;
 

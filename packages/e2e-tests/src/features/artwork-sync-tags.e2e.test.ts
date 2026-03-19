@@ -80,7 +80,9 @@ async function createTestConfig(
   quality = 'high'
 ): Promise<string> {
   const configPath = join(configDir, 'config.toml');
-  const content = `[music.default]
+  const content = `version = 1
+
+[music.default]
 path = "${sourceDir}"
 
 quality = "${quality}"
@@ -113,10 +115,9 @@ function embedArtwork(flacPath: string, imagePath: string): void {
  * Generate a solid-color JPEG image for test artwork.
  */
 function generateTestImage(outputPath: string, color = 'red'): void {
-  execSync(
-    `ffmpeg -y -f lavfi -i color=c=${color}:s=500x500:d=1 -frames:v 1 "${outputPath}"`,
-    { stdio: 'ignore' }
-  );
+  execSync(`ffmpeg -y -f lavfi -i color=c=${color}:s=500x500:d=1 -frames:v 1 "${outputPath}"`, {
+    stdio: 'ignore',
+  });
 }
 
 const FLAC_FILENAMES = ['01-harmony.flac', '02-vibrato.flac', '03-tremolo.flac'];
@@ -167,8 +168,12 @@ describe('artwork sync tags (directory source)', () => {
         // First sync: tracks have embedded artwork, so transferArtwork() runs
         // and writes art= into the sync tag progressively
         const { result: result1 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--json',
         ]);
         expect(result1.exitCode).toBe(0);
         expect((await target.getTracks()).length).toBe(3);
@@ -176,9 +181,14 @@ describe('artwork sync tags (directory source)', () => {
         // Second sync with --check-artwork --dry-run: should show 0 updates
         // because art= was already written during the first sync
         const { result: result2, json: json2 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path,
-          '--check-artwork', '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--check-artwork',
+          '--dry-run',
+          '--json',
         ]);
         expect(result2.exitCode).toBe(0);
         expect(json2?.plan?.tracksToAdd).toBe(0);
@@ -209,8 +219,12 @@ describe('artwork sync tags (directory source)', () => {
         const configPath = await createTestConfig(collectionDir, configDir, 'high');
 
         const { result: result1 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--json',
         ]);
         expect(result1.exitCode).toBe(0);
         expect((await target.getTracks()).length).toBe(3);
@@ -220,27 +234,43 @@ describe('artwork sync tags (directory source)', () => {
 
         // Dry-run: should detect artwork-removed
         const { result: dryResult, json: dryJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--dry-run',
+          '--json',
         ]);
         expect(dryResult.exitCode).toBe(0);
         expect(dryJson?.plan?.tracksToUpdate).toBeGreaterThan(0);
 
-        const breakdown = dryJson?.plan?.updateBreakdown as Record<string, number | undefined> | undefined;
+        const breakdown = dryJson?.plan?.updateBreakdown as
+          | Record<string, number | undefined>
+          | undefined;
         expect(breakdown?.['artwork-removed']).toBeGreaterThan(0);
 
         // Actually sync the removal
         const { result: syncResult, json: syncJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--json',
         ]);
         expect(syncResult.exitCode).toBe(0);
         expect(syncJson?.success).toBe(true);
 
         // Verify idempotency after removal
         const { result: idempResult, json: idempJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--dry-run',
+          '--json',
         ]);
         expect(idempResult.exitCode).toBe(0);
         expect(idempJson?.plan?.tracksToAdd).toBe(0);
@@ -272,8 +302,12 @@ describe('artwork sync tags (directory source)', () => {
 
         // Sync: track has no artwork
         const { result: result1 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--json',
         ]);
         expect(result1.exitCode).toBe(0);
         expect((await target.getTracks()).length).toBe(1);
@@ -285,13 +319,20 @@ describe('artwork sync tags (directory source)', () => {
 
         // Dry-run: should detect artwork-added
         const { result: dryResult, json: dryJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--dry-run',
+          '--json',
         ]);
         expect(dryResult.exitCode).toBe(0);
         expect(dryJson?.plan?.tracksToUpdate).toBeGreaterThan(0);
 
-        const breakdown = dryJson?.plan?.updateBreakdown as Record<string, number | undefined> | undefined;
+        const breakdown = dryJson?.plan?.updateBreakdown as
+          | Record<string, number | undefined>
+          | undefined;
         expect(breakdown?.['artwork-added']).toBeGreaterThan(0);
       } finally {
         if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
@@ -319,8 +360,13 @@ describe('artwork sync tags (directory source)', () => {
         const configPath = await createTestConfig(collectionDir, configDir, 'high');
 
         const { result: result1 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--check-artwork', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--check-artwork',
+          '--json',
         ]);
         expect(result1.exitCode).toBe(0);
         expect((await target.getTracks()).length).toBe(3);
@@ -339,27 +385,46 @@ describe('artwork sync tags (directory source)', () => {
 
         // Dry-run with --check-artwork: should detect artwork-updated
         const { result: dryResult, json: dryJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--check-artwork', '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--check-artwork',
+          '--dry-run',
+          '--json',
         ]);
         expect(dryResult.exitCode).toBe(0);
         expect(dryJson?.plan?.tracksToUpdate).toBeGreaterThan(0);
 
-        const breakdown = dryJson?.plan?.updateBreakdown as Record<string, number | undefined> | undefined;
+        const breakdown = dryJson?.plan?.updateBreakdown as
+          | Record<string, number | undefined>
+          | undefined;
         expect(breakdown?.['artwork-updated']).toBeGreaterThan(0);
 
         // Actually sync the artwork update
         const { result: syncResult, json: syncJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--check-artwork', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--check-artwork',
+          '--json',
         ]);
         expect(syncResult.exitCode).toBe(0);
         expect(syncJson?.success).toBe(true);
 
         // Verify idempotency
         const { result: idempResult, json: idempJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--check-artwork', '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--check-artwork',
+          '--dry-run',
+          '--json',
         ]);
         expect(idempResult.exitCode).toBe(0);
         expect(idempJson?.plan?.tracksToUpdate).toBe(0);
@@ -389,24 +454,38 @@ describe('artwork sync tags (directory source)', () => {
 
         // Sync normally (without --check-artwork) — art= hash may or may not be written
         const { result: result1 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--json',
         ]);
         expect(result1.exitCode).toBe(0);
 
         // Run --force-sync-tags --check-artwork to establish baselines
         const { result: forceResult } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path,
-          '--force-sync-tags', '--check-artwork', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--force-sync-tags',
+          '--check-artwork',
+          '--json',
         ]);
         expect(forceResult.exitCode).toBe(0);
 
         // Dry-run with --check-artwork: should show 0 updates (baselines established)
         const { result: verifyResult, json: verifyJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path,
-          '--check-artwork', '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--check-artwork',
+          '--dry-run',
+          '--json',
         ]);
         expect(verifyResult.exitCode).toBe(0);
         expect(verifyJson?.plan?.tracksToUpdate).toBe(0);
@@ -425,14 +504,21 @@ describe('artwork sync tags (directory source)', () => {
 
         // Dry-run with --check-artwork: should now detect artwork-updated
         const { result: changeResult, json: changeJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path,
-          '--check-artwork', '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--check-artwork',
+          '--dry-run',
+          '--json',
         ]);
         expect(changeResult.exitCode).toBe(0);
         expect(changeJson?.plan?.tracksToUpdate).toBeGreaterThan(0);
 
-        const breakdown = changeJson?.plan?.updateBreakdown as Record<string, number | undefined> | undefined;
+        const breakdown = changeJson?.plan?.updateBreakdown as
+          | Record<string, number | undefined>
+          | undefined;
         expect(breakdown?.['artwork-updated']).toBeGreaterThan(0);
       } finally {
         if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
@@ -460,8 +546,13 @@ describe('artwork sync tags (directory source)', () => {
 
         // Sync at high quality with --check-artwork (writes quality=high + art=HASH)
         const { result: result1 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--check-artwork', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--check-artwork',
+          '--json',
         ]);
         expect(result1.exitCode).toBe(0);
 
@@ -470,28 +561,50 @@ describe('artwork sync tags (directory source)', () => {
 
         // Dry-run: should show preset-downgrade
         const { result: dryResult, json: dryJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--quality', 'low', '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--quality',
+          'low',
+          '--dry-run',
+          '--json',
         ]);
         expect(dryResult.exitCode).toBe(0);
         expect(dryJson?.plan?.tracksToUpdate).toBe(3);
 
-        const dryBreakdown = dryJson?.plan?.updateBreakdown as Record<string, number | undefined> | undefined;
+        const dryBreakdown = dryJson?.plan?.updateBreakdown as
+          | Record<string, number | undefined>
+          | undefined;
         expect(dryBreakdown?.['preset-downgrade']).toBe(3);
 
         // Actually sync at low quality
         const { result: syncResult } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--quality', 'low', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--quality',
+          'low',
+          '--json',
         ]);
         expect(syncResult.exitCode).toBe(0);
 
         // Dry-run with --check-artwork at low quality: should show 0 updates
         // (artwork hash survived the preset change re-transcode)
         const { result: idempResult, json: idempJson } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path,
-          '--quality', 'low', '--check-artwork', '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--quality',
+          'low',
+          '--check-artwork',
+          '--dry-run',
+          '--json',
         ]);
         expect(idempResult.exitCode).toBe(0);
         expect(idempJson?.plan?.tracksToAdd).toBe(0);

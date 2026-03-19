@@ -47,7 +47,9 @@ async function createConfigFile(
 ): Promise<string> {
   const configPath = join(configDir, 'config.toml');
 
-  const content = `[music.default]
+  const content = `version = 1
+
+[music.default]
 path = "${options.source}"
 
 quality = "${options.quality}"
@@ -103,7 +105,7 @@ describe('preset change detection', () => {
         // Change to high quality and sync again — should succeed
         await writeFile(
           configPath,
-          `[music.default]\npath = "${collectionDir}"\nquality = "high"\n[defaults]\nmusic = "default"\n`
+          `version = 1\n\n[music.default]\npath = "${collectionDir}"\nquality = "high"\n[defaults]\nmusic = "default"\n`
         );
 
         const { result: result2, json: json2 } = await runCliJson<SyncOutput>([
@@ -159,7 +161,7 @@ describe('preset change detection', () => {
         // Change to high quality with --skip-upgrades — no file-replacement upgrades
         await writeFile(
           configPath,
-          `[music.default]\npath = "${collectionDir}"\nquality = "high"\n[defaults]\nmusic = "default"\n`
+          `version = 1\n\n[music.default]\npath = "${collectionDir}"\nquality = "high"\n[defaults]\nmusic = "default"\n`
         );
 
         const { result: dryResult, json: dryJson } = await runCliJson<SyncOutput>([
@@ -212,15 +214,24 @@ describe('preset change detection', () => {
 
         // First sync
         const { result: result1 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--json',
         ]);
         expect(result1.exitCode).toBe(0);
 
         // Second sync — should be fully in sync (no work)
         const { result: result2, json: json2 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--dry-run',
+          '--json',
         ]);
         expect(result2.exitCode).toBe(0);
         expect(json2?.plan?.tracksToAdd).toBe(0);
@@ -251,15 +262,28 @@ describe('preset change detection', () => {
 
         // Sync at high quality
         const { result: result1 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--quality', 'high', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--quality',
+          'high',
+          '--json',
         ]);
         expect(result1.exitCode).toBe(0);
 
         // Dry-run at low quality — sync tags should detect mismatch
         const { result: result2, json: json2 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--quality', 'low', '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--quality',
+          'low',
+          '--dry-run',
+          '--json',
         ]);
         expect(result2.exitCode).toBe(0);
         // All 3 tracks should need updating (preset downgrade)
@@ -267,16 +291,29 @@ describe('preset change detection', () => {
 
         // Actually sync at low — tracks should be re-transcoded
         const { result: result3, json: json3 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--quality', 'low', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--quality',
+          'low',
+          '--json',
         ]);
         expect(result3.exitCode).toBe(0);
         expect(json3?.result?.completed).toBe(3);
 
         // Third sync at low — should be idempotent (sync tags match)
         const { json: json4 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--quality', 'low', '--dry-run', '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--quality',
+          'low',
+          '--dry-run',
+          '--json',
         ]);
         expect(json4?.plan?.tracksToAdd).toBe(0);
         expect(json4?.plan?.tracksToUpdate).toBe(0);
@@ -306,8 +343,12 @@ describe('preset change detection', () => {
 
         // Sync without sync tags (simulate pre-sync-tag tracks by clearing comments after)
         const { result: result1 } = await runCliJson<SyncOutput>([
-          '--config', configPath,
-          'sync', '--device', target.path, '--json',
+          '--config',
+          configPath,
+          'sync',
+          '--device',
+          target.path,
+          '--json',
         ]);
         expect(result1.exitCode).toBe(0);
 

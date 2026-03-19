@@ -102,7 +102,9 @@ function changeYear(collectionDir: string, newYear: number): void {
 async function createConfigFile(configDir: string, options: { source: string }): Promise<string> {
   const configPath = join(configDir, 'config.toml');
 
-  const content = `[music.default]
+  const content = `version = 1
+
+[music.default]
 path = "${options.source}"
 
 quality = "low"

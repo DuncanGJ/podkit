@@ -255,7 +255,9 @@ async function createArtworkCheckConfig(port: number): Promise<string> {
 
   await writeFile(
     configPath,
-    `[music.main]
+    `version = 1
+
+[music.main]
 type = "subsonic"
 url = "http://localhost:${port}"
 username = "admin"

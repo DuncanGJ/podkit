@@ -138,7 +138,9 @@ async function createCompilationCollection(): Promise<string> {
 async function createConfigFile(configDir: string, source: string): Promise<string> {
   const configPath = join(configDir, 'config.toml');
 
-  const content = `[music.default]
+  const content = `version = 1
+
+[music.default]
 path = "${source}"
 
 quality = "low"

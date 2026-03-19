@@ -28,7 +28,7 @@ describe('podkit device add', () => {
     it('adds device with existing database', async () => {
       await withTarget(async (target) => {
         // Create minimal config
-        await writeFile(configPath, '# podkit config\n');
+        await writeFile(configPath, 'version = 1\n');
 
         const result = await runCli([
           '--config',
@@ -53,7 +53,7 @@ describe('podkit device add', () => {
 
     it('outputs JSON with device info', async () => {
       await withTarget(async (target) => {
-        await writeFile(configPath, '# podkit config\n');
+        await writeFile(configPath, 'version = 1\n');
 
         const { result, json } = await runCliJson<{
           success: boolean;
@@ -83,7 +83,7 @@ describe('podkit device add', () => {
 
     it('sets first device as default', async () => {
       await withTarget(async (target) => {
-        await writeFile(configPath, '# podkit config\n');
+        await writeFile(configPath, 'version = 1\n');
 
         await runCli([
           '--config',
@@ -105,7 +105,7 @@ describe('podkit device add', () => {
 
     it('rejects invalid device name', async () => {
       await withTarget(async (target) => {
-        await writeFile(configPath, '# podkit config\n');
+        await writeFile(configPath, 'version = 1\n');
 
         const result = await runCli([
           '--config',
@@ -129,7 +129,9 @@ describe('podkit device add', () => {
         // Create config with existing device
         await writeFile(
           configPath,
-          `[devices.existing]
+          `version = 1
+
+[devices.existing]
 volumeUuid = "test-uuid"
 volumeName = "test"
 `
@@ -163,7 +165,7 @@ volumeName = "test"
     });
 
     it('offers to initialize and succeeds with --yes', async () => {
-      await writeFile(configPath, '# podkit config\n');
+      await writeFile(configPath, 'version = 1\n');
 
       const result = await runCli([
         '--config',
@@ -186,7 +188,7 @@ volumeName = "test"
     });
 
     it('outputs JSON with initialized flag', async () => {
-      await writeFile(configPath, '# podkit config\n');
+      await writeFile(configPath, 'version = 1\n');
 
       const { result, json } = await runCliJson<{
         success: boolean;
@@ -214,7 +216,7 @@ volumeName = "test"
 
   describe('error handling', () => {
     it('fails when path does not exist', async () => {
-      await writeFile(configPath, '# podkit config\n');
+      await writeFile(configPath, 'version = 1\n');
 
       const result = await runCli([
         '--config',
@@ -252,7 +254,9 @@ describe('podkit device reset', () => {
       // Add a device to config
       await writeFile(
         configPath,
-        `[devices.testipod]
+        `version = 1
+
+[devices.testipod]
 volumeUuid = "test-uuid"
 volumeName = "Test iPod"
 `
@@ -286,7 +290,9 @@ volumeName = "Test iPod"
     await withTarget(async (target) => {
       await writeFile(
         configPath,
-        `[devices.testipod]
+        `version = 1
+
+[devices.testipod]
 volumeUuid = "test-uuid"
 volumeName = "Test iPod"
 `
@@ -311,7 +317,9 @@ volumeName = "Test iPod"
     await withTarget(async (target) => {
       await writeFile(
         configPath,
-        `[devices.testipod]
+        `version = 1
+
+[devices.testipod]
 volumeUuid = "test-uuid"
 volumeName = "Test iPod"
 `
@@ -341,7 +349,9 @@ volumeName = "Test iPod"
     await withTarget(async (target) => {
       await writeFile(
         configPath,
-        `[devices.testipod]
+        `version = 1
+
+[devices.testipod]
 volumeUuid = "test-uuid"
 volumeName = "Test iPod"
 `
@@ -371,7 +381,7 @@ volumeName = "Test iPod"
 
   describe('error handling', () => {
     it('fails when device not found in config', async () => {
-      await writeFile(configPath, '# empty config\n');
+      await writeFile(configPath, 'version = 1\n');
 
       const result = await runCli([
         '--config',
@@ -396,7 +406,9 @@ volumeName = "Test iPod"
 
       await writeFile(
         configPath,
-        `[devices.uninitipod]
+        `version = 1
+
+[devices.uninitipod]
 volumeUuid = "test-uuid"
 volumeName = "Uninitialized iPod"
 `
@@ -427,7 +439,9 @@ volumeName = "Uninitialized iPod"
 
       await writeFile(
         configPath,
-        `[devices.uninitipod]
+        `version = 1
+
+[devices.uninitipod]
 volumeUuid = "test-uuid"
 volumeName = "Uninitialized iPod"
 `
@@ -469,7 +483,9 @@ describe('podkit device init', () => {
 
     await writeFile(
       configPath,
-      `[devices.emptyipod]
+      `version = 1
+
+[devices.emptyipod]
 volumeUuid = "test-uuid"
 volumeName = "Empty iPod"
 `
@@ -496,7 +512,9 @@ volumeName = "Empty iPod"
     await withTarget(async (target) => {
       await writeFile(
         configPath,
-        `[devices.testipod]
+        `version = 1
+
+[devices.testipod]
 volumeUuid = "test-uuid"
 volumeName = "Test iPod"
 `
@@ -521,7 +539,9 @@ volumeName = "Test iPod"
     await withTarget(async (target) => {
       await writeFile(
         configPath,
-        `[devices.testipod]
+        `version = 1
+
+[devices.testipod]
 volumeUuid = "test-uuid"
 volumeName = "Test iPod"
 `
@@ -549,7 +569,9 @@ volumeName = "Test iPod"
 
     await writeFile(
       configPath,
-      `[devices.newipod]
+      `version = 1
+
+[devices.newipod]
 volumeUuid = "test-uuid"
 volumeName = "New iPod"
 `

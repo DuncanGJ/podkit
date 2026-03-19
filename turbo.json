@@ -18,13 +18,12 @@
       "outputs": ["bin/**"]
     },
     "test": {
-      "dependsOn": ["build"],
-      "inputs": ["src/**", "test/**", "*.test.ts"],
+      "dependsOn": ["test:unit", "test:integration"],
       "outputs": []
     },
     "test:unit": {
       "dependsOn": ["build"],
-      "inputs": ["src/**", "!src/**/*.integration.test.ts"],
+      "inputs": ["src/**", "!src/**/*.integration.test.ts", "!src/**/*.e2e.test.ts"],
       "outputs": []
     },
     "test:integration": {
@@ -32,6 +31,13 @@
       "inputs": ["src/**"],
       "outputs": []
     },
+    "@podkit/e2e-tests#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**"],
+      "outputs": []
+    },
+    "@podkit/e2e-tests#test:unit": { "dependsOn": [] },
+    "@podkit/e2e-tests#test:integration": { "dependsOn": [] },
     "typecheck": {
       "dependsOn": ["^build"],
       "inputs": ["src/**", "tsconfig.json"],

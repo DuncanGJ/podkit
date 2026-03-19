@@ -250,7 +250,9 @@ describe('compilation albums via Subsonic', () => {
 
         await writeFile(
           configPath,
-          `[music.main]
+          `version = 1
+
+[music.main]
 type = "subsonic"
 url = "http://localhost:${serverPort}"
 username = "admin"

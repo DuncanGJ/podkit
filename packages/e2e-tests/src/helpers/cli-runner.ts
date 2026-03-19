@@ -223,7 +223,9 @@ export async function createTempConfig(musicPath: string, devicePath?: string): 
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'podkit-e2e-config-'));
   const configPath = path.join(tempDir, 'config.toml');
 
-  let content = `[music.main]
+  let content = `version = 1
+
+[music.main]
 path = "${musicPath}"
 
 [defaults]
@@ -267,7 +269,9 @@ export async function createSubsonicConfig(serverUrl: string, username: string):
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'podkit-subsonic-config-'));
   const configPath = path.join(tempDir, 'config.toml');
 
-  const content = `[music.main]
+  const content = `version = 1
+
+[music.main]
 type = "subsonic"
 url = "${serverUrl}"
 username = "${username}"

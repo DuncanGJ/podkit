@@ -52,7 +52,9 @@ async function createVideoConfig(videoPath: string): Promise<string> {
   const tempDir = await mkdtemp(join(tmpdir(), 'podkit-video-sync-config-'));
   const configPath = join(tempDir, 'config.toml');
 
-  const content = `[video.main]
+  const content = `version = 1
+
+[video.main]
 path = "${videoPath}"
 
 [defaults]
