@@ -1,6 +1,7 @@
 name: Test Daemon Build
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - ci/build-daemon-binary
