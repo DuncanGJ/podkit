@@ -54,6 +54,7 @@ function createMockTrack(overrides: Partial<Track> = {}): Track {
     hasArtwork: true,
     compilation: false,
     transferred: true,
+    mhiiLink: 0,
     // Video fields
     tvShow: null,
     tvEpisode: null,

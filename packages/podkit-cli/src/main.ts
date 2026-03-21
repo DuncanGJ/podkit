@@ -13,6 +13,7 @@ import { collectionCommand } from './commands/collection.js';
 import { ejectCommand } from './commands/eject.js';
 import { mountCommand } from './commands/mount.js';
 import { migrateCommand } from './commands/migrate.js';
+import { doctorCommand } from './commands/doctor.js';
 import { completionsCommand, completeCommand } from './commands/completions.js';
 import { loadConfig, DEFAULT_CONFIG_PATH } from './config/index.js';
 import type { GlobalOptions } from './config/index.js';
@@ -93,6 +94,9 @@ program.addCommand(collectionCommand);
 // Root shortcuts (delegate to device subcommands)
 program.addCommand(ejectCommand);
 program.addCommand(mountCommand);
+
+// Diagnostic commands
+program.addCommand(doctorCommand);
 
 // Utility commands
 program.addCommand(completionsCommand);

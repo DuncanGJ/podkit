@@ -173,9 +173,15 @@ podkit device music --tracks --fields "title,artist,album,artwork"
 
 Both settings can be configured globally or per device in the config file. See [Config File Reference](/reference/config-file) for details.
 
+## Troubleshooting
+
+If your iPod is showing wrong artwork (artwork from a different album, glitched images), the artwork database may be corrupted. Run `podkit doctor` to check, and see [Artwork Repair](/troubleshooting/artwork-repair) for repair instructions.
+
 ## See Also
 
 - [Track Upgrades](/user-guide/syncing/upgrades) -- How podkit detects and applies all types of upgrades
 - [Music Syncing](/user-guide/syncing/music) -- Supported formats and metadata handling
 - [Config File Reference](/reference/config-file) -- `artwork` and `checkArtwork` options
 - [CLI Commands](/reference/cli-commands) -- `--no-artwork` and `--check-artwork` flags
+- [Artwork Repair](/troubleshooting/artwork-repair) -- Diagnosing and repairing corrupted artwork
+- [Artwork Corruption Background](/devices/artwork-corruption) -- Technical details on the corruption issue

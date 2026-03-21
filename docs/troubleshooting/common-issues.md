@@ -137,6 +137,14 @@ podkit sync --force-transcode
 3. Try re-syncing with `--delete` to remove and re-add tracks
 4. Check the iPod's filesystem for errors (see below)
 
+### Artwork showing wrong album or glitched images
+
+**Symptoms:** Tracks display artwork from a different album, or artwork appears corrupted
+
+**Cause:** The iPod's artwork database has become out of sync with the thumbnail data files. This is a common issue across all iPod management software (including iTunes), usually triggered by disconnecting the iPod before all data is flushed.
+
+**Solution:** Run `podkit doctor` to diagnose, then `podkit doctor --repair-artwork` to rebuild. See [Artwork Repair](/troubleshooting/artwork-repair) for full instructions.
+
 ### Artwork not displaying
 
 **Symptoms:** Album art doesn't appear on iPod

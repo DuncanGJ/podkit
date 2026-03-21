@@ -209,6 +209,32 @@ export {
 // Artwork hashing (for change detection)
 export { hashArtwork } from './artwork/hash.js';
 
+// Artwork diagnostics (ArtworkDB parser + integrity checker)
+export type { MHNIEntry, MHIIEntry, MHIFEntry, ArtworkDB } from './artwork/artworkdb-parser.js';
+export { parseArtworkDB } from './artwork/artworkdb-parser.js';
+
+export type { AnomalyType, Anomaly, FormatSummary, IntegrityReport } from './artwork/integrity.js';
+export { checkIntegrity } from './artwork/integrity.js';
+
+// Artwork repair
+export type {
+  RepairProgress,
+  RepairResult,
+  RepairOptions,
+  RepairDependencies,
+} from './artwork/repair.js';
+export { repairArtwork } from './artwork/repair.js';
+
+// Doctor (iPod health checks)
+export type {
+  DoctorContext,
+  DoctorRepairInfo,
+  DoctorCheckResult,
+  DoctorCheck,
+  DoctorReport,
+} from './doctor/index.js';
+export { runDoctor } from './doctor/index.js';
+
 // Metadata extraction utilities
 export type { FileDisplayMetadata } from './metadata/extractor.js';
 export { getFileDisplayMetadata, getFilesDisplayMetadata } from './metadata/extractor.js';

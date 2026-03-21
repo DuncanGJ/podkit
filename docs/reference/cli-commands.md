@@ -32,6 +32,7 @@ These options work with all commands:
 | [`podkit sync`](#podkit-sync) | Sync music and/or video collections to iPod |
 | [`podkit device`](#podkit-device) | Device management commands |
 | [`podkit collection`](#podkit-collection) | Collection management commands |
+| [`podkit doctor`](#podkit-doctor) | Run health checks on iPod, repair artwork |
 | [`podkit eject`](#podkit-eject) | Safely eject iPod (shortcut for `device eject`) |
 | [`podkit mount`](#podkit-mount) | Mount an iPod (shortcut for `device mount`) |
 | [`podkit completions`](#podkit-completions) | Generate shell completion scripts |
@@ -593,6 +594,45 @@ podkit collection video [-c <name>] [options]
 | `--artists` | List artists with album/track counts |
 | `--format <fmt>` | Output format: `table`, `json`, `csv` (default: `table`) |
 | `--fields <list>` | Comma-separated fields to show with `--tracks` (see [Display Fields](#display-fields)) |
+
+## `podkit doctor`
+
+Run health checks on an iPod and optionally repair detected issues.
+
+```bash
+podkit doctor [options]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--repair-artwork` | Rebuild all artwork from source collection (requires `-d` and `-c`) |
+| `--dry-run` | Preview repair without modifying the iPod |
+
+### Examples
+
+```bash
+# Run all health checks
+podkit doctor
+
+# Check a specific device
+podkit doctor -d myipod
+
+# Repair corrupted artwork (device and collection are required)
+podkit doctor -d myipod -c main --repair-artwork
+
+# Preview what repair would do
+podkit doctor -d myipod -c main --repair-artwork --dry-run
+```
+
+### Health Checks
+
+| Check | Description |
+|-------|-------------|
+| Artwork Integrity | Verifies ArtworkDB offsets are within .ithmb file bounds |
+
+See [Artwork Repair](/troubleshooting/artwork-repair) for details on diagnosing and repairing artwork corruption.
 
 ## `podkit eject`
 
