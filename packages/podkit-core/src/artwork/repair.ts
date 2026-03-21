@@ -87,6 +87,8 @@ export interface RebuildOptions {
   dryRun?: boolean;
   /** Called after each track is processed */
   onProgress?: (progress: RebuildProgress) => void;
+  /** Abort signal for cancellation — partial repair is saved on abort */
+  signal?: AbortSignal;
 }
 
 export interface RebuildDependencies {
@@ -282,7 +284,7 @@ export async function rebuildArtworkDatabase(
   const { db, adapters } = deps;
   const extractArtwork = deps.extractArtwork ?? defaultExtractArtwork;
   const cleanupAllTempArtwork = deps.cleanupAllTempArtwork ?? defaultCleanupAllTempArtwork;
-  const { dryRun = false, onProgress } = options;
+  const { dryRun = false, onProgress, signal } = options;
 
   // Build source track index from all adapters
   const sourceIndex = await buildSourceIndex(adapters);
@@ -322,6 +324,11 @@ export async function rebuildArtworkDatabase(
     let batchCount = 0;
 
     for (const ipodTrack of ipodTracks) {
+      // Check for abort — save partial progress (partial repair is better than none)
+      if (signal?.aborted) {
+        break;
+      }
+
       progress.current++;
       progress.currentTrack = { artist: ipodTrack.artist, title: ipodTrack.title };
 

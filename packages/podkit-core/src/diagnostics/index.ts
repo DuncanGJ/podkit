@@ -10,6 +10,7 @@
 
 import { IpodDatabase } from '../ipod/database.js';
 import { artworkIntegrityCheck } from './checks/artwork.js';
+import { orphanFilesCheck } from './checks/orphans.js';
 import type { DiagnosticCheck, DiagnosticReport, DiagnosticContext } from './types.js';
 
 // Re-export types for consumers
@@ -28,7 +29,7 @@ export type {
 // ── Registry ────────────────────────────────────────────────────────────────
 
 /** All registered diagnostic checks */
-const CHECKS: DiagnosticCheck[] = [artworkIntegrityCheck];
+const CHECKS: DiagnosticCheck[] = [artworkIntegrityCheck, orphanFilesCheck];
 
 /**
  * Get a diagnostic check by ID.

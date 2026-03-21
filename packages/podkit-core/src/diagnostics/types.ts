@@ -62,6 +62,8 @@ export interface RepairRunOptions {
   dryRun?: boolean;
   /** Called with progress updates */
   onProgress?: (progress: Record<string, unknown>) => void;
+  /** Abort signal for cancellation */
+  signal?: AbortSignal;
 }
 
 // ── Diagnostic check ─────────────────────────────────────────────────────────

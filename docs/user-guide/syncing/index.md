@@ -17,6 +17,8 @@ When you run `podkit sync`, podkit:
 4. **Plans** — Determines what needs transcoding vs direct copy
 5. **Executes** — Transcodes, copies, and updates the iPod database
 
+The database is saved periodically during sync, so you can safely cancel with Ctrl+C at any time — completed tracks are preserved and the iPod stays consistent.
+
 ## Basic Usage
 
 ```bash

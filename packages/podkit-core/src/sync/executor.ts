@@ -180,6 +180,15 @@ export interface ExtendedExecuteOptions extends ExecuteOptions {
    * this config supplies the encoding mode and optional custom bitrate.
    */
   syncTagConfig?: SyncTagConfig;
+  /**
+   * Save the iPod database every N completed track operations.
+   *
+   * Reduces data loss if the process is killed, at the cost of triggering
+   * libgpod's ithmb compaction more frequently. Set to 0 to disable.
+   *
+   * @default 50
+   */
+  saveInterval?: number;
 }
 
 /**
@@ -595,6 +604,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
       artwork = true,
       adapter,
       syncTagConfig,
+      saveInterval = 50,
     } = options;
 
     // Store sync tag config for use during transfer
@@ -636,7 +646,8 @@ export class DefaultSyncExecutor implements SyncExecutor {
         continueOnError,
         artwork,
         adapter,
-        signal
+        signal,
+        saveInterval
       );
     } finally {
       // Cleanup temp directory
@@ -715,7 +726,8 @@ export class DefaultSyncExecutor implements SyncExecutor {
     continueOnError: boolean,
     artworkEnabled: boolean,
     adapter?: CollectionAdapter,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    saveInterval = 50
   ): AsyncIterable<ExecutorProgress> {
     const total = plan.operations.length;
     const prefetchQueue = new AsyncQueue<PrefetchedFile>(PREFETCH_BUFFER_SIZE);
@@ -901,6 +913,12 @@ export class DefaultSyncExecutor implements SyncExecutor {
             // Include retry attempt if there were retries
             ...(totalRetries > 0 ? { retryAttempt: totalRetries } : {}),
           };
+
+          // Checkpoint save: persist completed tracks periodically to reduce
+          // data loss if the process is killed (force quit, SIGKILL, power loss)
+          if (saveInterval > 0 && completed % saveInterval === 0) {
+            await this.ipod.save();
+          }
         } else {
           // Transfer failed after retries
           failed++;

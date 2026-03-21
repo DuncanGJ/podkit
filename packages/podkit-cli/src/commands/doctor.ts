@@ -27,6 +27,7 @@ import {
 import { OutputContext } from '../output/index.js';
 import { existsSync } from '../utils/fs.js';
 import { createMusicAdapter } from '../utils/source-adapter.js';
+import { createShutdownController } from '../shutdown.js';
 
 // ── Output types ────────────────────────────────────────────────────────────
 
@@ -389,11 +390,15 @@ async function runRepair(
     out.newline();
   }
 
+  const shutdown = createShutdownController();
+  shutdown.install();
+
   try {
     const result = await repair.run(
       { mountPoint: devicePath, db, adapters },
       {
         dryRun,
+        signal: shutdown.signal,
         onProgress: (progress) => {
           if (!out.isText) return;
           const p = progress as Record<string, number>;
@@ -452,6 +457,7 @@ async function runRepair(
     out.error(`Repair failed: ${err instanceof Error ? err.message : String(err)}`);
     process.exitCode = 1;
   } finally {
+    shutdown.uninstall();
     for (const adapter of adapters) {
       try {
         await adapter.disconnect();

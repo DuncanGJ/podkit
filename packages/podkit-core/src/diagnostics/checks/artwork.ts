@@ -138,6 +138,7 @@ export const artworkIntegrityCheck: DiagnosticCheck = {
           onProgress: options?.onProgress
             ? (p) => options.onProgress!(p as unknown as Record<string, unknown>)
             : undefined,
+          signal: options?.signal,
         }
       );
 

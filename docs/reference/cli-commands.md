@@ -177,6 +177,18 @@ podkit sync --delete --eject
 podkit sync --no-artwork
 ```
 
+### Interruption Behaviour
+
+Pressing Ctrl+C during sync triggers a graceful shutdown:
+
+1. The current operation finishes (no partial files)
+2. All completed tracks are saved to the iPod database
+3. The process exits with code 130
+
+Press Ctrl+C a second time to force-quit immediately. The database is saved periodically during sync (every 50 tracks), so even a force-quit or crash loses at most a small batch of recent work.
+
+If a sync is interrupted, run `podkit doctor` to check for orphaned files that may be wasting space on the iPod.
+
 ## `podkit device`
 
 Device management commands. Running `podkit device` with no subcommand lists all configured devices.
@@ -639,11 +651,16 @@ podkit doctor -d myipod -c main --repair artwork-integrity
 podkit doctor -d myipod -c main --repair artwork-integrity --dry-run
 ```
 
+### Interruption Behaviour
+
+Pressing Ctrl+C during a repair triggers a graceful shutdown — partial repair progress is saved before exiting.
+
 ### Health Checks
 
-| Check | Description |
-|-------|-------------|
-| Artwork Integrity | Verifies ArtworkDB offsets are within .ithmb file bounds |
+| Check | Description | Repair |
+|-------|-------------|--------|
+| Artwork Integrity | Verifies ArtworkDB offsets are within .ithmb file bounds | `--repair artwork-integrity -c <collection>` |
+| Orphan Files | Detects unreferenced files in iPod_Control/Music that waste storage | `--repair orphan-files` |
 
 See [Artwork Repair](/troubleshooting/artwork-repair) for details on diagnosing and repairing artwork corruption.
 

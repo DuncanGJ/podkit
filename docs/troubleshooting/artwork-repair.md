@@ -100,6 +100,10 @@ Eject the iPod safely before disconnecting — this ensures all data is flushed 
 podkit eject
 ```
 
+## Related Diagnostics
+
+`podkit doctor` also checks for [orphaned files](/troubleshooting/common-issues#orphaned-files-after-interrupted-sync) — audio files on the iPod that aren't referenced by the database. Run `podkit doctor` to see all available health checks.
+
 ## Why This Happens
 
 See [Artwork Corruption Background](/devices/artwork-corruption) for the technical details on what causes this issue and why the repair works.

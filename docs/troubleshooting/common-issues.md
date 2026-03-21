@@ -164,6 +164,26 @@ podkit sync --force-transcode
 2. Sync with `--delete` to clean up orphaned tracks
 3. Verify tracks have consistent metadata (artist/album/title)
 
+### Orphaned files after interrupted sync
+
+**Symptoms:** iPod storage is fuller than expected, or `podkit doctor` reports orphan files.
+
+**Cause:** If a sync was force-quit (double Ctrl+C), crashed, or the iPod was disconnected mid-sync, audio files may have been copied to the iPod without being registered in the database. These orphaned files waste storage space but don't cause corruption.
+
+**Solution:** Run `podkit doctor` to detect orphans, then repair:
+```bash
+# Check for orphaned files
+podkit doctor
+
+# Remove orphaned files to reclaim space
+podkit doctor --repair orphan-files
+
+# Preview what would be deleted first
+podkit doctor --repair orphan-files --dry-run
+```
+
+A single Ctrl+C during sync triggers a graceful shutdown that saves all completed work — orphaned files only occur from force-quit, crashes, or disconnection.
+
 ## Database Issues
 
 ### Database corruption

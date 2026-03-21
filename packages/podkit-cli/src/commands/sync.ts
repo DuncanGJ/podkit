@@ -68,6 +68,7 @@ import {
   DualProgressDisplay,
 } from '../utils/progress.js';
 import { createMusicAdapter } from '../utils/source-adapter.js';
+import { createShutdownController } from '../shutdown.js';
 
 // =============================================================================
 // Types
@@ -551,6 +552,7 @@ export interface MusicSyncContext {
   ipod: Awaited<ReturnType<typeof import('@podkit/core').IpodDatabase.open>>;
   transcoder: ReturnType<typeof import('@podkit/core').createFFmpegTranscoder>;
   core: typeof import('@podkit/core');
+  signal?: AbortSignal;
 }
 
 /** @internal Exported for testing only */
@@ -558,6 +560,7 @@ export interface MusicSyncResult {
   success: boolean;
   completed: number;
   failed: number;
+  interrupted?: boolean;
   jsonOutput?: SyncOutput;
   artworkMissingBaseline?: number;
 }
@@ -590,6 +593,7 @@ export async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicS
     ipod,
     transcoder,
     core,
+    signal,
   } = ctx;
 
   const collectionLabel = formatCollectionLabel(collection.name, sourcePath, out.isVerbose);
@@ -851,53 +855,63 @@ export async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicS
   const executor = new core.DefaultSyncExecutor({ ipod, transcoder });
   const musicDisplay = new DualProgressDisplay((content) => out.raw(content));
 
-  for await (const progress of executor.execute(plan, {
-    dryRun: false,
-    continueOnError: true,
-    artwork: effectiveArtwork,
-    adapter,
-    syncTagConfig: {
-      encodingMode: effectiveEncoding,
-      customBitrate: effectiveCustomBitrate,
-    },
-  })) {
-    if (progress.error) {
-      const categorized = progress.categorizedError;
-      collectedErrors.push({
-        trackName: categorized?.trackName ?? core.getOperationDisplayName(progress.operation),
-        category: categorized?.category ?? 'unknown',
-        message: progress.error.message,
-        retryAttempts: categorized?.retryAttempts ?? 0,
-        wasRetried: categorized?.wasRetried ?? false,
-        stack: progress.error.stack,
-      });
-      failed++;
-    } else if (
-      progress.phase !== 'preparing' &&
-      progress.phase !== 'updating-db' &&
-      progress.phase !== 'complete'
-    ) {
-      completed++;
-    }
+  try {
+    for await (const progress of executor.execute(plan, {
+      dryRun: false,
+      continueOnError: true,
+      artwork: effectiveArtwork,
+      adapter,
+      signal,
+      syncTagConfig: {
+        encodingMode: effectiveEncoding,
+        customBitrate: effectiveCustomBitrate,
+      },
+    })) {
+      if (progress.error) {
+        const categorized = progress.categorizedError;
+        collectedErrors.push({
+          trackName: categorized?.trackName ?? core.getOperationDisplayName(progress.operation),
+          category: categorized?.category ?? 'unknown',
+          message: progress.error.message,
+          retryAttempts: categorized?.retryAttempts ?? 0,
+          wasRetried: categorized?.wasRetried ?? false,
+          stack: progress.error.stack,
+        });
+        failed++;
+      } else if (
+        progress.phase !== 'preparing' &&
+        progress.phase !== 'updating-db' &&
+        progress.phase !== 'complete'
+      ) {
+        completed++;
+      }
 
-    if (progress.phase === 'complete') {
-      musicDisplay.finish();
-      out.print('Music sync complete!');
-    } else if (progress.phase === 'updating-db') {
-      musicDisplay.finish();
-      out.raw('Saving iPod database...');
-    } else if (progress.phase !== 'preparing') {
-      const overallLine = formatOverallLine(completed, progress.total, 'tracks');
-      const phaseStr =
-        progress.phase === 'updating-metadata'
-          ? 'Updating metadata'
-          : progress.phase.charAt(0).toUpperCase() + progress.phase.slice(1);
-      const currentLine = formatCurrentLineText({
-        phase: phaseStr,
-        trackName: progress.currentTrack,
-      });
-      musicDisplay.update(overallLine, currentLine);
+      if (progress.phase === 'complete') {
+        musicDisplay.finish();
+        out.print('Music sync complete!');
+      } else if (progress.phase === 'updating-db') {
+        musicDisplay.finish();
+        out.raw('Saving iPod database...');
+      } else if (progress.phase !== 'preparing') {
+        const overallLine = formatOverallLine(completed, progress.total, 'tracks');
+        const phaseStr =
+          progress.phase === 'updating-metadata'
+            ? 'Updating metadata'
+            : progress.phase.charAt(0).toUpperCase() + progress.phase.slice(1);
+        const currentLine = formatCurrentLineText({
+          phase: phaseStr,
+          trackName: progress.currentTrack,
+        });
+        musicDisplay.update(overallLine, currentLine);
+      }
     }
+  } catch (err) {
+    if (signal?.aborted) {
+      musicDisplay.finish();
+      await adapter.disconnect();
+      return { success: false, completed, failed, interrupted: true, artworkMissingBaseline };
+    }
+    throw err;
   }
 
   if (collectedErrors.length > 0) {
@@ -1194,6 +1208,7 @@ export interface VideoSyncContext {
   forceMetadata: boolean;
   ipod: Awaited<ReturnType<typeof import('@podkit/core').IpodDatabase.open>>;
   core: typeof import('@podkit/core');
+  signal?: AbortSignal;
 }
 
 /** @internal Exported for testing only */
@@ -1201,6 +1216,7 @@ export interface VideoSyncResult {
   success: boolean;
   completed: number;
   failed: number;
+  interrupted?: boolean;
   jsonOutput?: SyncOutput;
 }
 
@@ -1222,6 +1238,7 @@ export async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoS
     forceMetadata,
     ipod,
     core,
+    signal,
   } = ctx;
 
   const collectionLabel = formatCollectionLabel(collection.name, sourcePath, out.isVerbose);
@@ -1476,6 +1493,7 @@ export async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoS
     for await (const progress of videoExecutor.execute(videoPlan, {
       dryRun: false,
       videoQuality: effectiveVideoQuality,
+      signal,
     })) {
       if (progress.skipped) {
         // Skip tracking for skipped operations
@@ -1512,6 +1530,11 @@ export async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoS
       }
     }
   } catch (err) {
+    if (signal?.aborted) {
+      videoDisplay.finish();
+      await videoAdapter.disconnect();
+      return { success: false, completed: videoCompleted, failed: 0, interrupted: true };
+    }
     const message = err instanceof Error ? err.message : 'Video execution failed';
     out.error(`\nVideo sync error: ${message}`);
     await videoAdapter.disconnect();
@@ -1931,6 +1954,9 @@ export const syncCommand = new Command('sync')
     let anyError = false;
     let totalArtworkMissingBaseline = 0;
 
+    const shutdown = createShutdownController();
+    shutdown.install();
+
     try {
       // ----- Sync Music Collections -----
       if (hasMusicToSync) {
@@ -1965,6 +1991,7 @@ export const syncCommand = new Command('sync')
             ipod,
             transcoder,
             core,
+            signal: shutdown.signal,
           });
 
           if (result.jsonOutput && out.isJson) {
@@ -1977,11 +2004,21 @@ export const syncCommand = new Command('sync')
           if (!result.success) {
             anyError = true;
           }
+
+          if (result.interrupted) {
+            if (!dryRun && totalCompleted > 0) {
+              out.print('Saving iPod database...');
+              await ipod.save();
+              out.print('Database saved. Sync interrupted.');
+            }
+            process.exitCode = 130;
+            break;
+          }
         }
       }
 
       // ----- Sync Video Collections -----
-      if (hasVideoToSync) {
+      if (hasVideoToSync && !shutdown.isShuttingDown) {
         const ipodInfo = ipod.getInfo();
         const supportsVideo = ipodInfo.device?.supportsVideo ?? false;
 
@@ -2012,6 +2049,7 @@ export const syncCommand = new Command('sync')
               forceMetadata: options.forceMetadata ?? false,
               ipod,
               core,
+              signal: shutdown.signal,
             });
 
             if (result.jsonOutput && out.isJson) {
@@ -2023,107 +2061,135 @@ export const syncCommand = new Command('sync')
             if (!result.success) {
               anyError = true;
             }
+
+            if (result.interrupted) {
+              if (!dryRun && totalCompleted > 0) {
+                out.print('Saving iPod database...');
+                await ipod.save();
+                out.print('Database saved. Video sync interrupted.');
+              }
+              process.exitCode = 130;
+              break;
+            }
           }
 
           // Save database after video sync (not in dry-run)
-          if (!dryRun) {
-            ipod.save();
+          if (!dryRun && !shutdown.isShuttingDown) {
+            await ipod.save();
           }
         }
       }
 
       // Final summary
       const duration = (Date.now() - startTime) / 1000;
-      const syncSucceeded = !dryRun && totalFailed === 0 && !anyError;
 
-      if (!dryRun) {
-        out.newline();
-        out.print('=== Summary ===');
-        out.newline();
-        if (totalFailed > 0) {
-          out.print(
-            `Synced ${formatNumber(totalCompleted)} items (${formatNumber(totalFailed)} failed)`
-          );
-        } else if (totalCompleted > 0) {
-          out.print(`Synced ${formatNumber(totalCompleted)} items successfully`);
-        } else {
-          out.print('Everything already in sync!');
-        }
-        out.print(`Duration: ${formatDuration(duration)}`);
-      }
-
-      // JSON output for actual sync completion
-      if (!dryRun && out.isJson) {
-        let ejectInfo: SyncOutput['eject'];
-        if (options.eject && syncSucceeded) {
-          const ejectResult = await core.ejectWithRetry(manager, devicePath);
-          ejectInfo = {
-            requested: true,
-            success: ejectResult.success,
-            error: ejectResult.error,
-          };
-        }
-
-        out.json({
-          success: totalFailed === 0 && !anyError,
-          dryRun: false,
-          result: {
-            completed: totalCompleted,
-            failed: totalFailed,
-            skipped: 0,
-            bytesTransferred: 0,
-            duration,
-          },
-          eject: ejectInfo,
-        });
-      }
-
-      if (dryRun) {
-        out.newline();
-        out.print('Run without --dry-run to execute this plan.');
-      }
-
-      // Show artwork baseline tip at end of sync
-      if (totalArtworkMissingBaseline > 0) {
-        out.printTips({ artworkMissingBaseline: totalArtworkMissingBaseline });
-      }
-
-      // Show eject tip or auto-eject on successful sync
-      if (syncSucceeded && out.isText) {
-        if (options.eject) {
+      if (shutdown.isShuttingDown) {
+        // Interrupted — show abbreviated summary, skip eject
+        if (!dryRun) {
           out.newline();
-          const ejectResult = await core.ejectWithRetry(manager, devicePath, {
-            onProgress: (event) => {
-              switch (event.phase) {
-                case 'sync':
-                  out.verbose1(event.message);
-                  break;
-                case 'eject':
-                case 'waiting':
-                  out.print(event.message);
-                  break;
-              }
-            },
-          });
-          if (ejectResult.success) {
-            out.print('iPod ejected. Safe to disconnect.');
-          } else {
-            out.print('Could not eject iPod automatically.');
-            if (ejectResult.error) {
-              out.print(`  ${ejectResult.error}`);
-            }
-            out.print('  Run: podkit eject --force');
+          out.print('=== Sync Interrupted ===');
+          out.newline();
+          if (totalCompleted > 0) {
+            out.print(`Saved ${formatNumber(totalCompleted)} completed items to iPod.`);
           }
-        } else {
-          out.newline();
-          out.tip("Run 'podkit eject' to safely disconnect, or use --eject next time.");
+          if (totalFailed > 0) {
+            out.print(`${formatNumber(totalFailed)} items failed before interruption.`);
+          }
+          out.print(`Duration: ${formatDuration(duration)}`);
         }
-      }
+      } else {
+        const syncSucceeded = !dryRun && totalFailed === 0 && !anyError;
 
-      if (totalFailed > 0 || anyError) {
-        process.exitCode = 1;
+        if (!dryRun) {
+          out.newline();
+          out.print('=== Summary ===');
+          out.newline();
+          if (totalFailed > 0) {
+            out.print(
+              `Synced ${formatNumber(totalCompleted)} items (${formatNumber(totalFailed)} failed)`
+            );
+          } else if (totalCompleted > 0) {
+            out.print(`Synced ${formatNumber(totalCompleted)} items successfully`);
+          } else {
+            out.print('Everything already in sync!');
+          }
+          out.print(`Duration: ${formatDuration(duration)}`);
+        }
+
+        // JSON output for actual sync completion
+        if (!dryRun && out.isJson) {
+          let ejectInfo: SyncOutput['eject'];
+          if (options.eject && syncSucceeded) {
+            const ejectResult = await core.ejectWithRetry(manager, devicePath);
+            ejectInfo = {
+              requested: true,
+              success: ejectResult.success,
+              error: ejectResult.error,
+            };
+          }
+
+          out.json({
+            success: totalFailed === 0 && !anyError,
+            dryRun: false,
+            result: {
+              completed: totalCompleted,
+              failed: totalFailed,
+              skipped: 0,
+              bytesTransferred: 0,
+              duration,
+            },
+            eject: ejectInfo,
+          });
+        }
+
+        if (dryRun) {
+          out.newline();
+          out.print('Run without --dry-run to execute this plan.');
+        }
+
+        // Show artwork baseline tip at end of sync
+        if (totalArtworkMissingBaseline > 0) {
+          out.printTips({ artworkMissingBaseline: totalArtworkMissingBaseline });
+        }
+
+        // Show eject tip or auto-eject on successful sync
+        if (syncSucceeded && out.isText) {
+          if (options.eject) {
+            out.newline();
+            const ejectResult = await core.ejectWithRetry(manager, devicePath, {
+              onProgress: (event) => {
+                switch (event.phase) {
+                  case 'sync':
+                    out.verbose1(event.message);
+                    break;
+                  case 'eject':
+                  case 'waiting':
+                    out.print(event.message);
+                    break;
+                }
+              },
+            });
+            if (ejectResult.success) {
+              out.print('iPod ejected. Safe to disconnect.');
+            } else {
+              out.print('Could not eject iPod automatically.');
+              if (ejectResult.error) {
+                out.print(`  ${ejectResult.error}`);
+              }
+              out.print('  Run: podkit eject --force');
+            }
+          } else {
+            out.newline();
+            out.tip("Run 'podkit eject' to safely disconnect, or use --eject next time.");
+          }
+        }
+
+        if (totalFailed > 0 || anyError) {
+          process.exitCode = 1;
+        }
       }
     } finally {
+      shutdown.uninstall();
       ipod.close();
     }
   });
