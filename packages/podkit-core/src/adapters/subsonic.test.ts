@@ -4,7 +4,7 @@
  * Tests use manual mocking of the SubsonicAPI to avoid real network calls.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, afterEach } from 'bun:test';
 import { SubsonicAdapter, SubsonicConnectionError } from './subsonic.js';
 import type { SubsonicAdapterConfig } from './subsonic.js';
 import type { Child, AlbumWithSongsID3 } from 'subsonic-api';
