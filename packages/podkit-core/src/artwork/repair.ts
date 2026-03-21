@@ -26,14 +26,11 @@ import { existsSync, readdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IpodDatabase } from '../ipod/database.js';
 import type { CollectionTrack, CollectionAdapter } from '../adapters/interface.js';
-import { getMatchKey, normalizeArtist, normalizeAlbum } from '../sync/matching.js';
-import {
-  extractArtwork as defaultExtractArtwork,
-  cleanupAllTempArtwork as defaultCleanupAllTempArtwork,
-} from './extractor.js';
+import { getMatchKey } from '../sync/matching.js';
+import { cleanupAllTempArtwork as defaultCleanupAllTempArtwork } from './extractor.js';
 import type { ExtractedArtwork } from './types.js';
-import { hashArtwork } from './hash.js';
 import { parseSyncTag, writeSyncTag } from '../sync/sync-tags.js';
+import { AlbumArtworkCache } from './album-cache.js';
 import { streamToTempFile, cleanupTempFile } from '../utils/stream.js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -103,9 +100,6 @@ export interface RebuildDependencies {
 }
 
 // ── Implementation ──────────────────────────────────────────────────────────
-
-/** Cache entry for album-level artwork. `null` means artwork was looked up but not found. */
-type ArtworkCacheEntry = { data: Buffer; hash: string } | null;
 
 /**
  * Clear the art= hash from a track's sync tag.
@@ -229,14 +223,6 @@ async function buildSourceIndex(
 }
 
 /**
- * Get a normalized album key for artwork caching.
- * Tracks with the same (artist, album) share artwork.
- */
-function getAlbumKey(track: { artist: string; album: string }): string {
-  return `${normalizeArtist(track.artist)}\x1F${normalizeAlbum(track.album)}`;
-}
-
-/**
  * Get the local file path for artwork extraction from a source track.
  * For local sources, returns the file path directly.
  * For remote sources (Subsonic), downloads to a temp file first.
@@ -282,9 +268,13 @@ export async function rebuildArtworkDatabase(
   options: RebuildOptions = {}
 ): Promise<RebuildResult> {
   const { db, adapters } = deps;
-  const extractArtwork = deps.extractArtwork ?? defaultExtractArtwork;
   const cleanupAllTempArtwork = deps.cleanupAllTempArtwork ?? defaultCleanupAllTempArtwork;
   const { dryRun = false, onProgress, signal } = options;
+
+  // Album-level artwork cache — deduplicates extraction across tracks on the same album
+  const artworkCache = new AlbumArtworkCache({
+    extractArtwork: deps.extractArtwork,
+  });
 
   // Build source track index from all adapters
   const sourceIndex = await buildSourceIndex(adapters);
@@ -303,9 +293,6 @@ export async function rebuildArtworkDatabase(
   };
 
   const errorDetails: RebuildResult['errorDetails'] = [];
-
-  // Album-level artwork cache: album key → artwork data + hash, or null if no artwork
-  const artworkCache = new Map<string, ArtworkCacheEntry>();
 
   try {
     // Phase 1: Remove all existing artwork and save to clear corrupt ithmb files
@@ -349,30 +336,17 @@ export async function rebuildArtworkDatabase(
       // Extract artwork from source and set on track
       if (!dryRun) {
         try {
-          // Check album-level artwork cache first
-          const albumKey = getAlbumKey(ipodTrack);
-          let cached = artworkCache.get(albumKey);
+          // Get source file path (downloads to temp for remote sources)
+          const { path: sourcePath, cleanup } = await getArtworkSourcePath(
+            source.adapter,
+            source.track
+          );
 
-          if (cached === undefined) {
-            // Cache miss — fetch and extract artwork for this album
-            const { path: sourcePath, cleanup } = await getArtworkSourcePath(
-              source.adapter,
-              source.track
-            );
-
-            try {
-              const artwork = await extractArtwork(sourcePath);
-
-              if (artwork) {
-                cached = { data: artwork.data, hash: hashArtwork(artwork.data) };
-              } else {
-                cached = null;
-              }
-            } finally {
-              await cleanup();
-            }
-
-            artworkCache.set(albumKey, cached);
+          let cached;
+          try {
+            cached = await artworkCache.get(ipodTrack, sourcePath);
+          } finally {
+            await cleanup();
           }
 
           if (!cached) {

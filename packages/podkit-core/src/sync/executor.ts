@@ -46,6 +46,7 @@ import type {
 import type { IpodDatabase, IPodTrack as IpodDatabaseTrack, TrackInput } from '../ipod/index.js';
 import { extractArtwork } from '../artwork/extractor.js';
 import { hashArtwork } from '../artwork/hash.js';
+import { AlbumArtworkCache } from '../artwork/album-cache.js';
 
 // =============================================================================
 // Extended Types
@@ -544,6 +545,8 @@ export class DefaultSyncExecutor implements SyncExecutor {
   private warnings: ExecutionWarning[] = [];
   /** Sync tag config for the current execution (set during execute()) */
   private syncTagConfig?: SyncTagConfig;
+  /** Album-level artwork cache — deduplicates extraction across tracks on the same album */
+  private artworkCache = new AlbumArtworkCache();
 
   constructor(deps: ExecutorDependencies) {
     this.ipod = deps.ipod;
@@ -610,8 +613,9 @@ export class DefaultSyncExecutor implements SyncExecutor {
     // Store sync tag config for use during transfer
     this.syncTagConfig = syncTagConfig;
 
-    // Clear warnings from previous execution
+    // Clear state from previous execution
     this.clearWarnings();
+    this.artworkCache.clear();
 
     // Merge retry config with defaults
     const mergedRetryConfig: Required<RetryConfig> = {
@@ -1173,10 +1177,13 @@ export class DefaultSyncExecutor implements SyncExecutor {
     sourceFilePath: string
   ): Promise<string | undefined> {
     try {
-      const artwork = await extractArtwork(sourceFilePath);
-      if (artwork) {
-        track.setArtworkFromData(artwork.data);
-        return hashArtwork(artwork.data);
+      const cached = await this.artworkCache.get(
+        { artist: track.artist ?? '', album: track.album ?? '' },
+        sourceFilePath
+      );
+      if (cached) {
+        track.setArtworkFromData(cached.data);
+        return cached.hash;
       }
       return undefined;
     } catch (error) {

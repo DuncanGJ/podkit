@@ -209,6 +209,10 @@ export {
 // Artwork hashing (for change detection)
 export { hashArtwork } from './artwork/hash.js';
 
+// Album-level artwork cache (shared by sync executor and repair)
+export type { AlbumArtworkEntry, AlbumArtworkCacheOptions } from './artwork/album-cache.js';
+export { AlbumArtworkCache, getAlbumKey } from './artwork/album-cache.js';
+
 // Artwork diagnostics (ArtworkDB parser + integrity checker)
 export type { MHNIEntry, MHIIEntry, MHIFEntry, ArtworkDB } from './artwork/artworkdb-parser.js';
 export { parseArtworkDB } from './artwork/artworkdb-parser.js';
