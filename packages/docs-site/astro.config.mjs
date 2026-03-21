@@ -187,6 +187,7 @@ When helping users, load the appropriate documentation set below for detailed in
           exclude: ['developers/**', 'project/**', 'reference/changelog*'],
         }),
       ],
+      customCss: ['@fontsource-variable/source-sans-3', './src/styles/fonts.css'],
       title: 'podkit',
       description: 'Sync your music collection to iPod devices',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/jvgomg/podkit' }],
