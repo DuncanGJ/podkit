@@ -1,5 +1,5 @@
 /**
- * E2E tests for podkit doctor --repair-artwork.
+ * E2E tests for podkit doctor --repair artwork-integrity.
  *
  * Tests the artwork repair workflow: full repair, partial matches,
  * no-artwork sources, dry run, sync tag handling, idempotency,
@@ -49,13 +49,17 @@ interface DoctorOutput {
 
 interface RepairOutput {
   success: boolean;
-  totalTracks: number;
-  matched: number;
-  noSource: number;
-  noArtwork: number;
-  errors: number;
+  summary: string;
+  checkId: string;
   dryRun: boolean;
-  errorDetails?: Array<{ artist: string; title: string; error: string }>;
+  details?: {
+    totalTracks?: number;
+    matched?: number;
+    noSource?: number;
+    noArtwork?: number;
+    errors?: number;
+    errorDetails?: Array<{ artist: string; title: string; error: string }>;
+  };
 }
 
 // ── Prerequisite checks ──────────────────────────────────────────────────────
@@ -162,7 +166,8 @@ async function runDoctorRepair(
     '--config',
     configPath,
     'doctor',
-    '--repair-artwork',
+    '--repair',
+    'artwork-integrity',
     '--device',
     devicePath,
     '-c',
@@ -222,7 +227,7 @@ async function getDirectoryChecksums(dirPath: string): Promise<Map<string, strin
 // Tests
 // =============================================================================
 
-describe('podkit doctor --repair-artwork', () => {
+describe('podkit doctor --repair artwork-integrity', () => {
   let fixturesAvailable = false;
   let metaflacAvailable = false;
   let ffmpegAvailable = false;
@@ -278,8 +283,8 @@ describe('podkit doctor --repair-artwork', () => {
         expect(repairResult.exitCode).toBe(0);
         expect(repairJson).not.toBeNull();
         expect(repairJson!.success).toBe(true);
-        expect(repairJson!.matched).toBe(3);
-        expect(repairJson!.errors).toBe(0);
+        expect(repairJson!.details?.matched).toBe(3);
+        expect(repairJson!.details?.errors).toBe(0);
         expect(repairJson!.dryRun).toBe(false);
 
         // Verify doctor passes after repair
@@ -330,9 +335,9 @@ describe('podkit doctor --repair-artwork', () => {
         expect(repairResult.exitCode).toBe(0);
         expect(repairJson).not.toBeNull();
         expect(repairJson!.success).toBe(true);
-        expect(repairJson!.matched).toBe(1);
-        expect(repairJson!.noSource).toBe(2);
-        expect(repairJson!.errors).toBe(0);
+        expect(repairJson!.details?.matched).toBe(1);
+        expect(repairJson!.details?.noSource).toBe(2);
+        expect(repairJson!.details?.errors).toBe(0);
 
         // Doctor should pass — no corruption, just missing artwork
         const { json: postDiag } = await runDoctor(target.path);
@@ -367,8 +372,8 @@ describe('podkit doctor --repair-artwork', () => {
         const { json: repairJson } = await runDoctorRepair(configPath, target.path, 'main');
         expect(repairJson).not.toBeNull();
         expect(repairJson!.success).toBe(true);
-        expect(repairJson!.noArtwork).toBe(3);
-        expect(repairJson!.matched).toBe(0);
+        expect(repairJson!.details?.noArtwork).toBe(3);
+        expect(repairJson!.details?.matched).toBe(0);
       } finally {
         if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
         await rm(configDir, { recursive: true, force: true });
@@ -406,7 +411,7 @@ describe('podkit doctor --repair-artwork', () => {
         ]);
         expect(repairJson).not.toBeNull();
         expect(repairJson!.dryRun).toBe(true);
-        expect(repairJson!.matched).toBe(3);
+        expect(repairJson!.details?.matched).toBe(3);
 
         // Verify no files were modified
         const afterChecksums = await getDirectoryChecksums(target.path);
@@ -486,9 +491,9 @@ describe('podkit doctor --repair-artwork', () => {
 
         // Repair with no sources
         const { json: repairJson } = await runDoctorRepair(configPath, target.path, 'main');
-        expect(repairJson!.noSource).toBe(3);
-        expect(repairJson!.matched).toBe(0);
-        expect(repairJson!.errors).toBe(0);
+        expect(repairJson!.details?.noSource).toBe(3);
+        expect(repairJson!.details?.matched).toBe(0);
+        expect(repairJson!.details?.errors).toBe(0);
 
         // Doctor should still pass (artwork cleared, no corruption)
         const { json: postDiag } = await runDoctor(target.path);
@@ -526,7 +531,7 @@ describe('podkit doctor --repair-artwork', () => {
         // Corrupt and repair
         await corruptIthmb(target.path);
         const { json: repair1Json } = await runDoctorRepair(configPath, target.path, 'main');
-        expect(repair1Json!.matched).toBe(3);
+        expect(repair1Json!.details?.matched).toBe(3);
 
         // Doctor passes
         const { json: midDiag } = await runDoctor(target.path);
@@ -535,8 +540,8 @@ describe('podkit doctor --repair-artwork', () => {
         // Run repair again — should still succeed and match all tracks
         const { json: repair2Json } = await runDoctorRepair(configPath, target.path, 'main');
         expect(repair2Json!.success).toBe(true);
-        expect(repair2Json!.matched).toBe(3);
-        expect(repair2Json!.errors).toBe(0);
+        expect(repair2Json!.details?.matched).toBe(3);
+        expect(repair2Json!.details?.errors).toBe(0);
 
         // Doctor still passes
         const { json: postDiag } = await runDoctor(target.path);
@@ -575,10 +580,14 @@ describe('podkit doctor --repair-artwork', () => {
         const { json: repairJson } = await runDoctorRepair(configPath, target.path, 'main');
 
         expect(repairJson).not.toBeNull();
-        expect(repairJson!.totalTracks).toBe(3);
+        const details = repairJson!.details!;
+        expect(details.totalTracks).toBe(3);
         // All tracks must be accounted for in some category
         const accounted =
-          repairJson!.matched + repairJson!.noSource + repairJson!.noArtwork + repairJson!.errors;
+          (details.matched ?? 0) +
+          (details.noSource ?? 0) +
+          (details.noArtwork ?? 0) +
+          (details.errors ?? 0);
         expect(accounted).toBe(3);
       } finally {
         if (collectionDir) await rm(collectionDir, { recursive: true, force: true });

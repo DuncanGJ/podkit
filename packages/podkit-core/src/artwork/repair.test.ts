@@ -1,16 +1,21 @@
 /**
- * Unit tests for artwork repair orchestrator
+ * Unit tests for artwork database operations (reset + rebuild)
  *
- * Tests the repairArtwork function which coordinates: removing all artwork
- * from iPod tracks, matching them to source collection tracks, re-extracting
- * artwork from source, setting it on iPod tracks, and updating sync tags.
+ * Tests the resetArtworkDatabase and rebuildArtworkDatabase functions.
+ *
+ * rebuildArtworkDatabase coordinates: removing all artwork from iPod tracks,
+ * matching them to source collection tracks, re-extracting artwork from source,
+ * setting it on iPod tracks, and updating sync tags.
+ *
+ * resetArtworkDatabase removes all artwork and clears sync tags without
+ * needing source collections.
  */
 
 import { describe, it, expect, mock } from 'bun:test';
 import type { IPodTrack, TrackFields } from '../ipod/types.js';
 import type { CollectionAdapter, CollectionTrack, FileAccess } from '../adapters/interface.js';
-import type { RepairDependencies, RepairProgress } from './repair.js';
-import { repairArtwork } from './repair.js';
+import type { RebuildDependencies, RebuildProgress } from './repair.js';
+import { rebuildArtworkDatabase, resetArtworkDatabase } from './repair.js';
 import { hashArtwork } from './hash.js';
 import type { ExtractedArtwork } from './types.js';
 
@@ -22,6 +27,7 @@ function makeIpodTrack(overrides: {
   title: string;
   album: string;
   comment?: string;
+  hasArtwork?: boolean;
 }): IPodTrack {
   return {
     title: overrides.title,
@@ -41,7 +47,7 @@ function makeIpodTrack(overrides: {
     playCount: 0,
     skipCount: 0,
     rating: 0,
-    hasArtwork: true,
+    hasArtwork: overrides.hasArtwork ?? true,
     hasFile: true,
     compilation: false,
     update: mock(() => ({}) as IPodTrack),
@@ -103,6 +109,7 @@ interface MockDb {
   setTrackArtworkFromData: ReturnType<typeof mock>;
   updateTrack: ReturnType<typeof mock>;
   save: ReturnType<typeof mock>;
+  trackCount: number;
 }
 
 /** Create a mock IpodDatabase */
@@ -113,6 +120,7 @@ function makeMockDb(ipodTracks: IPodTrack[]): MockDb {
     setTrackArtworkFromData: mock((_track: IPodTrack, _data: Buffer) => {}),
     updateTrack: mock((_track: IPodTrack, _fields: TrackFields) => {}),
     save: mock(async () => ({ warnings: [] })),
+    trackCount: ipodTracks.length,
   };
 }
 
@@ -121,20 +129,20 @@ function makeDeps(
   db: MockDb,
   adapters: CollectionAdapter[],
   extractArtworkImpl?: (path: string) => Promise<ExtractedArtwork | null>
-): RepairDependencies {
+): RebuildDependencies {
   return {
     db,
     adapters,
     extractArtwork: extractArtworkImpl ?? (async () => MOCK_ARTWORK),
     cleanupAllTempArtwork: async () => {},
-  } as unknown as RepairDependencies;
+  } as unknown as RebuildDependencies;
 }
 
-// ── Tests ───────────────────────────────────────────────────────────────────
+// ── rebuildArtworkDatabase tests ────────────────────────────────────────────
 
-describe('repairArtwork', () => {
+describe('rebuildArtworkDatabase', () => {
   describe('core orchestration', () => {
-    it('repairs all tracks when all match source with artwork', async () => {
+    it('rebuilds all tracks when all match source with artwork', async () => {
       const ipodTracks = [
         makeIpodTrack({ artist: 'Artist A', title: 'Song 1', album: 'Album 1' }),
         makeIpodTrack({ artist: 'Artist B', title: 'Song 2', album: 'Album 2' }),
@@ -150,7 +158,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb(ipodTracks);
       const adapter = makeAdapter(sourceTracks);
 
-      const result = await repairArtwork(makeDeps(db, [adapter]));
+      const result = await rebuildArtworkDatabase(makeDeps(db, [adapter]));
 
       expect(result.totalTracks).toBe(3);
       expect(result.matched).toBe(3);
@@ -177,7 +185,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb(ipodTracks);
       const adapter = makeAdapter(sourceTracks);
 
-      const result = await repairArtwork(makeDeps(db, [adapter]));
+      const result = await rebuildArtworkDatabase(makeDeps(db, [adapter]));
 
       expect(result.totalTracks).toBe(2);
       expect(result.matched).toBe(1);
@@ -208,7 +216,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb(ipodTracks);
       const adapter = makeAdapter(sourceTracks);
 
-      const result = await repairArtwork(makeDeps(db, [adapter], extractArtwork));
+      const result = await rebuildArtworkDatabase(makeDeps(db, [adapter], extractArtwork));
 
       expect(result.totalTracks).toBe(3);
       expect(result.matched).toBe(1);
@@ -233,7 +241,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb(ipodTracks);
       const adapter = makeAdapter(sourceTracks);
 
-      await repairArtwork(makeDeps(db, [adapter]), { dryRun: true });
+      await rebuildArtworkDatabase(makeDeps(db, [adapter]), { dryRun: true });
 
       expect(db.removeTrackArtwork).not.toHaveBeenCalled();
       expect(db.setTrackArtworkFromData).not.toHaveBeenCalled();
@@ -254,7 +262,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb(ipodTracks);
       const adapter = makeAdapter(sourceTracks);
 
-      const result = await repairArtwork(makeDeps(db, [adapter]), { dryRun: true });
+      const result = await rebuildArtworkDatabase(makeDeps(db, [adapter]), { dryRun: true });
 
       expect(result.totalTracks).toBe(2);
       expect(result.matched).toBe(1);
@@ -280,7 +288,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb([ipodTrack]);
       const adapter = makeAdapter([sourceTrack]);
 
-      await repairArtwork(makeDeps(db, [adapter]));
+      await rebuildArtworkDatabase(makeDeps(db, [adapter]));
 
       expect(db.updateTrack).toHaveBeenCalledTimes(1);
 
@@ -305,7 +313,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb([ipodTrack]);
       const adapter = makeAdapter([]); // no source tracks
 
-      await repairArtwork(makeDeps(db, [adapter]));
+      await rebuildArtworkDatabase(makeDeps(db, [adapter]));
 
       expect(db.updateTrack).toHaveBeenCalledTimes(1);
       const fields = (db.updateTrack as ReturnType<typeof mock>).mock.calls[0]![1] as TrackFields;
@@ -332,7 +340,7 @@ describe('repairArtwork', () => {
       const adapter = makeAdapter([sourceTrack]);
 
       // extractArtwork returns null (source has no artwork)
-      await repairArtwork(makeDeps(db, [adapter], async () => null));
+      await rebuildArtworkDatabase(makeDeps(db, [adapter], async () => null));
 
       expect(db.updateTrack).toHaveBeenCalledTimes(1);
       const fields = (db.updateTrack as ReturnType<typeof mock>).mock.calls[0]![1] as TrackFields;
@@ -358,7 +366,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb([ipodTrack]);
       const adapter = makeAdapter([sourceTrack]);
 
-      await repairArtwork(
+      await rebuildArtworkDatabase(
         makeDeps(db, [adapter], async () => {
           throw new Error('extraction failed');
         })
@@ -382,7 +390,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb([ipodTrack]);
       const adapter = makeAdapter([]);
 
-      await repairArtwork(makeDeps(db, [adapter]));
+      await rebuildArtworkDatabase(makeDeps(db, [adapter]));
 
       // No updateTrack call needed — sync tag already has no art= hash
       expect(db.updateTrack).not.toHaveBeenCalled();
@@ -399,7 +407,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb([ipodTrack]);
       const adapter = makeAdapter([]);
 
-      await repairArtwork(makeDeps(db, [adapter]));
+      await rebuildArtworkDatabase(makeDeps(db, [adapter]));
 
       expect(db.updateTrack).not.toHaveBeenCalled();
     });
@@ -421,7 +429,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb([ipodTrack]);
       const adapter = makeAdapter([sourceTrack]);
 
-      await repairArtwork(makeDeps(db, [adapter]));
+      await rebuildArtworkDatabase(makeDeps(db, [adapter]));
 
       expect(db.setTrackArtworkFromData).toHaveBeenCalledTimes(1);
       expect(db.updateTrack).not.toHaveBeenCalled();
@@ -444,8 +452,8 @@ describe('repairArtwork', () => {
       const db = makeMockDb(ipodTracks);
       const adapter = makeAdapter(sourceTracks);
 
-      const progressUpdates: RepairProgress[] = [];
-      await repairArtwork(makeDeps(db, [adapter]), {
+      const progressUpdates: RebuildProgress[] = [];
+      await rebuildArtworkDatabase(makeDeps(db, [adapter]), {
         onProgress: (p) => progressUpdates.push({ ...p }),
       });
 
@@ -465,7 +473,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb([]);
       const adapter = makeAdapter([]);
 
-      const result = await repairArtwork(makeDeps(db, [adapter]));
+      const result = await rebuildArtworkDatabase(makeDeps(db, [adapter]));
 
       expect(result.totalTracks).toBe(0);
       expect(result.matched).toBe(0);
@@ -488,7 +496,7 @@ describe('repairArtwork', () => {
 
       const db = makeMockDb(ipodTracks);
 
-      const result = await repairArtwork(makeDeps(db, [adapter1, adapter2]));
+      const result = await rebuildArtworkDatabase(makeDeps(db, [adapter1, adapter2]));
 
       expect(result.totalTracks).toBe(2);
       expect(result.matched).toBe(2);
@@ -518,7 +526,7 @@ describe('repairArtwork', () => {
       const db = makeMockDb(ipodTracks);
       const adapter = makeAdapter(sourceTracks);
 
-      const result = await repairArtwork(makeDeps(db, [adapter], extractArtwork));
+      const result = await rebuildArtworkDatabase(makeDeps(db, [adapter], extractArtwork));
 
       expect(result.matched).toBe(2);
       expect(result.errors).toBe(1);
@@ -539,16 +547,96 @@ describe('repairArtwork', () => {
       const db = makeMockDb(ipodTracks);
       const adapter = makeAdapter(sourceTracks);
 
-      await repairArtwork({
+      await rebuildArtworkDatabase({
         db,
         adapters: [adapter],
         extractArtwork: async () => {
           throw new Error('fail');
         },
         cleanupAllTempArtwork: cleanupMock,
-      } as unknown as RepairDependencies);
+      } as unknown as RebuildDependencies);
 
       expect(cleanupMock).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+// ── resetArtworkDatabase tests ──────────────────────────────────────────────
+
+describe('resetArtworkDatabase', () => {
+  it('removes artwork from all tracks and saves', async () => {
+    const ipodTracks = [
+      makeIpodTrack({ artist: 'A', title: 'S1', album: 'X' }),
+      makeIpodTrack({ artist: 'B', title: 'S2', album: 'Y' }),
+    ];
+
+    const db = makeMockDb(ipodTracks);
+
+    const result = await resetArtworkDatabase(
+      db as unknown as Parameters<typeof resetArtworkDatabase>[0],
+      '/tmp/fake-ipod'
+    );
+
+    expect(result.tracksCleared).toBe(2);
+    expect(result.totalTracks).toBe(2);
+    expect(db.removeTrackArtwork).toHaveBeenCalledTimes(2);
+    expect(db.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears artwork sync tags', async () => {
+    const ipodTracks = [
+      makeIpodTrack({
+        artist: 'A',
+        title: 'S1',
+        album: 'X',
+        comment: '[podkit:v1 quality=high art=deadbeef]',
+      }),
+    ];
+
+    const db = makeMockDb(ipodTracks);
+
+    await resetArtworkDatabase(
+      db as unknown as Parameters<typeof resetArtworkDatabase>[0],
+      '/tmp/fake-ipod'
+    );
+
+    expect(db.updateTrack).toHaveBeenCalledTimes(1);
+    const fields = (db.updateTrack as ReturnType<typeof mock>).mock.calls[0]![1] as TrackFields;
+    expect(fields.comment).toContain('quality=high');
+    expect(fields.comment).not.toContain('art=');
+  });
+
+  it('does not mutate the database in dry run', async () => {
+    const ipodTracks = [
+      makeIpodTrack({ artist: 'A', title: 'S1', album: 'X', hasArtwork: true }),
+      makeIpodTrack({ artist: 'B', title: 'S2', album: 'Y', hasArtwork: false }),
+    ];
+
+    const db = makeMockDb(ipodTracks);
+
+    const result = await resetArtworkDatabase(
+      db as unknown as Parameters<typeof resetArtworkDatabase>[0],
+      '/tmp/fake-ipod',
+      { dryRun: true }
+    );
+
+    expect(result.tracksCleared).toBe(1); // Only one has artwork
+    expect(result.totalTracks).toBe(2);
+    expect(db.removeTrackArtwork).not.toHaveBeenCalled();
+    expect(db.updateTrack).not.toHaveBeenCalled();
+    expect(db.save).not.toHaveBeenCalled();
+  });
+
+  it('handles empty iPod', async () => {
+    const db = makeMockDb([]);
+
+    const result = await resetArtworkDatabase(
+      db as unknown as Parameters<typeof resetArtworkDatabase>[0],
+      '/tmp/fake-ipod'
+    );
+
+    expect(result.tracksCleared).toBe(0);
+    expect(result.totalTracks).toBe(0);
+    expect(db.save).toHaveBeenCalledTimes(1);
   });
 });

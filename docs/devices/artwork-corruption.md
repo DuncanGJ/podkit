@@ -76,7 +76,7 @@ Because there are no existing thumbnail references after step 1, the fragile com
 
 ### Repairing
 
-The only way to fix artwork corruption is to rebuild the artwork from scratch. If you manage your iPod with podkit, run `podkit doctor --repair-artwork` to rebuild all artwork from your source collection. See [Artwork Repair](/troubleshooting/artwork-repair) for full instructions.
+The only way to fix artwork corruption is to rebuild the artwork from scratch. If you manage your iPod with podkit, run `podkit doctor --repair artwork-integrity` to rebuild all artwork from your source collection. See [Artwork Repair](/troubleshooting/artwork-repair) for full instructions.
 
 If you use other software (iTunes, gtkpod, etc.), the equivalent fix is to remove all music and videos from the iPod — which empties the artwork database — and then re-sync everything. There is no partial fix because the corrupted entries are self-perpetuating (see above).
 

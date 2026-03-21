@@ -1,10 +1,15 @@
 /**
- * Artwork repair orchestrator
+ * Artwork database operations — reset and rebuild
  *
- * Rebuilds all artwork on an iPod from source collection files.
- * The strategy:
- *   1. Remove all existing artwork and save (clears corrupt ithmb files)
- *   2. Set new artwork in batches, saving after each batch to bound memory
+ * Two primitive operations for managing iPod artwork state:
+ *
+ * - **resetArtworkDatabase**: Wipe all artwork and clear sync tags. Fast, no
+ *   source collection needed. After a reset, the next `podkit sync` will
+ *   naturally re-add artwork (since sync tags are cleared), so reset + sync
+ *   is an alternative path to a full rebuild — just spread across two commands.
+ *
+ * - **rebuildArtworkDatabase**: Reset + re-extract all artwork from source
+ *   collections in one operation. Slower, but restores artwork immediately.
  *
  * Batched saves are necessary because libgpod holds full image data in memory
  * for MEMORY-type thumbnails until save() converts them to on-disk IPOD-type.
@@ -17,6 +22,8 @@
  * @see ADR-013 for the full corruption investigation
  */
 
+import { existsSync, readdirSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
 import type { IpodDatabase } from '../ipod/database.js';
 import type { CollectionTrack, CollectionAdapter } from '../adapters/interface.js';
 import { getMatchKey, normalizeArtist, normalizeAlbum } from '../sync/matching.js';
@@ -37,9 +44,25 @@ const BATCH_SIZE = 200;
 /** Timeout for downloading a source file (ms) */
 const DOWNLOAD_TIMEOUT_MS = 60_000;
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ── Reset types ─────────────────────────────────────────────────────────────
 
-export interface RepairProgress {
+export interface ResetResult {
+  /** Number of tracks that had artwork cleared */
+  tracksCleared: number;
+  /** Total tracks on the iPod */
+  totalTracks: number;
+  /** Number of orphaned .ithmb files cleaned up after libgpod save */
+  orphanedFilesRemoved: number;
+}
+
+export interface ResetOptions {
+  /** If true, don't modify the iPod — just report what would change */
+  dryRun?: boolean;
+}
+
+// ── Rebuild types ───────────────────────────────────────────────────────────
+
+export interface RebuildProgress {
   current: number;
   total: number;
   matched: number;
@@ -50,7 +73,7 @@ export interface RepairProgress {
   currentTrack?: { artist: string; title: string };
 }
 
-export interface RepairResult {
+export interface RebuildResult {
   totalTracks: number;
   matched: number;
   noSource: number;
@@ -59,14 +82,14 @@ export interface RepairResult {
   errorDetails: Array<{ artist: string; title: string; error: string }>;
 }
 
-export interface RepairOptions {
+export interface RebuildOptions {
   /** If true, don't modify the iPod — just report what would change */
   dryRun?: boolean;
   /** Called after each track is processed */
-  onProgress?: (progress: RepairProgress) => void;
+  onProgress?: (progress: RebuildProgress) => void;
 }
 
-export interface RepairDependencies {
+export interface RebuildDependencies {
   /** Open iPod database */
   db: IpodDatabase;
   /** Source collection adapters (already connected) */
@@ -97,6 +120,88 @@ function clearArtworkSyncTag(
     const updatedComment = writeSyncTag(track.comment, existingTag);
     db.updateTrack(track, { comment: updatedComment });
   }
+}
+
+/**
+ * Check for orphaned .ithmb files after libgpod save and remove them.
+ * libgpod should clean these up, but if the ArtworkDB was corrupt it may not.
+ */
+function cleanupOrphanedIthmb(mountPoint: string): number {
+  const artworkDir = join(mountPoint, 'iPod_Control', 'Artwork');
+
+  if (!existsSync(artworkDir)) {
+    return 0;
+  }
+
+  let removed = 0;
+  try {
+    const files = readdirSync(artworkDir);
+    for (const file of files) {
+      if (file.endsWith('.ithmb')) {
+        try {
+          unlinkSync(join(artworkDir, file));
+          removed++;
+        } catch {
+          // Best-effort cleanup
+        }
+      }
+    }
+  } catch {
+    // Can't read artwork dir — nothing to clean up
+  }
+
+  return removed;
+}
+
+/**
+ * Reset the artwork database: remove all artwork from all tracks, clear
+ * sync tag artwork hashes, and save.
+ *
+ * This is a fast operation that doesn't require source collections. After
+ * a reset, the next `podkit sync` will naturally re-add artwork since the
+ * cleared sync tags signal that artwork needs to be set.
+ */
+export async function resetArtworkDatabase(
+  db: IpodDatabase,
+  mountPoint: string,
+  options: ResetOptions = {}
+): Promise<ResetResult> {
+  const { dryRun = false } = options;
+  const ipodTracks = db.getTracks();
+  const total = ipodTracks.length;
+  let tracksCleared = 0;
+
+  if (!dryRun) {
+    // Remove artwork from all tracks
+    for (const ipodTrack of ipodTracks) {
+      try {
+        db.removeTrackArtwork(ipodTrack);
+        tracksCleared++;
+      } catch {
+        // May fail if track has no artwork — that's fine
+      }
+      // Clear artwork sync tag hash
+      clearArtworkSyncTag(db, ipodTrack);
+    }
+
+    // Save to flush artwork removal to disk
+    await db.save();
+
+    // Verify ithmb files are cleaned up — libgpod should handle this on save,
+    // but if the ArtworkDB was corrupt it may leave orphaned files behind
+    const orphanedFilesRemoved = cleanupOrphanedIthmb(mountPoint);
+
+    return { tracksCleared, totalTracks: total, orphanedFilesRemoved };
+  }
+
+  // Dry run: count tracks that have artwork
+  for (const ipodTrack of ipodTracks) {
+    if (ipodTrack.hasArtwork) {
+      tracksCleared++;
+    }
+  }
+
+  return { tracksCleared, totalTracks: total, orphanedFilesRemoved: 0 };
 }
 
 /**
@@ -160,21 +265,20 @@ async function getArtworkSourcePath(
 }
 
 /**
- * Repair all artwork on an iPod by rebuilding from source collections.
+ * Rebuild all artwork on an iPod from source collections.
  *
  * Strategy:
- * 1. Remove all existing artwork from all tracks
- * 2. Save to clear corrupt ithmb files
- * 3. Process tracks in batches: extract artwork from source, set on track
- * 4. Save after each batch to flush MEMORY-type thumbnails to disk
+ * 1. Reset artwork database (remove all artwork, clear sync tags, clean up ithmb files)
+ * 2. Process tracks in batches: extract artwork from source, set on track
+ * 3. Save after each batch to flush MEMORY-type thumbnails to disk
  *
  * Artwork is cached per album — tracks sharing the same (artist, album)
  * reuse cached artwork data, avoiding redundant downloads and extractions.
  */
-export async function repairArtwork(
-  deps: RepairDependencies,
-  options: RepairOptions = {}
-): Promise<RepairResult> {
+export async function rebuildArtworkDatabase(
+  deps: RebuildDependencies,
+  options: RebuildOptions = {}
+): Promise<RebuildResult> {
   const { db, adapters } = deps;
   const extractArtwork = deps.extractArtwork ?? defaultExtractArtwork;
   const cleanupAllTempArtwork = deps.cleanupAllTempArtwork ?? defaultCleanupAllTempArtwork;
@@ -187,7 +291,7 @@ export async function repairArtwork(
   const ipodTracks = db.getTracks();
   const total = ipodTracks.length;
 
-  const progress: RepairProgress = {
+  const progress: RebuildProgress = {
     current: 0,
     total,
     matched: 0,
@@ -196,7 +300,7 @@ export async function repairArtwork(
     errors: 0,
   };
 
-  const errorDetails: RepairResult['errorDetails'] = [];
+  const errorDetails: RebuildResult['errorDetails'] = [];
 
   // Album-level artwork cache: album key → artwork data + hash, or null if no artwork
   const artworkCache = new Map<string, ArtworkCacheEntry>();

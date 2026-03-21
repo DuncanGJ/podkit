@@ -2,7 +2,7 @@
  * E2E tests for podkit doctor command — diagnostics and argument validation.
  *
  * Tests the health check pipeline: running checks, JSON output schema,
- * corruption detection, and CLI argument validation for --repair-artwork.
+ * corruption detection, and CLI argument validation for --repair.
  *
  * For artwork repair tests, see ../features/doctor-repair.e2e.test.ts.
  */
@@ -27,8 +27,8 @@ interface DoctorCheckOutput {
   name: string;
   status: 'pass' | 'fail' | 'warn' | 'skip';
   summary: string;
+  repairable: boolean;
   details?: Record<string, unknown>;
-  repair?: { flag: string; description: string };
   docsUrl?: string;
 }
 
@@ -234,8 +234,7 @@ describe('podkit doctor', () => {
           expect(artworkCheck!.status).toBe('fail');
           expect(artworkCheck!.details).toBeDefined();
           expect(artworkCheck!.details!.corruptEntries).toBeGreaterThan(0);
-          expect(artworkCheck!.repair).toBeDefined();
-          expect(artworkCheck!.repair!.flag).toBe('--repair-artwork');
+          expect(artworkCheck!.repairable).toBe(true);
         } finally {
           if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
           await rm(configDir, { recursive: true, force: true });
@@ -334,7 +333,7 @@ describe('podkit doctor', () => {
           expect(typeof failedCheck!.details!.corruptEntries).toBe('number');
           expect(typeof failedCheck!.details!.healthyEntries).toBe('number');
           expect(typeof failedCheck!.details!.corruptPercent).toBe('number');
-          expect(failedCheck!.repair).toBeDefined();
+          expect(failedCheck!.repairable).toBe(true);
           expect(failedCheck!.docsUrl).toBeDefined();
         } finally {
           if (collectionDir) await rm(collectionDir, { recursive: true, force: true });
@@ -349,14 +348,14 @@ describe('podkit doctor', () => {
   // ===========================================================================
 
   describe('argument validation', () => {
-    it('requires -d for --repair-artwork', async () => {
-      const result = await runCli(['doctor', '--repair-artwork']);
+    it('requires -d for --repair', async () => {
+      const result = await runCli(['doctor', '--repair', 'artwork-integrity']);
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('Repair requires an explicit device');
     }, 30000);
 
-    it('requires -c for --repair-artwork', async () => {
+    it('requires -c for --repair artwork-integrity', async () => {
       await withTarget(async (target) => {
         const configDir = await mkdtemp(join(tmpdir(), 'podkit-config-'));
 
@@ -368,13 +367,14 @@ describe('podkit doctor', () => {
             '--config',
             configPath,
             'doctor',
-            '--repair-artwork',
+            '--repair',
+            'artwork-integrity',
             '--device',
             target.path,
           ]);
 
           expect(result.exitCode).toBe(1);
-          expect(result.stderr).toContain('Repair requires an explicit collection');
+          expect(result.stderr).toContain('requires a source collection');
 
           await rm(collectionDir, { recursive: true, force: true });
         } finally {

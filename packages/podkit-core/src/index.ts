@@ -216,24 +216,30 @@ export { parseArtworkDB } from './artwork/artworkdb-parser.js';
 export type { AnomalyType, Anomaly, FormatSummary, IntegrityReport } from './artwork/integrity.js';
 export { checkIntegrity } from './artwork/integrity.js';
 
-// Artwork repair
+// Artwork database operations (reset + rebuild)
 export type {
-  RepairProgress,
-  RepairResult,
-  RepairOptions,
-  RepairDependencies,
+  ResetResult,
+  ResetOptions,
+  RebuildProgress,
+  RebuildResult,
+  RebuildOptions,
+  RebuildDependencies,
 } from './artwork/repair.js';
-export { repairArtwork } from './artwork/repair.js';
+export { resetArtworkDatabase, rebuildArtworkDatabase } from './artwork/repair.js';
 
-// Doctor (iPod health checks)
+// Diagnostics (iPod health checks)
 export type {
-  DoctorContext,
-  DoctorRepairInfo,
-  DoctorCheckResult,
-  DoctorCheck,
-  DoctorReport,
-} from './doctor/index.js';
-export { runDoctor } from './doctor/index.js';
+  DiagnosticContext,
+  CheckResult,
+  RepairRequirement,
+  RepairContext,
+  RepairResult as DiagnosticRepairResult,
+  RepairRunOptions,
+  DiagnosticRepair,
+  DiagnosticCheck,
+  DiagnosticReport,
+} from './diagnostics/index.js';
+export { runDiagnostics, getDiagnosticCheck, getDiagnosticCheckIds } from './diagnostics/index.js';
 
 // Metadata extraction utilities
 export type { FileDisplayMetadata } from './metadata/extractor.js';

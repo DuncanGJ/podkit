@@ -1,25 +1,36 @@
 /**
- * Artwork integrity check for podkit doctor
+ * Artwork integrity diagnostic check
  *
  * Parses the iPod's ArtworkDB binary file and verifies that all thumbnail
  * references point to valid data within the .ithmb files. Detects the
  * corruption pattern where the ArtworkDB references offsets beyond the
  * ithmb file boundaries.
+ *
+ * When corruption is detected, the repair delegates to rebuildArtworkDatabase
+ * — the reusable primitive that resets and re-extracts artwork from sources.
  */
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArtworkDB } from '../../artwork/artworkdb-parser.js';
 import { checkIntegrity } from '../../artwork/integrity.js';
-import type { DoctorCheck, DoctorCheckResult, DoctorContext } from '../index.js';
+import { rebuildArtworkDatabase } from '../../artwork/repair.js';
+import type {
+  DiagnosticCheck,
+  CheckResult,
+  DiagnosticContext,
+  RepairContext,
+  RepairRunOptions,
+  RepairResult,
+} from '../types.js';
 
 const DOCS_URL = 'https://jvgomg.github.io/podkit/troubleshooting/artwork-repair';
 
-export const artworkIntegrityCheck: DoctorCheck = {
+export const artworkIntegrityCheck: DiagnosticCheck = {
   id: 'artwork-integrity',
   name: 'Artwork Integrity',
 
-  async run(ctx: DoctorContext): Promise<DoctorCheckResult> {
+  async check(ctx: DiagnosticContext): Promise<CheckResult> {
     const artworkDbPath = join(ctx.mountPoint, 'iPod_Control', 'Artwork', 'ArtworkDB');
 
     // Skip if no ArtworkDB exists (iPod has no artwork)
@@ -27,6 +38,7 @@ export const artworkIntegrityCheck: DoctorCheck = {
       return {
         status: 'skip',
         summary: 'No ArtworkDB found (iPod has no artwork)',
+        repairable: false,
       };
     }
 
@@ -37,6 +49,7 @@ export const artworkIntegrityCheck: DoctorCheck = {
       return {
         status: 'warn',
         summary: `Could not read ArtworkDB: ${error instanceof Error ? error.message : String(error)}`,
+        repairable: false,
       };
     }
 
@@ -44,6 +57,7 @@ export const artworkIntegrityCheck: DoctorCheck = {
       return {
         status: 'skip',
         summary: 'ArtworkDB is empty',
+        repairable: false,
       };
     }
 
@@ -54,6 +68,7 @@ export const artworkIntegrityCheck: DoctorCheck = {
       return {
         status: 'warn',
         summary: `Could not parse ArtworkDB: ${error instanceof Error ? error.message : String(error)}`,
+        repairable: false,
       };
     }
 
@@ -61,6 +76,7 @@ export const artworkIntegrityCheck: DoctorCheck = {
       return {
         status: 'pass',
         summary: 'ArtworkDB is empty (no artwork entries)',
+        repairable: false,
       };
     }
 
@@ -72,6 +88,7 @@ export const artworkIntegrityCheck: DoctorCheck = {
       return {
         status: 'pass',
         summary: `${totalMHII.toLocaleString()} entries, ${formats.length} format${formats.length === 1 ? '' : 's'} (${formatDesc}), all offsets valid`,
+        repairable: false,
         details: {
           totalEntries: totalMHNI,
           formats: formats.map((f) => ({
@@ -91,6 +108,7 @@ export const artworkIntegrityCheck: DoctorCheck = {
     return {
       status: 'fail',
       summary: 'CORRUPTION DETECTED',
+      repairable: true,
       details: {
         totalEntries: totalMHNI,
         corruptEntries: outOfBoundsCount,
@@ -104,11 +122,41 @@ export const artworkIntegrityCheck: DoctorCheck = {
           outOfBoundsEntries: f.outOfBoundsEntries,
         })),
       },
-      repair: {
-        flag: '--repair-artwork',
-        description: 'Rebuild all artwork from source collection',
-      },
       docsUrl: DOCS_URL,
     };
+  },
+
+  repair: {
+    description: 'Rebuild artwork database from source collection',
+    requirements: ['source-collection'],
+
+    async run(ctx: RepairContext, options?: RepairRunOptions): Promise<RepairResult> {
+      const result = await rebuildArtworkDatabase(
+        { db: ctx.db, adapters: ctx.adapters },
+        {
+          dryRun: options?.dryRun,
+          onProgress: options?.onProgress
+            ? (p) => options.onProgress!(p as unknown as Record<string, unknown>)
+            : undefined,
+        }
+      );
+
+      const summary = options?.dryRun
+        ? `Dry run: ${result.matched} tracks would be repaired, ${result.noSource} no source, ${result.noArtwork} no artwork`
+        : `Rebuilt artwork for ${result.matched} tracks (${result.noSource} no source, ${result.noArtwork} no artwork, ${result.errors} errors)`;
+
+      return {
+        success: result.errors === 0,
+        summary,
+        details: {
+          totalTracks: result.totalTracks,
+          matched: result.matched,
+          noSource: result.noSource,
+          noArtwork: result.noArtwork,
+          errors: result.errors,
+          errorDetails: result.errorDetails.length > 0 ? result.errorDetails : undefined,
+        },
+      };
+    },
   },
 };

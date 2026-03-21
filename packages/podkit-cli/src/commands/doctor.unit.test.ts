@@ -1,7 +1,7 @@
 /**
  * Unit tests for doctor command argument validation
  *
- * Tests that --repair-artwork requires explicit -d and -c flags
+ * Tests that --repair requires explicit -d and -c flags
  * to prevent accidental repairs against the wrong device or collection.
  */
 
@@ -44,38 +44,46 @@ function runCli(args: string): { stdout: string; stderr: string; exitCode: numbe
   }
 }
 
-describe('doctor --repair-artwork argument validation', () => {
-  it('requires -d flag when --repair-artwork is used', () => {
-    const result = runCli('doctor --repair-artwork');
+describe('doctor --repair argument validation', () => {
+  it('requires -d flag when --repair is used', () => {
+    const result = runCli('doctor --repair artwork-integrity');
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('Repair requires an explicit device');
     expect(result.stderr).toContain('-d');
   });
 
-  it('requires -c flag when --repair-artwork is used', () => {
+  it('requires -c flag when --repair is used for artwork-integrity', () => {
     // Use a nonexistent path for -d so we get past the device check
-    const result = runCli('doctor --repair-artwork -d /tmp/fake-ipod');
+    const result = runCli('doctor --repair artwork-integrity -d /tmp/fake-ipod');
 
     expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain('Repair requires an explicit collection');
+    expect(result.stderr).toContain('requires a source collection');
     expect(result.stderr).toContain('-c');
   });
 
+  it('rejects unknown check IDs', () => {
+    const result = runCli('doctor --repair nonexistent-check -d /tmp/fake-ipod');
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('Unknown check ID');
+    expect(result.stderr).toContain('nonexistent-check');
+  });
+
   it('does not require -d or -c for diagnostic-only mode', () => {
-    // Without --repair-artwork, doctor should attempt to run diagnostics
+    // Without --repair, doctor should attempt to run diagnostics
     // (will fail because no iPod is connected, but should NOT fail with
     // "requires explicit device/collection" errors)
     const result = runCli('doctor');
 
     // Should fail for a different reason (no device found), not argument validation
     expect(result.stderr).not.toContain('Repair requires an explicit device');
-    expect(result.stderr).not.toContain('Repair requires an explicit collection');
+    expect(result.stderr).not.toContain('requires a source collection');
   });
 
-  it('requires both -d and -c together for repair', () => {
+  it('requires both -d and -c together for artwork repair', () => {
     // Only -c without -d
-    const result = runCli('doctor --repair-artwork -c navidrome');
+    const result = runCli('doctor --repair artwork-integrity -c navidrome');
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('Repair requires an explicit device');

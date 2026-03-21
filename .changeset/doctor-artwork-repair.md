@@ -3,4 +3,4 @@
 "@podkit/core": minor
 ---
 
-Add `podkit doctor` command for running health checks on an iPod. The first check detects artwork corruption where the ArtworkDB references byte offsets beyond ithmb file boundaries. Use `podkit doctor --repair-artwork` to rebuild all artwork from your source collection, or `--dry-run` to preview what would change. Includes a binary ArtworkDB parser, integrity checker, and repair orchestrator in @podkit/core.
+Add `podkit doctor` command for running diagnostic checks on an iPod, and `podkit device reset-artwork` for wiping artwork and clearing sync tags. `podkit doctor` runs all checks and reports problems; `podkit doctor --repair artwork-integrity -c <collection>` repairs by check ID using the source collection. @podkit/core exports `resetArtworkDatabase` and `rebuildArtworkDatabase` primitives, and a diagnostic framework in the `diagnostics/` module built on a `DiagnosticCheck` interface (check + repair pattern). Includes a binary ArtworkDB parser and integrity checker.

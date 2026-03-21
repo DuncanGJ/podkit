@@ -3166,6 +3166,178 @@ const defaultSubcommand = new Command('default')
   });
 
 // =============================================================================
+// Reset artwork subcommand
+// =============================================================================
+
+interface ResetArtworkOptions {
+  yes?: boolean;
+  dryRun?: boolean;
+}
+
+interface DeviceResetArtworkOutput {
+  success: boolean;
+  tracksCleared?: number;
+  totalTracks?: number;
+  orphanedFilesRemoved?: number;
+  dryRun?: boolean;
+  error?: string;
+}
+
+const resetArtworkSubcommand = new Command('reset-artwork')
+  .description('wipe all artwork and clear artwork sync tags')
+  .option('-y, --yes', 'skip confirmation prompt')
+  .option('--dry-run', 'show what would happen without making changes')
+  .action(async (options: ResetArtworkOptions) => {
+    const { globalOpts } = getContext();
+    const out = OutputContext.fromGlobalOpts(globalOpts);
+    const autoConfirm = options.yes ?? false;
+    const dryRun = options.dryRun ?? false;
+
+    const resolved = resolveDeviceArg();
+    if ('error' in resolved) {
+      out.result<DeviceResetArtworkOutput>({ success: false, error: resolved.error }, () =>
+        out.error(resolved.error)
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    const { resolvedDevice, cliPath } = resolved;
+
+    let IpodDatabase: typeof import('@podkit/core').IpodDatabase;
+    let getDeviceManager: typeof import('@podkit/core').getDeviceManager;
+    let resetArtworkDatabase: typeof import('@podkit/core').resetArtworkDatabase;
+
+    try {
+      const core = await import('@podkit/core');
+      IpodDatabase = core.IpodDatabase;
+      getDeviceManager = core.getDeviceManager;
+      resetArtworkDatabase = core.resetArtworkDatabase;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load podkit-core';
+      out.result<DeviceResetArtworkOutput>({ success: false, error: message }, () => {
+        out.error('Failed to load podkit-core.');
+        out.verbose1(`Details: ${message}`);
+      });
+      process.exitCode = 1;
+      return;
+    }
+
+    const manager = getDeviceManager();
+    const deviceIdentity = getDeviceIdentity(resolvedDevice);
+
+    if (deviceIdentity?.volumeUuid) {
+      out.print(formatDeviceLookupMessage(resolvedDevice?.name, deviceIdentity, out.isVerbose));
+    }
+
+    const resolveResult = await resolveDevicePath({
+      cliDevice: cliPath,
+      deviceIdentity,
+      manager,
+      requireMounted: true,
+      quiet: globalOpts.quiet,
+    });
+
+    if (!resolveResult.path) {
+      out.result<DeviceResetArtworkOutput>(
+        { success: false, error: resolveResult.error ?? formatDeviceError(resolveResult) },
+        () => out.error(resolveResult.error ?? formatDeviceError(resolveResult))
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    const devicePath = resolveResult.path;
+
+    if (!existsSync(devicePath)) {
+      out.result<DeviceResetArtworkOutput>(
+        { success: false, error: `Device path not found: ${devicePath}` },
+        () => {
+          out.error(`iPod not found at: ${devicePath}`);
+          out.newline();
+          out.error('Make sure the iPod is connected and mounted.');
+        }
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    // Open database to get track count for confirmation message
+    let db: Awaited<ReturnType<typeof IpodDatabase.open>>;
+    try {
+      db = await IpodDatabase.open(devicePath);
+    } catch (err) {
+      out.result<DeviceResetArtworkOutput>(
+        {
+          success: false,
+          error: err instanceof Error ? err.message : 'Failed to open iPod database',
+        },
+        () => out.error(err instanceof Error ? err.message : 'Failed to open iPod database')
+      );
+      process.exitCode = 1;
+      return;
+    }
+
+    const trackCount = db.trackCount;
+
+    // Confirmation prompt (destructive operation — default to NO)
+    if (!dryRun && !autoConfirm && out.isText) {
+      out.print(`This will remove all artwork from ${trackCount.toLocaleString()} tracks`);
+      out.print('and clear artwork sync tags so the next sync re-adds artwork.');
+      out.newline();
+
+      const confirmed = await confirmNo('Reset artwork database?');
+      if (!confirmed) {
+        db.close();
+        out.print('Cancelled. No changes made.');
+        return;
+      }
+    }
+
+    try {
+      const result = await resetArtworkDatabase(db, devicePath, { dryRun });
+
+      const output: DeviceResetArtworkOutput = {
+        success: true,
+        tracksCleared: result.tracksCleared,
+        totalTracks: result.totalTracks,
+        orphanedFilesRemoved: result.orphanedFilesRemoved,
+        dryRun,
+      };
+
+      out.result<DeviceResetArtworkOutput>(output, () => {
+        if (dryRun) {
+          out.print(
+            `Dry run: would clear artwork from ${result.tracksCleared.toLocaleString()} of ${result.totalTracks.toLocaleString()} tracks.`
+          );
+        } else {
+          out.success(
+            `Cleared artwork from ${result.tracksCleared.toLocaleString()} of ${result.totalTracks.toLocaleString()} tracks.`
+          );
+          if (result.orphanedFilesRemoved > 0) {
+            out.print(
+              `Cleaned up ${result.orphanedFilesRemoved} orphaned .ithmb file${result.orphanedFilesRemoved === 1 ? '' : 's'}.`
+            );
+          }
+          out.newline();
+          out.print('The next `podkit sync` will re-add artwork from your source collection.');
+        }
+      });
+    } catch (err) {
+      out.result<DeviceResetArtworkOutput>(
+        {
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        },
+        () => out.error(`Reset artwork failed: ${err instanceof Error ? err.message : String(err)}`)
+      );
+      process.exitCode = 1;
+    } finally {
+      db.close();
+    }
+  });
+
+// =============================================================================
 // Main device command
 // =============================================================================
 
@@ -3182,6 +3354,7 @@ export const deviceCommand = new Command('device')
   .addCommand(videoSubcommand)
   .addCommand(clearSubcommand)
   .addCommand(resetSubcommand)
+  .addCommand(resetArtworkSubcommand)
   .addCommand(ejectSubcommand)
   .addCommand(mountSubcommand)
   .addCommand(initSubcommand)

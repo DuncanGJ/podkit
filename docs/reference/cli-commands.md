@@ -410,6 +410,19 @@ podkit device reset [-d <name>] [options]
 | `-y, --yes` | Skip confirmation prompt |
 | `--dry-run` | Show what would happen without making changes |
 
+### `podkit device reset-artwork`
+
+Wipe all artwork from the iPod and clear artwork sync tags. The next `podkit sync` will re-add artwork from your source collection.
+
+```bash
+podkit device reset-artwork [-d <name>] [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `-y, --yes` | Skip confirmation prompt |
+| `--dry-run` | Show what would happen without making changes |
+
 ### `podkit device eject`
 
 Safely unmount an iPod device. Also available as `podkit device unmount`.
@@ -607,7 +620,7 @@ podkit doctor [options]
 
 | Option | Description |
 |--------|-------------|
-| `--repair-artwork` | Rebuild all artwork from source collection (requires `-d` and `-c`) |
+| `--repair <check-id>` | Repair a specific check by ID, e.g. `artwork-integrity` (requires `-d`; some checks also need `-c`) |
 | `--dry-run` | Preview repair without modifying the iPod |
 
 ### Examples
@@ -620,10 +633,10 @@ podkit doctor
 podkit doctor -d myipod
 
 # Repair corrupted artwork (device and collection are required)
-podkit doctor -d myipod -c main --repair-artwork
+podkit doctor -d myipod -c main --repair artwork-integrity
 
 # Preview what repair would do
-podkit doctor -d myipod -c main --repair-artwork --dry-run
+podkit doctor -d myipod -c main --repair artwork-integrity --dry-run
 ```
 
 ### Health Checks

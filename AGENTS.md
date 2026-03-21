@@ -209,4 +209,5 @@ Key files to understand:
 | Dockerfile | `packages/podkit-docker/Dockerfile` |
 | Linux device manager | `packages/podkit-core/src/device/platforms/linux.ts` |
 | Lima VM configs | `tools/lima/` |
+| Diagnostics framework | `packages/podkit-core/src/diagnostics/` |
 | Lima test runner | `tools/lima/run-tests.sh` |

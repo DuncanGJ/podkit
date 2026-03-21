@@ -2,15 +2,15 @@
  * Doctor command — run health checks on an iPod
  *
  * Checks the iPod database for known issues and reports findings.
- * Currently checks:
- * - Artwork integrity (ArtworkDB vs ithmb file consistency)
+ * When a check fails and is repairable, the CLI maps domain-level
+ * repair requirements to flags and UX.
  *
  * @example
  * ```bash
- * podkit doctor                              # Run all checks
- * podkit doctor --json                       # JSON output
- * podkit doctor --repair-artwork             # Repair artwork corruption
- * podkit doctor --repair-artwork --dry-run   # Preview repair
+ * podkit doctor                                           # Run all checks
+ * podkit doctor --json                                    # JSON output
+ * podkit doctor --repair artwork-integrity -c main        # Repair by check ID
+ * podkit doctor --repair artwork-integrity -c main --dry-run  # Preview repair
  * ```
  */
 
@@ -35,8 +35,8 @@ interface DoctorCheckOutput {
   name: string;
   status: 'pass' | 'fail' | 'warn' | 'skip';
   summary: string;
+  repairable: boolean;
   details?: Record<string, unknown>;
-  repair?: { flag: string; description: string };
   docsUrl?: string;
 }
 
@@ -49,20 +49,16 @@ interface DoctorOutput {
 
 interface RepairOutput {
   success: boolean;
-  totalTracks: number;
-  matched: number;
-  noSource: number;
-  noArtwork: number;
-  errors: number;
+  summary: string;
+  checkId: string;
   dryRun: boolean;
-  error?: string;
-  errorDetails?: Array<{ artist: string; title: string; error: string }>;
+  details?: Record<string, unknown>;
 }
 
 // ── Options ─────────────────────────────────────────────────────────────────
 
 interface DoctorOptions {
-  repairArtwork?: boolean;
+  repair?: string;
   dryRun?: boolean;
   collection?: string;
 }
@@ -137,15 +133,45 @@ async function resolveDevice(out: OutputContext): Promise<{ path: string } | { e
 
 export const doctorCommand = new Command('doctor')
   .description('run health checks on an iPod')
-  .option('--repair-artwork', 'rebuild all artwork from source collection')
+  .option('--repair <check-id>', 'repair a specific check by ID (e.g. artwork-integrity)')
   .option('-c, --collection <name>', 'music collection to use as artwork source')
   .option('--dry-run', 'preview repair without modifying the iPod')
   .action(async (options: DoctorOptions) => {
     const { config, globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
 
-    // Repair is destructive — require explicit device and collection before resolving anything
-    if (options.repairArtwork) {
+    // Repair mode: validate requirements before resolving device
+    if (options.repair) {
+      // Look up the check
+      let getDiagnosticCheck: typeof import('@podkit/core').getDiagnosticCheck;
+      let getDiagnosticCheckIds: typeof import('@podkit/core').getDiagnosticCheckIds;
+      try {
+        const core = await import('@podkit/core');
+        getDiagnosticCheck = core.getDiagnosticCheck;
+        getDiagnosticCheckIds = core.getDiagnosticCheckIds;
+      } catch (err) {
+        out.error(err instanceof Error ? err.message : 'Failed to load podkit-core');
+        process.exitCode = 1;
+        return;
+      }
+
+      const check = getDiagnosticCheck(options.repair);
+      if (!check) {
+        const available = getDiagnosticCheckIds();
+        out.error(
+          `Unknown check ID: "${options.repair}". Available checks: ${available.join(', ')}`
+        );
+        process.exitCode = 1;
+        return;
+      }
+
+      if (!check.repair) {
+        out.error(`Check "${options.repair}" does not support automatic repair.`);
+        process.exitCode = 1;
+        return;
+      }
+
+      // Map domain requirements to CLI validation
       if (!globalOpts.device) {
         out.error(
           'Repair requires an explicit device. Use -d <name|path> to specify which iPod to repair.'
@@ -153,18 +179,31 @@ export const doctorCommand = new Command('doctor')
         process.exitCode = 1;
         return;
       }
-      if (!options.collection) {
+
+      const needsSource = check.repair.requirements.includes('source-collection');
+      if (needsSource && !options.collection) {
         const available = Object.keys(config.music ?? {});
         const hint = available.length > 0 ? ` Available collections: ${available.join(', ')}` : '';
         out.error(
-          `Repair requires an explicit collection. Use -c <name> to specify the artwork source.${hint}`
+          `Repair "${options.repair}" requires a source collection. Use -c <name> to specify.${hint}`
         );
         process.exitCode = 1;
         return;
       }
+
+      // Resolve device and run repair
+      const resolved = await resolveDevice(out);
+      if ('error' in resolved) {
+        out.error(resolved.error);
+        process.exitCode = 1;
+        return;
+      }
+
+      await runRepair(resolved.path, check, options, out, config);
+      return;
     }
 
-    // Resolve device
+    // Diagnostic-only mode
     const resolved = await resolveDevice(out);
     if ('error' in resolved) {
       out.result<DoctorOutput>(
@@ -175,32 +214,25 @@ export const doctorCommand = new Command('doctor')
       return;
     }
 
-    const devicePath = resolved.path;
-
-    // If --repair-artwork, run repair flow
-    if (options.repairArtwork) {
-      await runRepair(devicePath, options.dryRun ?? false, options.collection, out, config);
-      return;
-    }
-
-    // Otherwise, run diagnostic checks
-    await runDiagnostics(devicePath, out);
+    await runDiagnostics(resolved.path, out);
   });
 
 // ── Diagnostics ─────────────────────────────────────────────────────────────
 
 async function runDiagnostics(devicePath: string, out: OutputContext): Promise<void> {
-  let runDoctor: typeof import('@podkit/core').runDoctor;
+  let runDiagnostics: typeof import('@podkit/core').runDiagnostics;
+  let getDiagnosticCheck: typeof import('@podkit/core').getDiagnosticCheck;
   try {
     const core = await import('@podkit/core');
-    runDoctor = core.runDoctor;
+    runDiagnostics = core.runDiagnostics;
+    getDiagnosticCheck = core.getDiagnosticCheck;
   } catch (err) {
     out.error(err instanceof Error ? err.message : 'Failed to load podkit-core');
     process.exitCode = 1;
     return;
   }
 
-  const report = await runDoctor(devicePath);
+  const report = await runDiagnostics(devicePath);
 
   const output: DoctorOutput = {
     healthy: report.healthy,
@@ -211,8 +243,8 @@ async function runDiagnostics(devicePath: string, out: OutputContext): Promise<v
       name: c.name,
       status: c.status,
       summary: c.summary,
+      repairable: c.repairable,
       details: c.details,
-      repair: c.repair,
       docsUrl: c.docsUrl,
     })),
   };
@@ -247,9 +279,18 @@ async function runDiagnostics(devicePath: string, out: OutputContext): Promise<v
         out.print('    Affected tracks display wrong or missing artwork on the iPod.');
       }
 
-      if (check.repair) {
-        out.newline();
-        out.print(`    To repair: podkit doctor ${check.repair.flag}`);
+      // Show repair instructions if the check is repairable
+      if (check.repairable) {
+        const diagCheck = getDiagnosticCheck(check.id);
+        if (diagCheck?.repair) {
+          out.newline();
+          const reqHints: string[] = [];
+          if (diagCheck.repair.requirements.includes('source-collection')) {
+            reqHints.push('-c <collection>');
+          }
+          const reqStr = reqHints.length > 0 ? ` ${reqHints.join(' ')}` : '';
+          out.print(`    To repair: podkit doctor --repair ${check.id}${reqStr}`);
+        }
       }
 
       if (check.docsUrl) {
@@ -275,11 +316,14 @@ async function runDiagnostics(devicePath: string, out: OutputContext): Promise<v
 
 async function runRepair(
   devicePath: string,
-  dryRun: boolean,
-  collectionName: string | undefined,
+  check: NonNullable<ReturnType<typeof import('@podkit/core').getDiagnosticCheck>>,
+  options: DoctorOptions,
   out: OutputContext,
   config: ReturnType<typeof getContext>['config']
 ): Promise<void> {
+  const repair = check.repair!;
+  const dryRun = options.dryRun ?? false;
+
   let core: typeof import('@podkit/core');
   try {
     core = await import('@podkit/core');
@@ -288,21 +332,6 @@ async function runRepair(
     process.exitCode = 1;
     return;
   }
-
-  // Resolve the specified collection (always required — validated before calling runRepair)
-  const allMusic = config.music ?? {};
-  const found = allMusic[collectionName!];
-  if (!found) {
-    const available = Object.keys(allMusic);
-    const msg =
-      available.length > 0
-        ? `Available collections: ${available.join(', ')}`
-        : 'No music collections configured.';
-    out.error(`Music collection "${collectionName}" not found. ${msg}`);
-    process.exitCode = 1;
-    return;
-  }
-  const selectedCollections = { [collectionName!]: found };
 
   // Open iPod database
   let db: Awaited<ReturnType<typeof core.IpodDatabase.open>>;
@@ -314,48 +343,66 @@ async function runRepair(
     return;
   }
 
-  // Create and connect adapters
+  // Resolve source collection adapters if needed
   const adapters: import('@podkit/core').CollectionAdapter[] = [];
-  try {
-    for (const [name, collectionConfig] of Object.entries(selectedCollections)) {
+  const needsSource = repair.requirements.includes('source-collection');
+
+  if (needsSource && options.collection) {
+    const allMusic = config.music ?? {};
+    const found = allMusic[options.collection];
+    if (!found) {
+      db.close();
+      const available = Object.keys(allMusic);
+      const msg =
+        available.length > 0
+          ? `Available collections: ${available.join(', ')}`
+          : 'No music collections configured.';
+      out.error(`Music collection "${options.collection}" not found. ${msg}`);
+      process.exitCode = 1;
+      return;
+    }
+
+    try {
       const adapter = createMusicAdapter({
-        config: collectionConfig,
-        name,
+        config: found,
+        name: options.collection,
       });
       await adapter.connect();
       adapters.push(adapter);
+    } catch (err) {
+      db.close();
+      out.error(
+        `Failed to connect to source collection: ${err instanceof Error ? err.message : String(err)}`
+      );
+      process.exitCode = 1;
+      return;
     }
-  } catch (err) {
-    db.close();
-    out.error(
-      `Failed to connect to source collection: ${err instanceof Error ? err.message : String(err)}`
-    );
-    process.exitCode = 1;
-    return;
   }
 
   if (!dryRun) {
-    out.print(
-      `Repairing artwork for ${db.trackCount.toLocaleString()} tracks${dryRun ? ' (dry run)' : ''}...`
-    );
+    out.print(`Repairing ${check.id} for ${db.trackCount.toLocaleString()} tracks...`);
     out.newline();
   } else {
-    out.print(`Dry run: checking artwork repair for ${db.trackCount.toLocaleString()} tracks...`);
+    out.print(
+      `Dry run: checking ${check.id} repair for ${db.trackCount.toLocaleString()} tracks...`
+    );
     out.newline();
   }
 
   try {
-    const result = await core.repairArtwork(
-      { db, adapters },
+    const result = await repair.run(
+      { mountPoint: devicePath, db, adapters },
       {
         dryRun,
         onProgress: (progress) => {
           if (!out.isText) return;
-          // Simple progress line (overwrite previous)
-          const pct = Math.round((progress.current / progress.total) * 100);
-          process.stderr.write(
-            `\r  ${progress.current} / ${progress.total}  (${pct}%)  Matched: ${progress.matched}  No source: ${progress.noSource}  No artwork: ${progress.noArtwork}`
-          );
+          const p = progress as Record<string, number>;
+          if (p.current !== undefined && p.total !== undefined) {
+            const pct = Math.round((p.current / p.total) * 100);
+            process.stderr.write(
+              `\r  ${p.current} / ${p.total}  (${pct}%)  Matched: ${p.matched ?? 0}  No source: ${p.noSource ?? 0}  No artwork: ${p.noArtwork ?? 0}`
+            );
+          }
         },
       }
     );
@@ -366,55 +413,45 @@ async function runRepair(
     }
 
     const output: RepairOutput = {
-      success: result.errors === 0,
-      totalTracks: result.totalTracks,
-      matched: result.matched,
-      noSource: result.noSource,
-      noArtwork: result.noArtwork,
-      errors: result.errors,
+      success: result.success,
+      summary: result.summary,
+      checkId: check.id,
       dryRun,
-      errorDetails: result.errorDetails.length > 0 ? result.errorDetails : undefined,
+      details: result.details,
     };
 
     out.result<RepairOutput>(output, () => {
-      out.print(dryRun ? 'Dry run complete.' : 'Repair complete.');
-      out.print(
-        `  Matched & ${dryRun ? 'would repair' : 'repaired'}:  ${result.matched.toLocaleString()} tracks`
-      );
-      out.print(
-        `  No source found:     ${result.noSource.toLocaleString()} tracks (artwork ${dryRun ? 'would be ' : ''}cleared)`
-      );
-      out.print(
-        `  Source has no art:   ${result.noArtwork.toLocaleString()} tracks (artwork ${dryRun ? 'would be ' : ''}cleared)`
-      );
-      out.print(`  Errors:              ${result.errors.toLocaleString()}`);
+      out.print(result.summary);
 
-      if (result.errorDetails.length > 0) {
-        out.newline();
-        out.error('Error details:');
-        for (const err of result.errorDetails.slice(0, 10)) {
-          out.error(`  ${err.artist} - ${err.title}: ${err.error}`);
-        }
-        if (result.errorDetails.length > 10) {
-          out.error(`  ... and ${result.errorDetails.length - 10} more`);
+      if (result.details) {
+        const d = result.details;
+        if (d.errorDetails && Array.isArray(d.errorDetails)) {
+          out.newline();
+          out.error('Error details:');
+          for (const err of (
+            d.errorDetails as Array<{ artist: string; title: string; error: string }>
+          ).slice(0, 10)) {
+            out.error(`  ${err.artist} - ${err.title}: ${err.error}`);
+          }
+          if ((d.errorDetails as Array<unknown>).length > 10) {
+            out.error(`  ... and ${(d.errorDetails as Array<unknown>).length - 10} more`);
+          }
         }
       }
 
-      // Run post-repair verification (not for dry run)
-      if (!dryRun && result.errors === 0) {
+      if (!dryRun && result.success) {
         out.newline();
-        out.success('Artwork rebuilt successfully. Run `podkit doctor` to verify.');
+        out.success('Repair complete. Run `podkit doctor` to verify.');
       }
     });
 
-    if (result.errors > 0) {
+    if (!result.success) {
       process.exitCode = 1;
     }
   } catch (err) {
     out.error(`Repair failed: ${err instanceof Error ? err.message : String(err)}`);
     process.exitCode = 1;
   } finally {
-    // Disconnect adapters
     for (const adapter of adapters) {
       try {
         await adapter.disconnect();

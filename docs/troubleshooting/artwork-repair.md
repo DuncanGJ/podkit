@@ -35,7 +35,7 @@ podkit doctor — checking iPod at /Volumes/TERAPOD
     The artwork database is out of sync with the thumbnail files.
     Affected tracks display wrong or missing artwork on the iPod.
 
-    To repair: podkit doctor -d <device> -c <collection> --repair-artwork
+    To repair: podkit doctor -d <device> -c <collection> --repair artwork-integrity
 ```
 
 ## Repairing Artwork
@@ -43,7 +43,7 @@ podkit doctor — checking iPod at /Volumes/TERAPOD
 The repair command rebuilds all artwork from your source music collection. You must specify the device (`-d`) and collection (`-c`) so podkit knows which source to match tracks against:
 
 ```bash
-podkit doctor -d myipod -c main --repair-artwork
+podkit doctor -d myipod -c main --repair artwork-integrity
 ```
 
 ### What the Repair Does
@@ -71,7 +71,7 @@ podkit doctor -d myipod -c main --repair-artwork
 Use `--dry-run` to see what would happen without making changes:
 
 ```bash
-podkit doctor -d myipod -c main --repair-artwork --dry-run
+podkit doctor -d myipod -c main --repair artwork-integrity --dry-run
 ```
 
 This loads your collection, matches tracks, and reports statistics without modifying the iPod.
