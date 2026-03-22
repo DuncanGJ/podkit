@@ -98,7 +98,7 @@ sidebar:
 
 ## LLM Documentation
 
-The docs site generates machine-readable documentation for LLM agents via the `starlight-llms-txt` plugin. Configuration is in `packages/docs-site/astro.config.mjs`.
+The docs site generates machine-readable documentation for LLM agents via the `starlight-llms-txt` plugin. Configuration is in `packages/docs-site/config/llms-txt.ts`.
 
 **When adding or moving docs pages:**
 - New pages within existing directories are automatically included in the right custom documentation sets (glob patterns use `**` wildcards).

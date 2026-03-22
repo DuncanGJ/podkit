@@ -35,7 +35,7 @@ Some docs appear in multiple sets (e.g. environment variables is in both Setup a
 
 ## Configuration
 
-The plugin is configured in `packages/docs-site/astro.config.mjs` inside the `starlightLlmsTxt()` call.
+The plugin is configured in `packages/docs-site/config/llms-txt.ts` (imported into `astro.config.mjs`).
 
 Key options:
 

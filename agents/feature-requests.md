@@ -261,7 +261,7 @@ Features in **Later** generally don't need backlog tasks — the discussion is s
 
 ## Sidebar Configuration
 
-The roadmap and feedback pages are in the Astro sidebar config at `packages/docs-site/astro.config.mjs`:
+The roadmap and feedback pages are in the Astro sidebar config at `packages/docs-site/config/sidebar.ts`:
 
 ```javascript
 {
