@@ -459,8 +459,8 @@ function ipodTrackToFullJson(t: {
     tvShow: t.tvShow || null,
     tvEpisode: t.tvEpisode || null,
     sortTvShow: t.sortTvShow || null,
-    seasonNumber: t.seasonNumber || null,
-    episodeNumber: t.episodeNumber || null,
+    seasonNumber: t.seasonNumber ?? null,
+    episodeNumber: t.episodeNumber ?? null,
     soundcheck: t.soundcheck || null,
     movieFlag: t.movieFlag || null,
   };

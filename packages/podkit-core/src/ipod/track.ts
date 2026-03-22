@@ -204,8 +204,8 @@ export class IpodTrackImpl implements IPodTrack {
     this.tvShow = data.tvShow ?? undefined;
     this.tvEpisode = data.tvEpisode ?? undefined;
     this.sortTvShow = data.sortTvShow ?? undefined;
-    this.seasonNumber = data.seasonNumber || undefined;
-    this.episodeNumber = data.episodeNumber || undefined;
+    this.seasonNumber = data.seasonNumber ?? undefined;
+    this.episodeNumber = data.episodeNumber ?? undefined;
     this.movieFlag = data.movieFlag ?? undefined;
   }
 
