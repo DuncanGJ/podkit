@@ -16,7 +16,33 @@
   font-display: swap;
 }
 
+/* Apple Garamond - Freeware (ITC Garamond recreation) */
+@font-face {
+  font-family: 'Apple Garamond';
+  src: url('../fonts/AppleGaramond-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Apple Garamond';
+  src: url('../fonts/AppleGaramond.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Apple Garamond';
+  src: url('../fonts/AppleGaramond-LightItalic.woff2') format('woff2');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+
 /* Override Starlight's default font variables */
 :root {
   --sl-font: 'Source Sans 3 Variable', 'Source Sans 3', sans-serif;
+  --sl-font-serif: 'Apple Garamond', 'Cormorant', Georgia, serif;
 }
