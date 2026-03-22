@@ -40,9 +40,6 @@ export interface SyncPlanOptions extends HandlerPlanOptions {
   artworkEnabled?: boolean;
 }
 
-/** @deprecated Use SyncPlanOptions instead */
-export type UnifiedPlanOptions = SyncPlanOptions;
-
 // =============================================================================
 // Operation Ordering
 // =============================================================================
@@ -202,9 +199,3 @@ export function createSyncPlanner<TSource, TDevice>(
 ): SyncPlanner<TSource, TDevice> {
   return new SyncPlanner(handler);
 }
-
-/** @deprecated Use createSyncPlanner instead */
-export const createPlanner = createSyncPlanner;
-
-/** @deprecated Use createSyncPlanner instead */
-export const createUnifiedPlanner = createSyncPlanner;

@@ -279,17 +279,13 @@ export type {
 } from '@podkit/core';
 
 // Generic differ types
-export type {
-  UnifiedSyncDiff,
-  SyncDiffOptions,
-  SyncDiffOptions as UnifiedDiffOptions,
-} from '@podkit/core';
+export type { UnifiedSyncDiff, SyncDiffOptions } from '@podkit/core';
 
 // Generic planner types
-export type { SyncPlanOptions, SyncPlanOptions as UnifiedPlanOptions } from '@podkit/core';
+export type { SyncPlanOptions } from '@podkit/core';
 
 // Generic executor types
-export type { SyncExecuteOptions, SyncExecuteOptions as UnifiedExecuteOptions } from '@podkit/core';
+export type { SyncExecuteOptions } from '@podkit/core';
 
 // Video adapter type alias
 export type { VideoAdapter } from '@podkit/core';
@@ -744,7 +740,7 @@ export function createVideoDirectoryAdapter(config: { path: string }) {
 // Differ (mock)
 // =============================================================================
 
-export function computeDiff(collectionTracks: any[], ipodTracks: any[], _options?: any) {
+export function computeMusicDiff(collectionTracks: any[], ipodTracks: any[], _options?: any) {
   // If iPod is empty, all tracks are to-add
   if (ipodTracks.length === 0) {
     return {
@@ -770,7 +766,7 @@ export function computeDiff(collectionTracks: any[], ipodTracks: any[], _options
 // Planner (mock)
 // =============================================================================
 
-export function createPlan(diff: any, _options?: any) {
+export function createMusicPlan(diff: any, _options?: any) {
   const operations: any[] = [];
 
   for (const track of diff.toAdd || []) {
@@ -811,7 +807,7 @@ export function estimateCopySize(track: any): number {
   return estimateTranscodedSize(240000, 256);
 }
 
-export function calculateOperationSize(operation: any): number {
+export function calculateMusicOperationSize(operation: any): number {
   if (operation.type === 'transcode') {
     const duration = operation.source?.duration ?? 240000;
     return estimateTranscodedSize(duration, 256);
@@ -822,11 +818,11 @@ export function calculateOperationSize(operation: any): number {
   return 0;
 }
 
-export function willFitInSpace(_plan: any, _availableSpace: number): boolean {
+export function willMusicFitInSpace(_plan: any, _availableSpace: number): boolean {
   return true;
 }
 
-export function getPlanSummary(plan: any) {
+export function getMusicPlanSummary(plan: any) {
   let transcodeCount = 0;
   let copyCount = 0;
   let removeCount = 0;
@@ -864,7 +860,7 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export class DefaultSyncExecutor {
+export class MusicExecutor {
   private _ipod: any;
   private _transcoder: any;
 
@@ -892,7 +888,7 @@ export class DefaultSyncExecutor {
             ? `${op.track.artist} - ${op.track.title}`
             : 'Unknown';
 
-      const opSize = calculateOperationSize(op);
+      const opSize = calculateMusicOperationSize(op);
 
       // Emit transcoding/copying progress
       const phase =
@@ -972,11 +968,11 @@ export class DefaultSyncExecutor {
 }
 
 export function createExecutor(deps: any) {
-  return new DefaultSyncExecutor(deps);
+  return new MusicExecutor(deps);
 }
 
 export async function executePlan(plan: any, deps: any, options: any = {}) {
-  const executor = new DefaultSyncExecutor(deps);
+  const executor = new MusicExecutor(deps);
   let completed = 0;
   let failed = 0;
   let skipped = 0;
@@ -998,7 +994,7 @@ export async function executePlan(plan: any, deps: any, options: any = {}) {
   };
 }
 
-export function getOperationDisplayName(operation: any): string {
+export function getMusicOperationDisplayName(operation: any): string {
   switch (operation.type) {
     case 'transcode':
     case 'copy':
@@ -1032,7 +1028,7 @@ export function createCategorizedError(
   return {
     error,
     category: categorizeError(error, operation.type),
-    trackName: getOperationDisplayName(operation),
+    trackName: getMusicOperationDisplayName(operation),
     retryAttempts,
     wasRetried,
   };
@@ -1043,7 +1039,7 @@ export function getRetriesForCategory(category: string, _config: any): number {
   return 0;
 }
 
-export const DEFAULT_RETRY_CONFIG = {
+export const MUSIC_RETRY_CONFIG = {
   transcodeRetries: 1,
   copyRetries: 1,
   databaseRetries: 0,
@@ -1943,7 +1939,7 @@ export class MusicHandler {
   }
 
   estimateSize(operation: any): number {
-    return calculateOperationSize(operation);
+    return calculateMusicOperationSize(operation);
   }
 
   estimateTime(_operation: any): number {
@@ -1951,7 +1947,7 @@ export class MusicHandler {
   }
 
   getDisplayName(operation: any): string {
-    return getOperationDisplayName(operation);
+    return getMusicOperationDisplayName(operation);
   }
 
   getDryRunSummary(diff: any, plan: any): any {
@@ -2087,18 +2083,9 @@ export class SyncDiffer {
   }
 }
 
-/** @deprecated Use SyncDiffer instead */
-export const UnifiedDiffer = SyncDiffer;
-
 export function createSyncDiffer(handler: any) {
   return new SyncDiffer(handler);
 }
-
-/** @deprecated Use createSyncDiffer instead */
-export const createDiffer = createSyncDiffer;
-
-/** @deprecated Use createSyncDiffer instead */
-export const createUnifiedDiffer = createSyncDiffer;
 
 // =============================================================================
 // SyncPlanner (mock)
@@ -2126,18 +2113,9 @@ export class SyncPlanner {
   }
 }
 
-/** @deprecated Use SyncPlanner instead */
-export const UnifiedPlanner = SyncPlanner;
-
 export function createSyncPlanner(handler: any) {
   return new SyncPlanner(handler);
 }
-
-/** @deprecated Use createSyncPlanner instead */
-export const createPlanner = createSyncPlanner;
-
-/** @deprecated Use createSyncPlanner instead */
-export const createUnifiedPlanner = createSyncPlanner;
 
 export function orderOperations(operations: any[]): any[] {
   const order: Record<string, number> = {
@@ -2211,15 +2189,9 @@ export class SyncExecutor {
   }
 }
 
-/** @deprecated Use SyncExecutor instead */
-export const UnifiedExecutor = SyncExecutor;
-
 export function createSyncExecutor(handler: any) {
   return new SyncExecutor(handler);
 }
-
-/** @deprecated Use createSyncExecutor instead */
-export const createUnifiedExecutor = createSyncExecutor;
 
 // =============================================================================
 // Stream utilities (mock)

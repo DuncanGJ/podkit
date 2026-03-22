@@ -52,9 +52,6 @@ export interface SyncExecuteOptions {
   retryConfig?: RetryConfig;
 }
 
-/** @deprecated Use SyncExecuteOptions instead */
-export type UnifiedExecuteOptions = SyncExecuteOptions;
-
 // =============================================================================
 // Helpers
 // =============================================================================
@@ -407,6 +404,3 @@ export function createSyncExecutor<TSource, TDevice>(
 ): SyncExecutor<TSource, TDevice> {
   return new SyncExecutor(handler);
 }
-
-/** @deprecated Use createSyncExecutor instead */
-export const createUnifiedExecutor = createSyncExecutor;

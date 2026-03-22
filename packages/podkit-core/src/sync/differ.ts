@@ -19,8 +19,6 @@
 import type { ContentTypeHandler, HandlerDiffOptions, MatchInfo } from './content-type.js';
 import type { UpdateReason } from './types.js';
 
-// Re-export for backward compatibility
-export type { UnifiedSyncDiff } from './content-type.js';
 import type { UnifiedSyncDiff } from './content-type.js';
 
 // =============================================================================
@@ -31,9 +29,6 @@ import type { UnifiedSyncDiff } from './content-type.js';
  * Options for sync diff computation
  */
 export interface SyncDiffOptions extends HandlerDiffOptions {}
-
-/** @deprecated Use SyncDiffOptions instead */
-export type UnifiedDiffOptions = SyncDiffOptions;
 
 // =============================================================================
 // SyncDiffer
@@ -183,9 +178,3 @@ export function createSyncDiffer<TSource, TDevice>(
 ): SyncDiffer<TSource, TDevice> {
   return new SyncDiffer(handler);
 }
-
-/** @deprecated Use createSyncDiffer instead */
-export const createDiffer = createSyncDiffer;
-
-/** @deprecated Use createSyncDiffer instead */
-export const createUnifiedDiffer = createSyncDiffer;

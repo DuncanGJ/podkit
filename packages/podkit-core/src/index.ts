@@ -39,15 +39,11 @@ export type { SubsonicAdapterConfig } from './adapters/subsonic.js';
 // Sync engine
 export type {
   MatchedTrack,
-  SyncDiff as MusicSyncDiff,
   SyncDiff,
   SyncPlan,
   SyncOperation,
   ExecuteOptions,
   SyncProgress,
-  SyncExecutor as MusicSyncExecutor,
-  SyncDiffer as MusicSyncDiffer,
-  SyncPlanner as MusicSyncPlanner,
   PlanOptions,
   TranscodePresetRef,
   SourceCategory,
@@ -58,7 +54,6 @@ export type {
   UpgradeReason,
   MetadataChange,
   UpdateTrack,
-  DiffOptions as MusicDiffOptions,
   DiffOptions,
   // Unified executor types (canonical definitions)
   ErrorCategory,
@@ -70,7 +65,7 @@ export type {
 } from './sync/types.js';
 
 // Differ
-export { computeMusicDiff, computeMusicDiff as computeDiff } from './sync/music-differ.js';
+export { computeMusicDiff } from './sync/music-differ.js';
 
 // Upgrade detection (self-healing sync)
 export {
@@ -89,17 +84,13 @@ export type { PresetChangeOptions } from './sync/upgrades.js';
 // Planner
 export {
   createMusicPlan,
-  createMusicPlan as createPlan,
   isIPodCompatible,
   requiresTranscoding,
   estimateTranscodedSize,
   estimateCopySize,
   calculateMusicOperationSize,
-  calculateMusicOperationSize as calculateOperationSize,
   willMusicFitInSpace,
-  willMusicFitInSpace as willFitInSpace,
   getMusicPlanSummary,
-  getMusicPlanSummary as getPlanSummary,
   categorizeSource,
   isLosslessSource,
   willWarnLossyToLossy,
@@ -151,16 +142,13 @@ export type {
 } from './sync/music-executor.js';
 export {
   MusicExecutor,
-  MusicExecutor as DefaultSyncExecutor,
   createExecutor,
   executePlan,
   getMusicOperationDisplayName,
-  getMusicOperationDisplayName as getOperationDisplayName,
   categorizeError,
   createCategorizedError,
   getRetriesForCategory,
   MUSIC_RETRY_CONFIG,
-  MUSIC_RETRY_CONFIG as DEFAULT_RETRY_CONFIG,
 } from './sync/music-executor.js';
 
 // Transcoding
@@ -544,34 +532,16 @@ export {
 } from './sync/handlers/video-handler.js';
 
 // Generic differ
-export type { SyncDiffOptions, UnifiedDiffOptions } from './sync/differ.js';
-export {
-  SyncDiffer,
-  SyncDiffer as UnifiedDiffer,
-  createSyncDiffer,
-  createDiffer,
-  createUnifiedDiffer,
-} from './sync/differ.js';
+export type { SyncDiffOptions } from './sync/differ.js';
+export { SyncDiffer, createSyncDiffer } from './sync/differ.js';
 
 // Generic planner
-export type { SyncPlanOptions, UnifiedPlanOptions } from './sync/planner.js';
-export {
-  SyncPlanner,
-  SyncPlanner as UnifiedPlanner,
-  createSyncPlanner,
-  createPlanner,
-  createUnifiedPlanner,
-  orderOperations,
-} from './sync/planner.js';
+export type { SyncPlanOptions } from './sync/planner.js';
+export { SyncPlanner, createSyncPlanner, orderOperations } from './sync/planner.js';
 
 // Generic executor
-export type { SyncExecuteOptions, UnifiedExecuteOptions } from './sync/executor.js';
-export {
-  SyncExecutor,
-  SyncExecutor as UnifiedExecutor,
-  createSyncExecutor,
-  createUnifiedExecutor,
-} from './sync/executor.js';
+export type { SyncExecuteOptions } from './sync/executor.js';
+export { SyncExecutor, createSyncExecutor } from './sync/executor.js';
 
 // Stream utilities (for remote sources)
 export { streamToTempFile, cleanupTempFile } from './utils/stream.js';

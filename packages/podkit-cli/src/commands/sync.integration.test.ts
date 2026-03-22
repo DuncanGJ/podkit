@@ -5,9 +5,9 @@ import { join } from 'node:path';
 import { createTestIpod, TestModels } from '@podkit/gpod-testing';
 import {
   IpodDatabase,
-  computeDiff,
-  createPlan,
-  getPlanSummary,
+  computeMusicDiff,
+  createMusicPlan,
+  getMusicPlanSummary,
   createDirectoryAdapter,
 } from '@podkit/core';
 
@@ -60,7 +60,7 @@ describe('sync command integration', () => {
         // IpodDatabase.getTracks() returns IPodTrack[] directly
         const ipodTracks = ipod.getTracks();
 
-        const diff = computeDiff(collectionTracks, ipodTracks);
+        const diff = computeMusicDiff(collectionTracks, ipodTracks);
 
         expect(diff.toAdd).toHaveLength(0);
         expect(diff.toRemove).toHaveLength(0);
@@ -87,7 +87,7 @@ describe('sync command integration', () => {
         // IpodDatabase.getTracks() returns IPodTrack[] directly
         const ipodTracks = ipod.getTracks();
 
-        const diff = computeDiff(collectionTracks, ipodTracks);
+        const diff = computeMusicDiff(collectionTracks, ipodTracks);
 
         expect(diff.toAdd).toHaveLength(0);
         expect(diff.toRemove).toHaveLength(2);
@@ -118,11 +118,11 @@ describe('sync command integration', () => {
         const ipodTracks = ipod.getTracks();
 
         // Empty collection diff
-        const diff = computeDiff([], ipodTracks);
+        const diff = computeMusicDiff([], ipodTracks);
 
         // Create plan with removeOrphans
-        const plan = createPlan(diff, { removeOrphans: true });
-        const summary = getPlanSummary(plan);
+        const plan = createMusicPlan(diff, { removeOrphans: true });
+        const summary = getMusicPlanSummary(plan);
 
         expect(summary.removeCount).toBe(2);
         expect(summary.transcodeCount).toBe(0);
@@ -142,11 +142,11 @@ describe('sync command integration', () => {
         const ipodTracks = ipod.getTracks();
 
         // Empty collection diff
-        const diff = computeDiff([], ipodTracks);
+        const diff = computeMusicDiff([], ipodTracks);
 
         // Create plan without removeOrphans
-        const plan = createPlan(diff, { removeOrphans: false });
-        const summary = getPlanSummary(plan);
+        const plan = createMusicPlan(diff, { removeOrphans: false });
+        const summary = getMusicPlanSummary(plan);
 
         expect(summary.removeCount).toBe(0);
         expect(plan.operations).toHaveLength(0);

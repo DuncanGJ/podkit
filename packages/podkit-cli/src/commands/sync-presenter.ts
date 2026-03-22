@@ -401,7 +401,7 @@ export class MusicPresenter implements ContentTypePresenter<CollectionTrack, IPo
         ? 'high'
         : config.effectiveQuality;
 
-    return core.computeDiff(sourceItems, deviceItems, {
+    return core.computeMusicDiff(sourceItems, deviceItems, {
       transforms: config.effectiveTransforms,
       skipUpgrades: config.skipUpgrades,
       forceTranscode: config.forceTranscode,
@@ -450,18 +450,18 @@ export class MusicPresenter implements ContentTypePresenter<CollectionTrack, IPo
       encoding: config.effectiveEncoding,
       customBitrate: config.effectiveCustomBitrate,
     };
-    const plan = core.createPlan(diff, {
+    const plan = core.createMusicPlan(diff, {
       removeOrphans,
       transcodeConfig,
       deviceSupportsAlac: config.deviceSupportsAlac,
       artworkEnabled: config.effectiveArtwork,
     });
-    const summary = core.getPlanSummary(plan);
+    const summary = core.getMusicPlanSummary(plan);
     return { plan, summary };
   }
 
   willFit(plan: SyncPlan, freeSpace: number, core: typeof import('@podkit/core')): boolean {
-    return core.willFitInSpace(plan, freeSpace);
+    return core.willMusicFitInSpace(plan, freeSpace);
   }
 
   renderDryRunText(
@@ -581,7 +581,7 @@ export class MusicPresenter implements ContentTypePresenter<CollectionTrack, IPo
               symbol = '+';
           }
           const typeStr = op.type.padEnd(15);
-          out.print(`  ${symbol} [${typeStr}] ${core.getOperationDisplayName(op)}`);
+          out.print(`  ${symbol} [${typeStr}] ${core.getMusicOperationDisplayName(op)}`);
         }
         out.newline();
       }
@@ -621,7 +621,7 @@ export class MusicPresenter implements ContentTypePresenter<CollectionTrack, IPo
     const operations: SyncOutput['operations'] = plan.operations.map((op: SyncOperation) => {
       const base = {
         type: op.type,
-        track: core.getOperationDisplayName(op),
+        track: core.getMusicOperationDisplayName(op),
         status: 'pending' as const,
       };
       if (op.type === 'update-metadata') {
@@ -753,7 +753,7 @@ export class MusicPresenter implements ContentTypePresenter<CollectionTrack, IPo
     let completed = 0;
     let failed = 0;
 
-    const executor = new core.DefaultSyncExecutor({ ipod, transcoder: config.transcoder });
+    const executor = new core.MusicExecutor({ ipod, transcoder: config.transcoder });
     const musicDisplay = new DualProgressDisplay((content) => out.raw(content));
 
     try {
@@ -771,7 +771,8 @@ export class MusicPresenter implements ContentTypePresenter<CollectionTrack, IPo
         if (progress.error) {
           const categorized = progress.categorizedError;
           collectedErrors.push({
-            trackName: categorized?.trackName ?? core.getOperationDisplayName(progress.operation),
+            trackName:
+              categorized?.trackName ?? core.getMusicOperationDisplayName(progress.operation),
             category: categorized?.category ?? 'unknown',
             message: progress.error.message,
             retryAttempts: categorized?.retryAttempts ?? 0,

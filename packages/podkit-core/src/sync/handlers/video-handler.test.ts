@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { VideoHandler, createVideoHandler } from './video-handler.js';
 import { diffVideos } from '../video-differ.js';
 import type { CollectionVideo } from '../../video/directory-adapter.js';
-import type { IPodVideo, VideoDiffOptions } from '../video-differ.js';
+import type { IPodVideo } from '../video-differ.js';
 import type { SyncOperation, SyncPlan } from '../types.js';
 
 // =============================================================================
@@ -548,15 +548,16 @@ describe('diffVideos — force-metadata', () => {
 });
 
 describe('diffVideos — metadata correction detection', () => {
-  test('detects season number mismatch', () => {
+  test('different season numbers produce different keys (toAdd/toRemove, not update)', () => {
     const source = makeTVShowVideo({ seriesTitle: 'Show', seasonNumber: 2, episodeNumber: 1 });
     const device = makeIPodTVShow({ seriesTitle: 'Show', seasonNumber: 1, episodeNumber: 1 });
 
     const diff = diffVideos([source], [device]);
 
-    // Matched by tvshow:show:s02e01 vs s01e01 — won't match by key.
-    // Actually, different season+episode means different keys, so it goes to toAdd/toRemove.
-    // Let me test with only season number correction (same key match).
+    // Season number is part of the match key, so s02e01 vs s01e01 are different items
+    expect(diff.toAdd.length).toBe(1);
+    expect(diff.toRemove.length).toBe(1);
+    expect(diff.toUpdate.length).toBe(0);
   });
 
   test('detects year mismatch on movies', () => {
