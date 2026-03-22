@@ -210,7 +210,7 @@ async function buildSourceIndex(
   const index = new Map<string, { adapter: CollectionAdapter; track: CollectionTrack }>();
 
   for (const adapter of adapters) {
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
     for (const track of tracks) {
       const key = getMatchKey(track);
       if (!index.has(key)) {

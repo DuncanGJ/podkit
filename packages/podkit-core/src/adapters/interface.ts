@@ -112,20 +112,24 @@ export interface CollectionTrack {
 }
 
 /**
- * Adapter for reading tracks from a collection source
+ * Generic adapter for reading items from a collection source
+ *
+ * @typeParam TItem - The item type returned by the adapter (e.g., CollectionTrack, CollectionVideo)
+ * @typeParam TFilter - The filter type for querying items (e.g., TrackFilter, VideoFilter)
  *
  * Implementations:
- * - DirectoryAdapter: Scan filesystem directories
- * - Future: StrawberryAdapter, BeetsAdapter, etc.
+ * - DirectoryAdapter: Scan filesystem directories for audio files
+ * - SubsonicAdapter: Fetch tracks from Subsonic-compatible servers
+ * - VideoDirectoryAdapter: Scan filesystem directories for video files
  */
-export interface CollectionAdapter {
+export interface CollectionAdapter<TItem = CollectionTrack, TFilter = TrackFilter> {
   /**
    * Human-readable name for this adapter
    */
   readonly name: string;
 
   /**
-   * Technical adapter type identifier (e.g., 'directory', 'subsonic')
+   * Technical adapter type identifier (e.g., 'directory', 'subsonic', 'video-directory')
    */
   readonly adapterType: string;
 
@@ -136,31 +140,49 @@ export interface CollectionAdapter {
   connect(): Promise<void>;
 
   /**
-   * Get all tracks in collection
+   * Get all items in collection
    */
-  getTracks(): Promise<CollectionTrack[]>;
+  getItems(): Promise<TItem[]>;
 
   /**
-   * Get tracks matching filter criteria
+   * Get items matching filter criteria
    */
-  getFilteredTracks(filter: TrackFilter): Promise<CollectionTrack[]>;
+  getFilteredItems(filter: TFilter): Promise<TItem[]>;
 
   /**
-   * Get file access for a track
+   * Get file access for an item
    *
    * Local adapters return: { type: 'path', path: '/absolute/path.flac' }
    * Remote adapters return: { type: 'stream', getStream: () => ..., size: 12345 }
    *
-   * @param track - The track to get file access for
-   * @returns FileAccess object for reading the track's audio data
+   * @param item - The item to get file access for
+   * @returns FileAccess object for reading the item's data
    */
-  getFileAccess(track: CollectionTrack): FileAccess | Promise<FileAccess>;
+  getFileAccess(item: TItem): FileAccess | Promise<FileAccess>;
 
   /**
    * Disconnect from source and cleanup resources
    */
   disconnect(): Promise<void>;
 }
+
+/**
+ * Music collection adapter type alias
+ *
+ * Adapters that provide audio tracks with track-based filtering.
+ */
+export type MusicAdapter = CollectionAdapter<CollectionTrack, TrackFilter>;
+
+/**
+ * Video collection adapter type alias
+ *
+ * Adapters that provide video items with video-based filtering.
+ * Note: VideoAdapter uses types from the video module — import CollectionVideo
+ * and VideoFilter from '../video/directory-adapter.js' when needed.
+ */
+// VideoAdapter is defined as a re-export in the package index to avoid
+// circular imports (video types are in the video module, not here).
+// See: src/index.ts for the VideoAdapter type alias.
 
 /**
  * Configuration for creating a directory adapter

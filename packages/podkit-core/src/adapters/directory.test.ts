@@ -94,12 +94,12 @@ describe('DirectoryAdapter', () => {
     });
   });
 
-  describe('getTracks', () => {
+  describe('getItems', () => {
     it('returns empty array for empty directory', async () => {
       mockGlob.mockImplementation(async () => []);
 
       const adapter = new DirectoryAdapter({ path: '/empty' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks).toEqual([]);
     });
@@ -127,7 +127,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks).toHaveLength(1);
       const track = tracks[0]!;
@@ -161,7 +161,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks).toHaveLength(4);
       expect(tracks[0]!.fileType).toBe('mp3');
@@ -179,7 +179,7 @@ describe('DirectoryAdapter', () => {
 
       const adapter = new DirectoryAdapter({ path: '/music' });
       // Call getTracks without connecting first
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks).toHaveLength(1);
     });
@@ -194,7 +194,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.title).toBe('My Song');
     });
@@ -207,7 +207,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.title).toBe('Track Name');
     });
@@ -228,7 +228,7 @@ describe('DirectoryAdapter', () => {
         }));
 
         const adapter = new DirectoryAdapter({ path: '/music' });
-        const tracks = await adapter.getTracks();
+        const tracks = await adapter.getItems();
         expect(tracks[0]!.title).toBe(expected);
       }
     });
@@ -243,7 +243,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.title).toBe('01');
     });
@@ -257,7 +257,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.title).toBe('Unknown Title');
     });
@@ -270,7 +270,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.artist).toBe('Unknown Artist');
     });
@@ -283,7 +283,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.album).toBe('Unknown Album');
     });
@@ -301,7 +301,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.compilation).toBe(true);
     });
@@ -318,7 +318,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.compilation).toBeUndefined();
     });
@@ -331,7 +331,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       const track = tracks[0]!;
       expect(track.albumArtist).toBeUndefined();
@@ -369,7 +369,7 @@ describe('DirectoryAdapter', () => {
         onWarning: (warning) => warnings.push(warning),
       });
 
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks).toHaveLength(2);
       expect(warnings).toHaveLength(1);
@@ -396,14 +396,14 @@ describe('DirectoryAdapter', () => {
       });
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       // Should still continue and parse the good files
       expect(tracks).toHaveLength(2);
     });
   });
 
-  describe('getFilteredTracks', () => {
+  describe('getFilteredItems', () => {
     beforeEach(() => {
       mockGlob.mockImplementation(async () => [
         '/music/rock/song1.mp3',
@@ -423,7 +423,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const filtered = await adapter.getFilteredTracks({ artist: 'artist a' });
+      const filtered = await adapter.getFilteredItems({ artist: 'artist a' });
 
       expect(filtered).toHaveLength(1);
       expect(filtered[0]!.artist).toBe('Artist A');
@@ -440,7 +440,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const filtered = await adapter.getFilteredTracks({ album: 'Jazz' });
+      const filtered = await adapter.getFilteredItems({ album: 'Jazz' });
 
       expect(filtered).toHaveLength(1);
       expect(filtered[0]!.album).toBe('Jazz Album');
@@ -458,7 +458,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const filtered = await adapter.getFilteredTracks({ genre: 'Rock' });
+      const filtered = await adapter.getFilteredItems({ genre: 'Rock' });
 
       expect(filtered).toHaveLength(2);
     });
@@ -475,7 +475,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const filtered = await adapter.getFilteredTracks({ year: 2020 });
+      const filtered = await adapter.getFilteredItems({ year: 2020 });
 
       expect(filtered).toHaveLength(1);
     });
@@ -487,7 +487,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const filtered = await adapter.getFilteredTracks({ pathPattern: '**/rock/**' });
+      const filtered = await adapter.getFilteredItems({ pathPattern: '**/rock/**' });
 
       expect(filtered).toHaveLength(2);
     });
@@ -504,7 +504,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const filtered = await adapter.getFilteredTracks({ artist: 'Album Artist' });
+      const filtered = await adapter.getFilteredItems({ artist: 'Album Artist' });
 
       expect(filtered).toHaveLength(1);
     });
@@ -521,7 +521,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const filtered = await adapter.getFilteredTracks({
+      const filtered = await adapter.getFilteredItems({
         album: 'Rock',
         year: 2023,
       });
@@ -539,7 +539,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       const access = adapter.getFileAccess(tracks[0]!);
       expect(access.type).toBe('path');
@@ -617,7 +617,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks).toHaveLength(1);
       expect(tracks[0]!.title).toBe('\u97F3\u697D\u306E\u66F2');
@@ -636,7 +636,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.title).toBe("Rock 'n' Roll & Blues");
       expect(tracks[0]!.artist).toBe('AC/DC');
@@ -655,7 +655,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.title).toBe('Summer Vibes \u2600\uFE0F\uD83C\uDFB6');
     });
@@ -670,7 +670,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks.every((t) => t.fileType === 'flac')).toBe(true);
     });
@@ -683,7 +683,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.fileType).toBe('aac');
     });
@@ -696,7 +696,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.fileType).toBe('wav');
     });
@@ -710,7 +710,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.fileType).toBe('m4a');
     });
@@ -725,7 +725,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.filePath).toBe("/music/Artist's Album (Deluxe) [2023]/song.mp3");
     });
@@ -739,7 +739,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.duration).toBeUndefined();
     });
@@ -752,7 +752,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.duration).toBe(7200500); // milliseconds
     });
@@ -768,7 +768,7 @@ describe('DirectoryAdapter', () => {
       }));
 
       const adapter = new DirectoryAdapter({ path: '/music' });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       expect(tracks[0]!.trackNumber).toBeUndefined();
     });

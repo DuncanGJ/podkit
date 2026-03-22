@@ -23,8 +23,6 @@ import {
   calculateOperationSize,
   categorizeSource,
   createPlan,
-  createPlanner,
-  DefaultSyncPlanner,
   estimateCopySize,
   estimateTranscodedSize,
   getPlanSummary,
@@ -1169,81 +1167,6 @@ describe('createPlan - mixed scenarios', () => {
 
     expect(plan.operations).toHaveLength(1000);
     expect(endTime - startTime).toBeLessThan(100); // Should be fast
-  });
-});
-
-// =============================================================================
-// DefaultSyncPlanner Class Tests
-// =============================================================================
-
-describe('DefaultSyncPlanner', () => {
-  it('implements SyncPlanner interface', () => {
-    const planner = new DefaultSyncPlanner();
-
-    expect(typeof planner.plan).toBe('function');
-  });
-
-  it('produces same results as createPlan', () => {
-    const planner = new DefaultSyncPlanner();
-
-    const diff: SyncDiff = {
-      ...createEmptyDiff(),
-      toAdd: [
-        createCollectionTrack('Artist', 'FLAC', 'Album', 'flac'),
-        createCollectionTrack('Artist', 'MP3', 'Album', 'mp3'),
-      ],
-      toRemove: [createIPodTrack('Artist', 'Old', 'Album')],
-    };
-
-    const options = { removeOrphans: true };
-    const directPlan = createPlan(diff, options);
-    const classPlan = planner.plan(diff, options);
-
-    expect(classPlan.operations).toHaveLength(directPlan.operations.length);
-    expect(classPlan.estimatedSize).toBe(directPlan.estimatedSize);
-    expect(classPlan.estimatedTime).toBe(directPlan.estimatedTime);
-  });
-
-  it('handles options correctly', () => {
-    const planner = new DefaultSyncPlanner();
-
-    const diff: SyncDiff = {
-      ...createEmptyDiff(),
-      toAdd: [createCollectionTrack('Artist', 'Song', 'Album', 'flac')],
-    };
-
-    const planHigh = planner.plan(diff, { transcodeConfig: { quality: 'high' } });
-    const planLow = planner.plan(diff, { transcodeConfig: { quality: 'low' } });
-
-    // High preset should produce larger estimated size (256 vs 128 kbps target)
-    expect(planHigh.estimatedSize).toBeGreaterThan(planLow.estimatedSize);
-  });
-});
-
-// =============================================================================
-// createPlanner Factory Tests
-// =============================================================================
-
-describe('createPlanner', () => {
-  it('creates a SyncPlanner instance', () => {
-    const planner = createPlanner();
-
-    expect(planner).toBeInstanceOf(DefaultSyncPlanner);
-    expect(typeof planner.plan).toBe('function');
-  });
-
-  it('creates functional planner instances', () => {
-    const planner = createPlanner();
-
-    const diff: SyncDiff = {
-      ...createEmptyDiff(),
-      toAdd: [createCollectionTrack('Artist', 'Song', 'Album', 'flac')],
-    };
-
-    const plan = planner.plan(diff);
-
-    expect(plan.operations).toHaveLength(1);
-    expect(plan.estimatedSize).toBeGreaterThan(0);
   });
 });
 

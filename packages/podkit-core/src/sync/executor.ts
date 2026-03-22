@@ -33,6 +33,12 @@ import { AsyncQueue } from './async-queue.js';
 import { streamToTempFile, cleanupTempFile } from '../utils/stream.js';
 import { buildAudioSyncTag, parseSyncTag, writeSyncTag } from './sync-tags.js';
 import type { SyncTagData } from './sync-tags.js';
+import {
+  categorizeError as sharedCategorizeError,
+  getRetriesForCategory as sharedGetRetriesForCategory,
+  createCategorizedError as sharedCreateCategorizedError,
+  type RetryConfig as SharedRetryConfig,
+} from './error-handling.js';
 
 import type { CollectionTrack, CollectionAdapter } from '../adapters/interface.js';
 import type { FFmpegTranscoder } from '../transcode/ffmpeg.js';
@@ -42,79 +48,34 @@ import type {
   SyncOperation,
   SyncPlan,
   SyncProgress,
+  ErrorCategory as ErrorCategoryFromTypes,
+  CategorizedError as CategorizedErrorFromTypes,
+  ExecutionWarningType as ExecutionWarningTypeFromTypes,
+  ExecutionWarning as ExecutionWarningFromTypes,
+  ExecutorProgress as ExecutorProgressFromTypes,
+  ExecuteResult as ExecuteResultFromTypes,
 } from './types.js';
 import type { IpodDatabase, IPodTrack as IpodDatabaseTrack, TrackInput } from '../ipod/index.js';
-import { extractArtwork } from '../artwork/extractor.js';
-import { hashArtwork } from '../artwork/hash.js';
 import { AlbumArtworkCache } from '../artwork/album-cache.js';
 
 // =============================================================================
-// Extended Types
+// Extended Types — re-exported from types.ts (canonical definitions)
 // =============================================================================
 
-/**
- * Error category for determining retry behavior and reporting
- */
-export type ErrorCategory =
-  | 'transcode' // FFmpeg failure - retry once
-  | 'copy' // File copy failure - retry once
-  | 'database' // iPod database error - no retry
-  | 'artwork' // Artwork error - skip artwork only, continue sync
-  | 'unknown'; // Other errors - no retry
+/** @see types.ts for canonical definition */
+export type ErrorCategory = ErrorCategoryFromTypes;
 
-/**
- * Extended error with category information
- */
-export interface CategorizedError {
-  /** The original error */
-  error: Error;
-  /** Category of the error */
-  category: ErrorCategory;
-  /** Track identifier for display */
-  trackName: string;
-  /** Number of retry attempts made */
-  retryAttempts: number;
-  /** Whether this error type was retried */
-  wasRetried: boolean;
-}
+/** @see types.ts for canonical definition */
+export type CategorizedError = CategorizedErrorFromTypes;
 
-/**
- * Warning type for non-fatal issues during sync execution
- */
-export type ExecutionWarningType = 'artwork' | 'metadata';
+/** @see types.ts for canonical definition */
+export type ExecutionWarningType = ExecutionWarningTypeFromTypes;
 
-/**
- * A non-fatal warning generated during sync execution
- *
- * Warnings represent issues that don't prevent the sync from completing
- * (e.g., artwork extraction failures) but should be reported to the user.
- */
-export interface ExecutionWarning {
-  /** Type of warning */
-  type: ExecutionWarningType;
-  /** Track that triggered the warning */
-  track: { artist: string; title: string; album?: string };
-  /** Human-readable description of the issue */
-  message: string;
-}
+/** @see types.ts for canonical definition */
+export type ExecutionWarning = ExecutionWarningFromTypes;
 
-/**
- * Extended progress information for sync operations
- */
-export interface ExecutorProgress extends SyncProgress {
-  /** Current operation being executed */
-  operation: SyncOperation;
-  /** Index of current operation (0-based) */
-  index: number;
-  /** Error if operation failed */
-  error?: Error;
-  /** Categorized error with additional context */
-  categorizedError?: CategorizedError;
-  /** Whether this operation was skipped (dry-run) */
-  skipped?: boolean;
-  /** Current retry attempt (0 = first try, 1 = first retry) */
-  retryAttempt?: number;
-}
+/** @see types.ts for canonical definition */
+export type ExecutorProgress = ExecutorProgressFromTypes;
 
 /**
  * Retry configuration for different operation types
@@ -192,25 +153,8 @@ export interface ExtendedExecuteOptions extends ExecuteOptions {
   saveInterval?: number;
 }
 
-/**
- * Result of sync execution
- */
-export interface ExecuteResult {
-  /** Number of operations completed successfully */
-  completed: number;
-  /** Number of operations that failed */
-  failed: number;
-  /** Number of operations skipped (dry-run) */
-  skipped: number;
-  /** Errors encountered during execution (legacy format) */
-  errors: Array<{ operation: SyncOperation; error: Error }>;
-  /** Categorized errors with full context */
-  categorizedErrors: CategorizedError[];
-  /** Non-fatal warnings (e.g., artwork extraction failures) */
-  warnings: ExecutionWarning[];
-  /** Total bytes transferred */
-  bytesTransferred: number;
-}
+/** @see types.ts for canonical definition */
+export type ExecuteResult = ExecuteResultFromTypes;
 
 /**
  * Dependencies required by the executor
@@ -413,6 +357,8 @@ export function getOperationDisplayName(operation: SyncOperation): string {
       return operation.video.title;
     case 'video-update-metadata':
       return operation.video.title;
+    case 'video-upgrade':
+      return operation.source.title;
   }
 }
 
@@ -427,87 +373,40 @@ function calculateTotalBytes(plan: SyncPlan): number {
 /**
  * Categorize an error based on its message and operation type
  *
- * Priority order:
- * 1. Check error message for specific keywords (most reliable)
- * 2. Fall back to operation type as a hint
+ * Delegates to the shared error-handling module.
+ *
+ * @see error-handling.ts for the canonical implementation
  */
 export function categorizeError(error: Error, operationType: SyncOperation['type']): ErrorCategory {
-  const message = error.message.toLowerCase();
-
-  // Check for database errors FIRST (most specific, no retry)
-  if (
-    message.includes('database') ||
-    message.includes('itunes') ||
-    message.includes('libgpod') ||
-    message.includes('ipod')
-  ) {
-    return 'database';
-  }
-
-  // Check for artwork errors (no retry, but continue sync)
-  if (message.includes('artwork') || message.includes('image')) {
-    return 'artwork';
-  }
-
-  // Check for file I/O errors (retry once)
-  if (
-    message.includes('enoent') ||
-    message.includes('eacces') ||
-    message.includes('enospc') ||
-    message.includes('file not found') ||
-    message.includes('permission denied') ||
-    message.includes('no space')
-  ) {
-    return 'copy';
-  }
-
-  // Check for FFmpeg/transcode related errors (retry once)
-  if (
-    message.includes('ffmpeg') ||
-    message.includes('transcode') ||
-    message.includes('encoder') ||
-    message.includes('codec')
-  ) {
-    return 'transcode';
-  }
-
-  // Fall back to operation type as a hint for generic errors
-  if (operationType === 'transcode') {
-    return 'transcode';
-  }
-  if (operationType === 'copy') {
-    return 'copy';
-  }
-  if (operationType === 'upgrade') {
-    return 'copy'; // Upgrade errors are treated like copy errors for retry purposes
-  }
-
-  return 'unknown';
+  return sharedCategorizeError(error, operationType);
 }
 
 /**
  * Get the number of retries allowed for an error category
+ *
+ * Accepts the executor's RetryConfig (with `transcodeRetries`/`copyRetries`/`databaseRetries`
+ * naming) and adapts it to the shared module's interface.
  */
 export function getRetriesForCategory(
   category: ErrorCategory,
   config: Required<RetryConfig>
 ): number {
-  switch (category) {
-    case 'transcode':
-      return config.transcodeRetries;
-    case 'copy':
-      return config.copyRetries;
-    case 'database':
-      return config.databaseRetries;
-    case 'artwork':
-      return 0; // Artwork errors should skip artwork, not retry
-    case 'unknown':
-      return 0;
-  }
+  // Adapt executor RetryConfig naming to shared RetryConfig naming
+  const sharedConfig: Required<SharedRetryConfig> = {
+    transcode: config.transcodeRetries,
+    copy: config.copyRetries,
+    database: config.databaseRetries,
+    artwork: 0,
+    unknown: 0,
+    retryDelayMs: config.retryDelayMs,
+  };
+  return sharedGetRetriesForCategory(category, sharedConfig);
 }
 
 /**
  * Create a categorized error object
+ *
+ * Convenience wrapper that derives category and trackName from the operation.
  */
 export function createCategorizedError(
   error: Error,
@@ -515,13 +414,9 @@ export function createCategorizedError(
   retryAttempts: number,
   wasRetried: boolean
 ): CategorizedError {
-  return {
-    error,
-    category: categorizeError(error, operation.type),
-    trackName: getOperationDisplayName(operation),
-    retryAttempts,
-    wasRetried,
-  };
+  const category = categorizeError(error, operation.type);
+  const trackName = getOperationDisplayName(operation);
+  return sharedCreateCategorizedError(error, category, trackName, retryAttempts, wasRetried);
 }
 
 /**
@@ -537,6 +432,9 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Default sync executor implementation
+ *
+ * Handles execution of sync operations including transcoding, copying,
+ * removing, updating metadata, and upgrading tracks on the iPod.
  */
 export class DefaultSyncExecutor implements SyncExecutor {
   private ipod: IpodDatabase;
@@ -1156,6 +1054,7 @@ export class DefaultSyncExecutor implements SyncExecutor {
       case 'video-copy':
       case 'video-remove':
       case 'video-update-metadata':
+      case 'video-upgrade':
         // Video operations are handled by VideoSyncExecutor, not this executor
         throw new Error(
           `Video operations (${operation.type}) should be handled by VideoSyncExecutor`
@@ -1235,8 +1134,9 @@ export class DefaultSyncExecutor implements SyncExecutor {
     // Copy transcoded file to iPod using the fluent IPodTrack API
     track.copyFile(outputPath);
 
-    // Extract and transfer artwork if enabled
-    if (artworkEnabled) {
+    // Extract and transfer artwork if enabled.
+    // Skip when the source explicitly has no artwork — see transferToIpod for full explanation.
+    if (artworkEnabled && source.hasArtwork !== false) {
       await this.transferArtwork(track, source.filePath);
     }
 
@@ -1263,8 +1163,9 @@ export class DefaultSyncExecutor implements SyncExecutor {
     // Copy source file to iPod using the fluent IPodTrack API
     track.copyFile(source.filePath);
 
-    // Extract and transfer artwork if enabled
-    if (artworkEnabled) {
+    // Extract and transfer artwork if enabled.
+    // Skip when the source explicitly has no artwork — see transferToIpod for full explanation.
+    if (artworkEnabled && source.hasArtwork !== false) {
       await this.transferArtwork(track, source.filePath);
     }
 
@@ -1572,9 +1473,12 @@ export class DefaultSyncExecutor implements SyncExecutor {
     // Copy file to iPod
     track.copyFile(sourcePath);
 
-    // Extract and transfer artwork if enabled
-    // Use artworkSourcePath which is the original source file (or downloaded temp for remote)
-    if (artworkEnabled) {
+    // Extract and transfer artwork if enabled.
+    // Use artworkSourcePath which is the original source file (or downloaded temp for remote).
+    // Skip when the source explicitly has no artwork (hasArtwork === false) — the album-level
+    // artwork cache could otherwise serve a sibling track's artwork for this no-artwork track,
+    // falsely setting hasArtwork=true on the iPod and triggering artwork-removed on the next sync.
+    if (artworkEnabled && source.hasArtwork !== false) {
       const extractedHash = await this.transferArtwork(track, artworkSourcePath);
       // Prefer the adapter's artwork hash (source.artworkHash) over the extracted hash.
       // For Subsonic sources, getCoverArt returns processed bytes that differ from the
@@ -1707,8 +1611,10 @@ export class DefaultSyncExecutor implements SyncExecutor {
 
     foundTrack = foundTrack.update(updateFields);
 
-    // Extract and transfer artwork if enabled
-    if (artworkEnabled) {
+    // Extract and transfer artwork if enabled.
+    // Skip when the source explicitly has no artwork (hasArtwork === false) — see transferToIpod
+    // for a full explanation of why this guard is necessary.
+    if (artworkEnabled && source.hasArtwork !== false) {
       const extractedHash = await this.transferArtwork(foundTrack, artworkSourcePath);
       // Prefer the adapter's artwork hash for sync tag consistency (see transferToIpod comment)
       const artHash = source.artworkHash ?? extractedHash;
@@ -1803,6 +1709,8 @@ function getPhaseForOperation(operation: SyncOperation): SyncProgress['phase'] {
       return 'removing';
     case 'video-update-metadata':
       return 'video-updating-metadata';
+    case 'video-upgrade':
+      return 'video-upgrading';
   }
 }
 

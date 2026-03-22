@@ -216,7 +216,8 @@ export interface SyncOutput {
       | 'video-transcode'
       | 'video-copy'
       | 'video-remove'
-      | 'video-update-metadata';
+      | 'video-update-metadata'
+      | 'video-upgrade';
     track: string;
     status?: 'pending' | 'completed' | 'failed' | 'skipped';
     error?: string;
@@ -645,10 +646,10 @@ export async function syncMusicCollection(ctx: MusicSyncContext): Promise<MusicS
     return { success: false, completed: 0, failed: 0 };
   }
 
-  let collectionTracks: Awaited<ReturnType<typeof adapter.getTracks>>;
+  let collectionTracks: Awaited<ReturnType<typeof adapter.getItems>>;
   try {
     await adapter.connect();
-    collectionTracks = await adapter.getTracks();
+    collectionTracks = await adapter.getItems();
   } catch (err) {
     spinner.stop();
     const message = err instanceof Error ? err.message : 'Failed to scan source';
@@ -1266,7 +1267,7 @@ export async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoS
   let collectionVideos: CollectionVideo[];
   try {
     await videoAdapter.connect();
-    collectionVideos = await videoAdapter.getVideos();
+    collectionVideos = await videoAdapter.getItems();
   } catch (err) {
     spinner.stop();
     const message = err instanceof Error ? err.message : 'Failed to scan source';
@@ -1422,7 +1423,8 @@ export async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoS
             | 'video-transcode'
             | 'video-copy'
             | 'video-remove'
-            | 'video-update-metadata',
+            | 'video-update-metadata'
+            | 'video-upgrade',
           track: core.getOperationDisplayName(op),
           status: 'pending' as const,
         })
@@ -1540,6 +1542,364 @@ export async function syncVideoCollection(ctx: VideoSyncContext): Promise<VideoS
     await videoAdapter.disconnect();
     return { success: false, completed: videoCompleted, failed: 1 };
   }
+
+  await videoAdapter.disconnect();
+  return { success: true, completed: videoCompleted, failed: 0 };
+}
+
+// =============================================================================
+// Unified Sync Collection
+// =============================================================================
+
+/**
+ * Context for the unified syncCollection function
+ *
+ * @internal Exported for testing only
+ */
+export interface UnifiedSyncContext {
+  out: OutputContext;
+  collection: ResolvedCollection;
+  sourcePath: string;
+  devicePath: string;
+  dryRun: boolean;
+  removeOrphans: boolean;
+  effectiveVideoQuality: VideoQualityPreset;
+  effectiveVideoTransforms: VideoTransformsConfig;
+  forceMetadata: boolean;
+  ipod: Awaited<ReturnType<typeof import('@podkit/core').IpodDatabase.open>>;
+  core: typeof import('@podkit/core');
+  signal?: AbortSignal;
+}
+
+/**
+ * Result from the unified syncCollection function
+ *
+ * @internal Exported for testing only
+ */
+export interface UnifiedSyncResult {
+  success: boolean;
+  completed: number;
+  failed: number;
+  interrupted?: boolean;
+  jsonOutput?: SyncOutput;
+}
+
+/**
+ * Sync a single video collection using the unified pipeline.
+ *
+ * Uses the ContentTypeHandler pattern:
+ * - handler.getDeviceItems() for retrieving device items
+ * - handler.getDisplayName() for progress display
+ * - handler.formatDryRun() for structured dry-run data
+ *
+ * Diff, plan, and execution use the unified pipeline via
+ * UnifiedDiffer, UnifiedPlanner, and UnifiedExecutor with VideoHandler.
+ *
+ * @internal Exported for testing only
+ */
+export async function syncCollection(ctx: UnifiedSyncContext): Promise<UnifiedSyncResult> {
+  const {
+    out,
+    collection,
+    sourcePath,
+    devicePath,
+    dryRun,
+    removeOrphans,
+    effectiveVideoQuality,
+    effectiveVideoTransforms,
+    forceMetadata,
+    ipod,
+    core,
+    signal,
+  } = ctx;
+
+  // Create video handler for unified operations
+  const handler = core.createVideoHandler();
+
+  const collectionLabel = formatCollectionLabel(collection.name, sourcePath, out.isVerbose);
+
+  // Scan video source
+  const spinner = out.spinner(`Scanning video collection${collectionLabel}...`);
+
+  const scanWarnings: Array<{ file: string; message: string }> = [];
+  const videoAdapter = core.createVideoDirectoryAdapter({
+    path: sourcePath,
+    onProgress: (progress) => {
+      if (progress.phase === 'discovering') {
+        spinner.update(`Discovering video files from${collectionLabel}...`);
+      } else {
+        spinner.update(
+          `Analyzing videos from${collectionLabel}: ${progress.processed}/${progress.total} files`
+        );
+      }
+    },
+    onWarning: (warning) => {
+      scanWarnings.push(warning);
+    },
+  });
+
+  let collectionVideos: CollectionVideo[];
+  try {
+    await videoAdapter.connect();
+    collectionVideos = await videoAdapter.getItems();
+  } catch (err) {
+    spinner.stop();
+    const message = err instanceof Error ? err.message : 'Failed to scan source';
+    out.error(`Failed to scan video source: ${message}`);
+    return { success: false, completed: 0, failed: 0 };
+  }
+
+  // Safety check: refuse to sync when adapter returns zero videos
+  if (collectionVideos.length === 0) {
+    spinner.stop(`Found 0 videos in source`);
+    const message = `Collection '${collection.name}' returned zero videos — skipping sync. Check your source configuration.`;
+    await videoAdapter.disconnect();
+    if (out.isJson) {
+      return {
+        success: false,
+        completed: 0,
+        failed: 0,
+        jsonOutput: {
+          success: false,
+          dryRun,
+          source: sourcePath,
+          device: devicePath,
+          error: message,
+        },
+      };
+    }
+    out.error(message);
+    return { success: false, completed: 0, failed: 0 };
+  }
+
+  const movieCount = collectionVideos.filter((v) => v.contentType === 'movie').length;
+  const tvShowCount = collectionVideos.filter((v) => v.contentType === 'tvshow').length;
+
+  spinner.stop(
+    `Found ${formatNumber(collectionVideos.length)} videos (${movieCount} movies, ${tvShowCount} TV episodes)`
+  );
+
+  // Get iPod video tracks via handler
+  const ipodVideos = handler.getDeviceItems(ipod);
+
+  // Compute video diff (with preset bitrate for preset change detection)
+  const diffSpinner = out.spinner('Computing video sync diff...');
+  const ipodDevice = ipod.getInfo().device;
+  const deviceProfile = core.getDeviceProfileByGeneration(ipodDevice.generation);
+  const videoPresetSettings = core.getPresetSettingsWithFallback(
+    deviceProfile.name,
+    effectiveVideoQuality
+  );
+  const videoPresetBitrate = videoPresetSettings.videoBitrate + videoPresetSettings.audioBitrate;
+  const videoDiff = core.diffVideos(collectionVideos, ipodVideos, {
+    presetBitrate: videoPresetBitrate,
+    resolvedVideoQuality: effectiveVideoQuality,
+    videoTransforms: effectiveVideoTransforms,
+    forceMetadata,
+  });
+  diffSpinner.stop('Video diff computed');
+
+  // Create video plan
+  const videoPlan = core.planVideoSync(videoDiff, {
+    deviceProfile,
+    qualityPreset: effectiveVideoQuality,
+    removeOrphans,
+    useHardwareAcceleration: true,
+    videoTransforms: effectiveVideoTransforms,
+  });
+
+  const videoSummary = core.getVideoPlanSummary(videoPlan);
+  const storage = getStorageInfo(devicePath);
+  const hasEnoughSpace = storage ? core.willVideoPlanFit(videoPlan, storage.free) : true;
+
+  // Handle dry-run output
+  if (dryRun) {
+    // Use handler for structured dry-run data
+    const dryRunSummary = handler.formatDryRun(videoPlan);
+
+    out.newline();
+    out.print('=== Video Sync Plan (Dry Run) ===');
+    out.newline();
+    out.print(`Source: ${sourcePath}`);
+    out.print(`Device: ${devicePath}`);
+    out.print(`Quality: ${effectiveVideoQuality}`);
+    const videoTransformsDisplay = formatVideoTransformsConfig(effectiveVideoTransforms);
+    if (videoTransformsDisplay) {
+      out.print(`Transforms: ${videoTransformsDisplay}`);
+    }
+    out.newline();
+    out.print('Collection:');
+    out.print(`  Total videos: ${formatNumber(collectionVideos.length)}`);
+    out.print(`    - Movies: ${formatNumber(movieCount)}`);
+    out.print(`    - TV Shows: ${formatNumber(tvShowCount)}`);
+    out.newline();
+    out.print('Changes:');
+    out.print(`  Videos to add: ${formatNumber(videoDiff.toAdd.length)}`);
+    if (videoSummary.transcodeCount > 0) {
+      out.print(`    - Transcode: ${formatNumber(videoSummary.transcodeCount)}`);
+    }
+    if (videoSummary.copyCount > 0) {
+      out.print(`    - Passthrough: ${formatNumber(videoSummary.copyCount)}`);
+    }
+    if (removeOrphans && videoDiff.toRemove.length > 0) {
+      out.print(`  Videos to remove: ${formatNumber(videoDiff.toRemove.length)}`);
+    }
+    out.print(`  Already synced: ${formatNumber(videoDiff.existing.length)}`);
+    if (videoDiff.toUpdate.length > 0) {
+      const updatesByReason = new Map<string, number>();
+      for (const update of videoDiff.toUpdate) {
+        const count = updatesByReason.get(update.reason) ?? 0;
+        updatesByReason.set(update.reason, count + 1);
+      }
+      const reasonParts: string[] = [];
+      for (const [reason, count] of updatesByReason) {
+        reasonParts.push(`${formatUpdateReason(reason)}: ${count}`);
+      }
+      out.print(
+        `  Videos to update: ${formatNumber(videoDiff.toUpdate.length)} (${reasonParts.join(', ')})`
+      );
+    }
+    out.newline();
+    out.print('Estimates:');
+    out.print(`  Size: ${formatBytes(dryRunSummary.estimatedSize)}`);
+    out.print(`  Time: ~${formatDuration(dryRunSummary.estimatedTime)}`);
+    out.newline();
+
+    await videoAdapter.disconnect();
+
+    // Build JSON output for video dry-run
+    if (out.isJson) {
+      const moviesToAdd = videoDiff.toAdd.filter((v) => v.contentType === 'movie').length;
+      const showsToAdd = videoDiff.toAdd.filter((v) => v.contentType === 'tvshow');
+      const uniqueShows = new Set(showsToAdd.map((v) => v.seriesTitle).filter(Boolean));
+
+      const videoOperations: NonNullable<SyncOutput['operations']> = dryRunSummary.operations.map(
+        (op) => ({
+          type: op.type as
+            | 'video-transcode'
+            | 'video-copy'
+            | 'video-remove'
+            | 'video-update-metadata'
+            | 'video-upgrade',
+          track: op.displayName,
+          status: 'pending' as const,
+        })
+      );
+
+      const jsonOutput: SyncOutput = {
+        success: true,
+        dryRun: true,
+        source: sourcePath,
+        device: devicePath,
+        plan: {
+          tracksToAdd: videoDiff.toAdd.length,
+          tracksToRemove: removeOrphans ? videoDiff.toRemove.length : 0,
+          tracksToUpdate: videoDiff.toUpdate.length,
+          tracksToUpgrade: 0,
+          tracksToTranscode: videoSummary.transcodeCount,
+          tracksToCopy: videoSummary.copyCount,
+          tracksExisting: videoDiff.existing.length,
+          estimatedSize: dryRunSummary.estimatedSize,
+          estimatedTime: dryRunSummary.estimatedTime,
+          videoSummary:
+            videoDiff.toAdd.length > 0
+              ? {
+                  movieCount: moviesToAdd,
+                  showCount: uniqueShows.size,
+                  episodeCount: showsToAdd.length,
+                }
+              : undefined,
+        },
+        operations: videoOperations,
+      };
+
+      return { success: true, completed: 0, failed: 0, jsonOutput };
+    }
+
+    return { success: true, completed: 0, failed: 0 };
+  }
+
+  // Check space (execution path)
+  if (!hasEnoughSpace) {
+    out.error('Not enough space for video sync.');
+    out.error(`  Need: ${formatBytes(videoPlan.estimatedSize)}`);
+    out.error(`  Have: ${formatBytes(storage?.free ?? 0)}`);
+    await videoAdapter.disconnect();
+    return { success: false, completed: 0, failed: 0 };
+  }
+
+  // Nothing to do
+  if (videoPlan.operations.length === 0) {
+    out.print('Videos already in sync! No changes needed.');
+    await videoAdapter.disconnect();
+    return { success: true, completed: 0, failed: 0 };
+  }
+
+  // Execute video sync
+  out.newline();
+  out.print(`Videos to process: ${formatNumber(videoPlan.operations.length)}`);
+  out.print(`  - Transcode: ${formatNumber(videoSummary.transcodeCount)}`);
+  out.print(`  - Passthrough: ${formatNumber(videoSummary.copyCount)}`);
+  out.print(`Estimated size: ${formatBytes(videoPlan.estimatedSize)}`);
+  out.newline();
+
+  // Set video quality on handler so sync tags are written to transcoded tracks
+  handler.setVideoQuality(effectiveVideoQuality);
+
+  const videoExecutor = core.createUnifiedExecutor(handler);
+  let videoCompleted = 0;
+  const videoDisplay = new DualProgressDisplay((content) => out.raw(content));
+
+  try {
+    for await (const progress of videoExecutor.execute(videoPlan, {
+      dryRun: false,
+      ipod,
+      signal,
+    })) {
+      if (progress.skipped) {
+        // Skip tracking for skipped operations
+      } else if (progress.phase !== 'preparing' && progress.phase !== 'complete') {
+        videoCompleted++;
+      }
+
+      const overallLine = formatOverallLine(videoCompleted, progress.total, 'videos');
+
+      if (progress.transcodeProgress) {
+        const currentLine = formatCurrentLineWithBar({
+          percent: progress.transcodeProgress.percent,
+          phase: 'Transcoding',
+          trackName: progress.currentTrack,
+          speed: progress.transcodeProgress.speed,
+        });
+        videoDisplay.update(overallLine, currentLine);
+      } else {
+        const displayName = handler.getDisplayName(progress.operation);
+        const phaseStr = progress.phase.replace('video-', '');
+        const phaseFormatted =
+          phaseStr === 'updating-metadata'
+            ? 'Updating metadata'
+            : phaseStr.charAt(0).toUpperCase() + phaseStr.slice(1);
+        const currentLine = formatCurrentLineText({
+          phase: phaseFormatted,
+          trackName: displayName,
+        });
+        videoDisplay.update(overallLine, currentLine);
+      }
+    }
+  } catch (err) {
+    if (signal?.aborted) {
+      videoDisplay.finish();
+      await videoAdapter.disconnect();
+      return { success: false, completed: videoCompleted, failed: 0, interrupted: true };
+    }
+    const message = err instanceof Error ? err.message : 'Video execution failed';
+    out.error(`\nVideo sync error: ${message}`);
+    await videoAdapter.disconnect();
+    return { success: false, completed: videoCompleted, failed: 1 };
+  }
+
+  videoDisplay.finish();
+  out.print('Video sync complete.');
 
   await videoAdapter.disconnect();
   return { success: true, completed: videoCompleted, failed: 0 };
@@ -2037,7 +2397,7 @@ export const syncCommand = new Command('sync')
             out.newline();
             out.print(`=== Video: ${collection.name} ===`);
 
-            const result = await syncVideoCollection({
+            const result = await syncCollection({
               out,
               collection,
               sourcePath,

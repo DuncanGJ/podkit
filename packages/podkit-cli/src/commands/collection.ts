@@ -669,7 +669,7 @@ const musicSubcommand = new Command('music')
       const spinner = out.spinner(scanMessage);
 
       await adapter.connect();
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
       spinner.stop();
 
       const heading = `Music in collection '${resolved.name}':`;
@@ -826,7 +826,7 @@ const videoSubcommand = new Command('video')
 
       const spinner = out.spinner(`Scanning ${collection.path}...`);
 
-      const videos = await adapter.getVideos();
+      const videos = await adapter.getItems();
       spinner.stop();
 
       const heading = `Video in collection '${resolved.name}':`;

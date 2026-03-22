@@ -118,7 +118,7 @@ function isLosslessCodec(codec: string | undefined, fileType: AudioFileType): bo
  * Scans a directory recursively for audio files and parses their metadata
  * using the music-metadata library.
  */
-export class DirectoryAdapter implements CollectionAdapter {
+export class DirectoryAdapter implements CollectionAdapter<CollectionTrack, TrackFilter> {
   readonly name = 'directory';
   readonly adapterType = 'directory';
 
@@ -329,9 +329,9 @@ export class DirectoryAdapter implements CollectionAdapter {
   }
 
   /**
-   * Get all tracks in the collection
+   * Get all items in the collection
    */
-  async getTracks(): Promise<CollectionTrack[]> {
+  async getItems(): Promise<CollectionTrack[]> {
     if (!this.connected) {
       await this.connect();
     }
@@ -339,9 +339,9 @@ export class DirectoryAdapter implements CollectionAdapter {
   }
 
   /**
-   * Get tracks matching filter criteria
+   * Get items matching filter criteria
    */
-  async getFilteredTracks(filter: TrackFilter): Promise<CollectionTrack[]> {
+  async getFilteredItems(filter: TrackFilter): Promise<CollectionTrack[]> {
     if (!this.connected) {
       await this.connect();
     }

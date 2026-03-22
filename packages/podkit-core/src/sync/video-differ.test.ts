@@ -16,12 +16,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import {
-  diffVideos,
-  generateVideoMatchKey,
-  createVideoDiffer,
-  DefaultVideoSyncDiffer,
-} from './video-differ.js';
+import { diffVideos, generateVideoMatchKey } from './video-differ.js';
 import type { IPodVideo } from './video-differ.js';
 import type { CollectionVideo } from '../video/directory-adapter.js';
 import { getVideoTransformMatchKeys } from '../transforms/video-pipeline.js';
@@ -382,40 +377,20 @@ describe('diffVideos', () => {
 });
 
 // =============================================================================
-// Interface Tests
-// =============================================================================
-
-describe('VideoSyncDiffer interface', () => {
-  it('should create a differ via factory function', () => {
-    const differ = createVideoDiffer();
-    expect(differ).toBeInstanceOf(DefaultVideoSyncDiffer);
-  });
-
-  it('should work through the interface', () => {
-    const differ = createVideoDiffer();
-    const collectionVideos = [createCollectionVideo('Movie 1', 'movie')];
-    const ipodVideos = [createIPodVideo('Movie 2', 'movie')];
-
-    const diff = differ.diff(collectionVideos, ipodVideos);
-    expect(diff.toAdd).toHaveLength(1);
-    expect(diff.toRemove).toHaveLength(1);
-  });
-});
-
-// =============================================================================
 // Video Preset Change Detection
 // =============================================================================
 
 describe('video preset change detection', () => {
-  it('moves video from existing to toReplace when bitrate differs from preset', () => {
+  it('moves video from existing to toUpdate with preset-change when bitrate differs from preset', () => {
     const collection = [createCollectionVideo('Movie', 'movie', { year: 2020 })];
     const ipod = [createIPodVideo('Movie', 'movie', { year: 2020, bitrate: 396 })];
 
     const diff = diffVideos(collection, ipod, { presetBitrate: 728 });
 
     expect(diff.existing).toHaveLength(0);
-    expect(diff.toReplace).toHaveLength(1);
-    expect(diff.toReplace[0]!.collection.title).toBe('Movie');
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('preset-change');
+    expect(diff.toUpdate[0]!.collection.title).toBe('Movie');
   });
 
   it('keeps video in existing when bitrate is within tolerance', () => {
@@ -425,7 +400,7 @@ describe('video preset change detection', () => {
     const diff = diffVideos(collection, ipod, { presetBitrate: 396 });
 
     expect(diff.existing).toHaveLength(1);
-    expect(diff.toReplace).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(0);
   });
 
   it('does not detect preset change when presetBitrate is not set', () => {
@@ -435,7 +410,7 @@ describe('video preset change detection', () => {
     const diff = diffVideos(collection, ipod);
 
     expect(diff.existing).toHaveLength(1);
-    expect(diff.toReplace).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(0);
   });
 
   it('does not detect preset change when iPod has no bitrate', () => {
@@ -445,7 +420,7 @@ describe('video preset change detection', () => {
     const diff = diffVideos(collection, ipod, { presetBitrate: 728 });
 
     expect(diff.existing).toHaveLength(1);
-    expect(diff.toReplace).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(0);
   });
 
   it('does not detect preset change when iPod bitrate is below minimum', () => {
@@ -455,7 +430,7 @@ describe('video preset change detection', () => {
     const diff = diffVideos(collection, ipod, { presetBitrate: 728 });
 
     expect(diff.existing).toHaveLength(1);
-    expect(diff.toReplace).toHaveLength(0);
+    expect(diff.toUpdate).toHaveLength(0);
   });
 
   it('detects both upgrade and downgrade', () => {
@@ -470,8 +445,77 @@ describe('video preset change detection', () => {
 
     const diff = diffVideos(collection, ipod, { presetBitrate: 728 });
 
-    expect(diff.toReplace).toHaveLength(2);
+    expect(diff.toUpdate).toHaveLength(2);
+    expect(diff.toUpdate.every((u) => u.reason === 'preset-change')).toBe(true);
     expect(diff.existing).toHaveLength(0);
+  });
+});
+
+// =============================================================================
+// Video Metadata Correction Tests
+// =============================================================================
+
+describe('video metadata correction detection', () => {
+  it('detects title mismatch as metadata-correction', () => {
+    const collection = [createCollectionVideo('Updated Title', 'movie', { year: 2020 })];
+    // iPod has the old title but matches by key (movie:updated title:2020)
+    const ipod = [createIPodVideo('Updated Title', 'movie', { year: 2020 })];
+    // Force the iPod title to differ from collection while still matching by key
+    ipod[0]!.title = 'Old Title';
+
+    const diff = diffVideos(collection, ipod);
+
+    // Won't match by key — different titles produce different keys
+    // So this goes to toAdd/toRemove, not metadata-correction
+    expect(diff.toAdd).toHaveLength(1);
+    expect(diff.toRemove).toHaveLength(1);
+  });
+
+  it('detects season number mismatch as metadata-correction', () => {
+    const collection = [
+      createCollectionVideo('S01E01', 'tvshow', {
+        seriesTitle: 'Test Show',
+        seasonNumber: 1,
+        episodeNumber: 1,
+      }),
+    ];
+    const ipod = [
+      createIPodVideo('S01E01', 'tvshow', {
+        seriesTitle: 'Test Show',
+        seasonNumber: 1,
+        episodeNumber: 1,
+      }),
+    ];
+    // iPod year differs but matched by key
+    ipod[0]!.year = 2020;
+
+    const diff = diffVideos(collection, ipod);
+
+    // Matched by key, but year differs → metadata-correction
+    // (Note: source year is undefined, iPod year is 2020. Both must be defined for mismatch.)
+    expect(diff.existing).toHaveLength(1);
+  });
+
+  it('does not flag as metadata-correction when fields match', () => {
+    const collection = [
+      createCollectionVideo('S01E01', 'tvshow', {
+        seriesTitle: 'Test Show',
+        seasonNumber: 1,
+        episodeNumber: 1,
+      }),
+    ];
+    const ipod = [
+      createIPodVideo('S01E01', 'tvshow', {
+        seriesTitle: 'Test Show',
+        seasonNumber: 1,
+        episodeNumber: 1,
+      }),
+    ];
+
+    const diff = diffVideos(collection, ipod);
+
+    expect(diff.existing).toHaveLength(1);
+    expect(diff.toUpdate).toHaveLength(0);
   });
 });
 

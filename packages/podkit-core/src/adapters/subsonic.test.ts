@@ -92,12 +92,12 @@ describe('SubsonicAdapter filtering', () => {
   // Since applyFilter is private, we test through getFilteredTracks
   // which requires mocked API responses
 
-  it('getFilteredTracks requires connection first', async () => {
+  it('getFilteredItems requires connection first', async () => {
     const adapter = createTestAdapter();
 
-    // Without connection, getTracks will attempt to connect
+    // Without connection, getItems will attempt to connect
     // which will fail without a real server
-    await expect(adapter.getFilteredTracks({ artist: 'Test' })).rejects.toThrow();
+    await expect(adapter.getFilteredItems({ artist: 'Test' })).rejects.toThrow();
   });
 });
 

@@ -18,8 +18,6 @@ import {
   planVideoSync,
   getVideoPlanSummary,
   willVideoPlanFit,
-  createVideoPlanner,
-  DefaultVideoSyncPlanner,
   estimateTranscodedSize,
   estimatePassthroughSize,
 } from './video-planner.js';
@@ -126,7 +124,6 @@ function createDiff(
     return {
       toAdd: toAddOrOptions.toAdd ?? [],
       toRemove: toAddOrOptions.toRemove ?? [],
-      toReplace: [],
       toUpdate: toAddOrOptions.toUpdate ?? [],
       existing: toAddOrOptions.existing ?? [],
     };
@@ -134,7 +131,6 @@ function createDiff(
   return {
     toAdd: (toAddOrOptions as CollectionVideo[] | undefined) ?? [],
     toRemove,
-    toReplace: [],
     toUpdate: [],
     existing,
   };
@@ -436,27 +432,6 @@ describe('willVideoPlanFit', () => {
     const plan = planVideoSync(diff);
 
     expect(willVideoPlanFit(plan, 1000)).toBe(false);
-  });
-});
-
-// =============================================================================
-// Interface Tests
-// =============================================================================
-
-describe('VideoSyncPlanner interface', () => {
-  it('should create planner via factory function', () => {
-    const planner = createVideoPlanner();
-    expect(planner).toBeInstanceOf(DefaultVideoSyncPlanner);
-  });
-
-  it('should work through interface', () => {
-    const planner = createVideoPlanner();
-    const diff = createDiff([createVideo('Test', { container: 'mkv' })]);
-    const plan = planner.plan(diff);
-
-    expect(plan.operations).toHaveLength(1);
-    expect(plan.estimatedSize).toBeGreaterThan(0);
-    expect(plan.estimatedTime).toBeGreaterThan(0);
   });
 });
 

@@ -9,6 +9,7 @@ import { glob } from 'glob';
 import { extname, basename, resolve } from 'node:path';
 import type { ContentType, VideoMetadata, VideoMetadataAdapter } from './metadata.js';
 import type { VideoSourceAnalysis } from './types.js';
+import type { CollectionAdapter, FileAccess } from '../adapters/interface.js';
 import { EmbeddedVideoMetadataAdapter } from './metadata-embedded.js';
 import { probeVideo, VideoProbeError } from './probe.js';
 import { detectContentType, looksLikeSceneRelease } from './content-type.js';
@@ -186,8 +187,9 @@ const DEFAULT_EXTENSIONS = ['mkv', 'mp4', 'm4v', 'avi', 'mov', 'webm', 'wmv'];
  * Scans a directory recursively for video files, extracts metadata
  * using a VideoMetadataAdapter, and probes technical information.
  */
-export class VideoDirectoryAdapter {
+export class VideoDirectoryAdapter implements CollectionAdapter<CollectionVideo, VideoFilter> {
   readonly name = 'video-directory';
+  readonly adapterType = 'video-directory';
 
   private rootPath: string;
   private extensions: string[];
@@ -433,9 +435,9 @@ export class VideoDirectoryAdapter {
   }
 
   /**
-   * Get all videos in the collection
+   * Get all items in the collection
    */
-  async getVideos(): Promise<CollectionVideo[]> {
+  async getItems(): Promise<CollectionVideo[]> {
     if (!this.connected) {
       await this.connect();
     }
@@ -443,9 +445,9 @@ export class VideoDirectoryAdapter {
   }
 
   /**
-   * Get videos matching filter criteria
+   * Get items matching filter criteria
    */
-  async getFilteredVideos(filter: VideoFilter): Promise<CollectionVideo[]> {
+  async getFilteredItems(filter: VideoFilter): Promise<CollectionVideo[]> {
     if (!this.connected) {
       await this.connect();
     }
@@ -513,10 +515,15 @@ export class VideoDirectoryAdapter {
   }
 
   /**
-   * Get the source file path for a video
+   * Get file access for a video
+   *
+   * VideoDirectoryAdapter returns path-based access since files are local.
    */
-  getFilePath(video: CollectionVideo): string {
-    return video.filePath;
+  getFileAccess(video: CollectionVideo): FileAccess {
+    return {
+      type: 'path',
+      path: video.filePath,
+    };
   }
 
   /**

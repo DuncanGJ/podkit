@@ -82,8 +82,8 @@ function makeAdapter(tracks: CollectionTrack[]): CollectionAdapter {
     name: 'test-adapter',
     adapterType: 'directory',
     connect: mock(async () => {}),
-    getTracks: mock(async () => tracks),
-    getFilteredTracks: mock(async () => tracks),
+    getItems: mock(async () => tracks),
+    getFilteredItems: mock(async () => tracks),
     getFileAccess: mock(
       (track: CollectionTrack): FileAccess => ({
         type: 'path' as const,

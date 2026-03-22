@@ -83,9 +83,20 @@ export interface MatchedVideo {
 }
 
 /**
- * Reason why a video needs a metadata-only update
+ * Reason why a video needs an update
+ *
+ * - transform-apply: Transform is enabled and iPod has original metadata
+ * - transform-remove: Transform is disabled and iPod has transformed metadata
+ * - force-metadata: User requested forced metadata rewrite
+ * - preset-change: Video quality preset changed (requires re-transcode)
+ * - metadata-correction: Source metadata differs from iPod metadata
  */
-export type VideoUpdateReason = 'transform-apply' | 'transform-remove' | 'force-metadata';
+export type VideoUpdateReason =
+  | 'transform-apply'
+  | 'transform-remove'
+  | 'force-metadata'
+  | 'preset-change'
+  | 'metadata-correction';
 
 /**
  * A video that needs a metadata-only update (no file re-transfer)
@@ -111,9 +122,7 @@ export interface VideoSyncDiff {
   toRemove: IPodVideo[];
   /** Videos that exist in both and are in sync */
   existing: MatchedVideo[];
-  /** Videos that need re-transcoding due to quality preset change */
-  toReplace: MatchedVideo[];
-  /** Videos that need metadata-only updates (e.g., transform changes) */
+  /** Videos that need updates (metadata-only, preset changes, or metadata corrections) */
   toUpdate: VideoUpdateTrack[];
 }
 
@@ -130,7 +139,7 @@ export interface VideoDiffOptions {
   /**
    * Target combined bitrate (kbps) for the active video quality preset.
    * When set, existing videos with bitrates significantly different from
-   * this target are moved to `toReplace` for re-transcoding.
+   * this target are marked for update with reason `preset-change`.
    */
   presetBitrate?: number;
 
@@ -161,6 +170,10 @@ export interface VideoDiffOptions {
 
 /**
  * Normalize a string for comparison (lowercase, trim, remove special chars)
+ *
+ * Note: This is intentionally different from matching.ts normalizeString which
+ * handles Unicode/accents for music matching. Video matching strips punctuation
+ * for more forgiving title comparison.
  */
 function normalizeString(str: string): string {
   return str
@@ -363,7 +376,7 @@ export function diffVideos(
   // Post-processing: detect quality preset changes on existing videos.
   // Sync tag priority: if a video has a sync tag, use exact comparison.
   // Otherwise fall back to bitrate comparison.
-  const toReplace: MatchedVideo[] = [];
+  // Preset changes route through toUpdate with reason 'preset-change'.
   if (_options?.presetBitrate) {
     const presetBitrate = _options.presetBitrate;
     const resolvedVideoQuality = _options.resolvedVideoQuality;
@@ -386,7 +399,53 @@ export function diffVideos(
       }
 
       if (mismatch) {
-        toReplace.push(match);
+        toUpdate.push({
+          collection: match.collection,
+          ipod: match.ipod,
+          reason: 'preset-change',
+        });
+      } else {
+        stillExisting.push(match);
+      }
+    }
+
+    existing.length = 0;
+    existing.push(...stillExisting);
+  }
+
+  // Post-processing: detect metadata corrections on existing videos.
+  // Compare season, episode, and year between source and iPod.
+  // String fields (title, seriesTitle) are NOT compared because matching
+  // already uses normalized (case-insensitive) keys — so differences in
+  // casing or punctuation are expected and not meaningful corrections.
+  //
+  // NOTE: Video quality-upgrade detection (comparing bitrate/resolution via FFprobe)
+  // is intentionally NOT implemented here. FFprobe is expensive (~100ms per file)
+  // and would require probing every matched video on every sync. For videos,
+  // preset-change detection (via sync tags or bitrate comparison above) is sufficient.
+  {
+    const stillExisting: MatchedVideo[] = [];
+
+    for (const match of existing) {
+      const src = match.collection;
+      const ipod = match.ipod;
+
+      // Only compare numeric fields — string fields are already matched by normalized key
+      const hasMetadataCorrection =
+        (src.seasonNumber !== undefined &&
+          ipod.seasonNumber !== undefined &&
+          src.seasonNumber !== ipod.seasonNumber) ||
+        (src.episodeNumber !== undefined &&
+          ipod.episodeNumber !== undefined &&
+          src.episodeNumber !== ipod.episodeNumber) ||
+        (src.year !== undefined && ipod.year !== undefined && src.year !== ipod.year);
+
+      if (hasMetadataCorrection) {
+        toUpdate.push({
+          collection: src,
+          ipod: ipod,
+          reason: 'metadata-correction',
+        });
       } else {
         stillExisting.push(match);
       }
@@ -432,7 +491,6 @@ export function diffVideos(
     toAdd,
     toRemove,
     existing,
-    toReplace,
     toUpdate,
   };
 }
@@ -453,27 +511,4 @@ export interface VideoSyncDiffer {
     ipodVideos: IPodVideo[],
     options?: VideoDiffOptions
   ): VideoSyncDiff;
-}
-
-/**
- * Default implementation of VideoSyncDiffer
- */
-export class DefaultVideoSyncDiffer implements VideoSyncDiffer {
-  /**
-   * Compare collection videos to iPod videos
-   */
-  diff(
-    collectionVideos: CollectionVideo[],
-    ipodVideos: IPodVideo[],
-    options?: VideoDiffOptions
-  ): VideoSyncDiff {
-    return diffVideos(collectionVideos, ipodVideos, options);
-  }
-}
-
-/**
- * Create a new VideoSyncDiffer instance
- */
-export function createVideoDiffer(): VideoSyncDiffer {
-  return new DefaultVideoSyncDiffer();
 }

@@ -37,9 +37,11 @@ export type {
   FileAccess,
   CollectionTrack,
   CollectionAdapter,
+  MusicAdapter,
   AdapterConfig,
   DirectoryAdapterConfig as AdapterDirectoryConfig,
   SubsonicAdapterConfig as AdapterSubsonicConfig,
+  SoundCheckSource,
 } from '@podkit/core';
 
 export type { DirectoryAdapterConfig, ScanProgress, ScanWarning } from '@podkit/core';
@@ -63,6 +65,7 @@ export type {
   SyncWarning,
   SyncWarningType,
   UpdateReason,
+  UpgradeReason,
   MetadataChange,
   UpdateTrack,
   DiffOptions,
@@ -77,9 +80,13 @@ export type {
   ErrorCategory,
   CategorizedError,
   RetryConfig,
+  SyncTagConfig,
   ExecutionWarning,
   ExecutionWarningType,
 } from '@podkit/core';
+
+// Shared error handling types
+export type { SharedRetryConfig } from '@podkit/core';
 
 // Matching types
 export type { Matchable, MatchResult, TransformMatchKeys } from '@podkit/core';
@@ -97,6 +104,7 @@ export type {
   TranscodeConfig,
   AacPreset,
   FFmpegTranscoderConfig,
+  AacTranscodeConfig,
 } from '@podkit/core';
 
 // Artwork types
@@ -107,6 +115,44 @@ export type {
   ArtworkProcessor,
   ArtworkOptions,
   ExtractArtworkOptions,
+} from '@podkit/core';
+
+// Album artwork cache types
+export type { AlbumArtworkEntry, AlbumArtworkCacheOptions } from '@podkit/core';
+
+// Artwork diagnostics types
+export type {
+  MHNIEntry,
+  MHIIEntry,
+  MHIFEntry,
+  ArtworkDB,
+  AnomalyType,
+  Anomaly,
+  FormatSummary,
+  IntegrityReport,
+} from '@podkit/core';
+
+// Artwork repair types
+export type {
+  ResetResult,
+  ResetOptions,
+  RebuildProgress,
+  RebuildResult,
+  RebuildOptions,
+  RebuildDependencies,
+} from '@podkit/core';
+
+// Diagnostics types
+export type {
+  DiagnosticContext,
+  CheckResult,
+  RepairRequirement,
+  RepairContext,
+  DiagnosticRepairResult,
+  RepairRunOptions,
+  DiagnosticRepair,
+  DiagnosticCheck,
+  DiagnosticReport,
 } from '@podkit/core';
 
 // Metadata types
@@ -139,6 +185,15 @@ export type {
   UnsupportedReason,
 } from '@podkit/core';
 
+// Sync tag types
+export type { SyncTagData } from '@podkit/core';
+
+// Sound Check types
+export type { SoundCheckResult } from '@podkit/core';
+
+// Upgrade detection types
+export type { PresetChangeOptions } from '@podkit/core';
+
 // Transform types
 export type {
   TransformableTrack,
@@ -146,6 +201,11 @@ export type {
   TrackTransform,
   CleanArtistsConfig,
   TransformsConfig,
+  VideoTrackTransform,
+  VideoTransformableTrack,
+  VideoTransformResult,
+  ShowLanguageConfig,
+  VideoTransformsConfig,
 } from '@podkit/core';
 
 // Video types
@@ -183,14 +243,13 @@ export type {
   VideoDiffOptions,
   VideoSyncDiffer,
   VideoSyncPlanOptions,
-  VideoSyncPlan,
   VideoSyncWarning,
   VideoSyncWarningType,
   VideoPlanSummary,
   VideoSyncPlanner,
-  VideoExecutorProgress,
+  VideoUpdateTrack,
+  VideoUpdateReason,
   VideoExecuteOptions,
-  VideoExecuteResult,
   VideoSyncExecutor,
   VideoExecutorDependencies,
 } from '@podkit/core';
@@ -204,7 +263,35 @@ export type {
   EjectOptions,
   MountOptions,
   IpodIdentity,
+  DeviceAssessment,
+  IFlashAssessment,
+  IFlashEvidence,
+  UsbDeviceInfo,
+  EjectProgressEvent,
+  EjectWithRetryOptions,
 } from '@podkit/core';
+
+// ContentTypeHandler types
+export type {
+  ContentTypeHandler,
+  HandlerDiffOptions,
+  HandlerPlanOptions,
+  ExecutionContext,
+  OperationProgress,
+  DryRunSummary,
+} from '@podkit/core';
+
+// Unified differ types
+export type { UnifiedSyncDiff, UnifiedDiffOptions } from '@podkit/core';
+
+// Unified planner types
+export type { UnifiedPlanOptions, PlanAddResult } from '@podkit/core';
+
+// Unified executor types
+export type { UnifiedExecuteOptions } from '@podkit/core';
+
+// Video adapter type alias
+export type { VideoAdapter } from '@podkit/core';
 
 // =============================================================================
 // createError
@@ -571,11 +658,11 @@ export class DirectoryAdapter {
 
   async connect() {}
 
-  async getTracks() {
+  async getItems() {
     return getDemoCollectionTracks();
   }
 
-  async getFilteredTracks(_filter: any) {
+  async getFilteredItems(_filter: any) {
     return getDemoCollectionTracks();
   }
 
@@ -600,10 +687,10 @@ export class SubsonicAdapter {
   constructor(_config: any) {}
 
   async connect() {}
-  async getTracks() {
+  async getItems() {
     return getDemoCollectionTracks();
   }
-  async getFilteredTracks(_filter: any) {
+  async getFilteredItems(_filter: any) {
     return getDemoCollectionTracks();
   }
   getFileAccess(track: any) {
@@ -614,6 +701,13 @@ export class SubsonicAdapter {
 
 export function createSubsonicAdapter(config: any) {
   return new SubsonicAdapter(config);
+}
+
+export class SubsonicConnectionError extends Error {
+  constructor(message: string = 'Subsonic connection failed') {
+    super(message);
+    this.name = 'SubsonicConnectionError';
+  }
 }
 
 // =============================================================================
@@ -630,11 +724,11 @@ export class VideoDirectoryAdapter {
 
   async connect() {}
 
-  async getVideos() {
+  async getItems() {
     return getDemoCollectionVideos();
   }
 
-  async getFilteredVideos(_filter: any) {
+  async getFilteredItems(_filter: any) {
     return getDemoCollectionVideos();
   }
 
@@ -671,16 +765,6 @@ export function computeDiff(collectionTracks: any[], ipodTracks: any[], _options
   };
 }
 
-export class DefaultSyncDiffer {
-  diff(collectionTracks: any[], ipodTracks: any[], options?: any) {
-    return computeDiff(collectionTracks, ipodTracks, options);
-  }
-}
-
-export function createDiffer() {
-  return new DefaultSyncDiffer();
-}
-
 // =============================================================================
 // Planner (mock)
 // =============================================================================
@@ -705,16 +789,6 @@ export function createPlan(diff: any, _options?: any) {
     estimatedSize,
     warnings: [],
   };
-}
-
-export class DefaultSyncPlanner {
-  plan(diff: any, options?: any) {
-    return createPlan(diff, options);
-  }
-}
-
-export function createPlanner() {
-  return new DefaultSyncPlanner();
 }
 
 export function isIPodCompatible(_fileType: string): boolean {
@@ -1004,16 +1078,6 @@ export function generateVideoMatchKey(video: any): string {
   return `tvshow:${(video.seriesTitle || video.title).toLowerCase()}`;
 }
 
-export class DefaultVideoSyncDiffer {
-  diff(collectionVideos: any[], ipodVideos: any[], options?: any) {
-    return diffVideos(collectionVideos, ipodVideos, options);
-  }
-}
-
-export function createVideoDiffer() {
-  return new DefaultVideoSyncDiffer();
-}
-
 // =============================================================================
 // Video Planner (mock)
 // =============================================================================
@@ -1052,16 +1116,6 @@ export function getVideoPlanSummary(plan: any) {
   return { transcodeCount, copyCount, removeCount, updateCount: 0, skippedCount: 0 };
 }
 
-export class DefaultVideoSyncPlanner {
-  plan(diff: any, options?: any) {
-    return planVideoSync(diff, options);
-  }
-}
-
-export function createVideoPlanner() {
-  return new DefaultVideoSyncPlanner();
-}
-
 export function estimateVideoTranscodedSize(
   durationSeconds: number,
   videoBitrateKbps: number,
@@ -1082,69 +1136,6 @@ export function estimatePassthroughSize(video: any): number {
 // =============================================================================
 // Video Executor (mock)
 // =============================================================================
-
-export class DefaultVideoSyncExecutor {
-  private _ipod: any;
-
-  constructor(deps: any) {
-    this._ipod = deps?.ipod;
-  }
-
-  async *execute(plan: any, options: any = {}): AsyncIterable<any> {
-    const ops = plan.operations || [];
-    const total = ops.length;
-    const bytesTotal = plan.estimatedSize || 0;
-    let bytesProcessed = 0;
-
-    for (let i = 0; i < total; i++) {
-      const op = ops[i];
-      const phase =
-        op.type === 'video-transcode'
-          ? 'video-transcoding'
-          : op.type === 'video-copy'
-            ? 'video-copying'
-            : 'removing';
-
-      const displayName = getVideoOperationDisplayName(op);
-      const opSize = op.type === 'video-copy' ? estimatePassthroughSize(op.source) : 0;
-
-      yield {
-        phase,
-        operation: op,
-        index: i,
-        current: i,
-        total,
-        currentTrack: displayName,
-        bytesProcessed,
-        bytesTotal,
-        skipped: options.dryRun || false,
-      };
-
-      if (!options.dryRun) {
-        await delay(100);
-      }
-
-      bytesProcessed += opSize;
-    }
-
-    if (!options.dryRun && total > 0) {
-      updateState({ videoSynced: true });
-    }
-
-    if (total > 0) {
-      yield {
-        phase: 'complete',
-        operation: ops[ops.length - 1],
-        index: total - 1,
-        current: total - 1,
-        total,
-        currentTrack: '',
-        bytesProcessed: bytesTotal,
-        bytesTotal,
-      };
-    }
-  }
-}
 
 export class PlaceholderVideoSyncExecutor {
   async *execute(plan: any, options: any = {}): AsyncIterable<any> {
@@ -1180,10 +1171,7 @@ export function getVideoOperationDisplayName(operation: any): string {
   return 'Unknown operation';
 }
 
-export function createVideoExecutor(deps?: any) {
-  if (deps?.ipod) {
-    return new DefaultVideoSyncExecutor(deps);
-  }
+export function createVideoExecutor(_deps?: any) {
   return new PlaceholderVideoSyncExecutor();
 }
 
@@ -1662,6 +1650,572 @@ export class VideoTranscodeError extends Error {
     super(message);
     this.name = 'VideoTranscodeError';
   }
+}
+
+// =============================================================================
+// Sync Tags (mock)
+// =============================================================================
+
+export function formatSyncTag(_data: any): string {
+  return '';
+}
+
+export function writeSyncTag(_filePath: string, _data: any): void {}
+
+export function syncTagMatchesConfig(_tag: any, _config: any): boolean {
+  return true;
+}
+
+export function buildAudioSyncTag(_config: any): any {
+  return {};
+}
+
+export function buildVideoSyncTag(_config: any): any {
+  return {};
+}
+
+// =============================================================================
+// Sound Check (mock)
+// =============================================================================
+
+export function replayGainToSoundcheck(_gain: number): number {
+  return 1000;
+}
+
+export function iTunNORMToSoundcheck(_norm: string): number {
+  return 1000;
+}
+
+export function extractSoundcheck(_track: any): any {
+  return null;
+}
+
+// =============================================================================
+// Upgrade detection (mock)
+// =============================================================================
+
+export function isQualityUpgrade(_source: any, _device: any): boolean {
+  return false;
+}
+
+export function detectUpgrades(_source: any, _device: any): string[] {
+  return [];
+}
+
+export function isFileReplacementUpgrade(_source: any, _device: any): boolean {
+  return false;
+}
+
+export function isSourceLossless(_source: any): boolean {
+  return false;
+}
+
+export function detectPresetChange(_source: any, _device: any, _options?: any): boolean {
+  return false;
+}
+
+export function detectBitratePresetMismatch(_source: any, _device: any, _options?: any): boolean {
+  return false;
+}
+
+export const DEFAULT_VBR_TOLERANCE = 0.15;
+export const DEFAULT_CBR_TOLERANCE = 0.05;
+export const DEFAULT_MIN_PRESET_BITRATE = 64;
+
+// =============================================================================
+// Album Artwork Cache (mock)
+// =============================================================================
+
+export class AlbumArtworkCache {
+  constructor(_options?: any) {}
+  get(_key: string): any {
+    return undefined;
+  }
+  set(_key: string, _entry: any): void {}
+  has(_key: string): boolean {
+    return false;
+  }
+  clear(): void {}
+  get size(): number {
+    return 0;
+  }
+}
+
+export function getAlbumKey(_track: any): string {
+  return '';
+}
+
+// =============================================================================
+// Artwork diagnostics (mock)
+// =============================================================================
+
+export function parseArtworkDB(_path: string): any {
+  return { images: [], files: [], items: [] };
+}
+
+export function checkIntegrity(_db: any): any {
+  return { anomalies: [], formats: [], healthy: true };
+}
+
+// =============================================================================
+// Artwork repair (mock)
+// =============================================================================
+
+export async function resetArtworkDatabase(_mountPoint: string, _options?: any) {
+  return { success: true };
+}
+
+export async function rebuildArtworkDatabase(_mountPoint: string, _options?: any) {
+  return { success: true, tracksProcessed: 0, artworkCount: 0 };
+}
+
+// =============================================================================
+// Diagnostics (mock)
+// =============================================================================
+
+export async function runDiagnostics(_context: any) {
+  return { checks: [], healthy: true };
+}
+
+export function getDiagnosticCheck(_id: string): any {
+  return null;
+}
+
+export function getDiagnosticCheckIds(): string[] {
+  return [];
+}
+
+// =============================================================================
+// CONTENT_TYPES constant
+// =============================================================================
+
+export const CONTENT_TYPES = {
+  music: 'music',
+  video: 'video',
+} as const;
+
+// =============================================================================
+// Eject with retry (mock)
+// =============================================================================
+
+export async function ejectWithRetry(_mountPoint: string, _options?: any) {
+  return { success: true, device: 'disk4s2' };
+}
+
+export function stripPartitionSuffix(device: string): string {
+  return device;
+}
+
+// =============================================================================
+// Video transforms (mock)
+// =============================================================================
+
+export const DEFAULT_SHOW_LANGUAGE_CONFIG = { enabled: false };
+export const DEFAULT_VIDEO_TRANSFORMS_CONFIG = { showLanguage: { enabled: false } };
+
+export function applyVideoTransforms(track: any, _config: any) {
+  return { track, transformed: false, changes: [] };
+}
+
+export function hasEnabledVideoTransforms(_config: any): boolean {
+  return false;
+}
+
+export function getEnabledVideoTransformsSummary(_config: any): string[] {
+  return [];
+}
+
+export function getVideoTransformMatchKeys(_track: any, _config: any) {
+  return [];
+}
+
+export function applyShowLanguage(title: string, _config?: any) {
+  return { title, transformed: false };
+}
+
+export function parseLanguageMarker(_title: string) {
+  return null;
+}
+
+export function showLanguageTransform(track: any, _config: any) {
+  return { track, transformed: false, changes: [] };
+}
+
+// =============================================================================
+// Shared error handling exports (mock)
+// =============================================================================
+
+export function sharedCategorizeError(_error: Error, operationType: string) {
+  if (operationType === 'transcode') return 'transcode';
+  if (operationType === 'copy') return 'copy';
+  return 'unknown';
+}
+
+export function sharedCreateCategorizedError(
+  error: Error,
+  category: string,
+  trackName: string,
+  retryAttempts: number,
+  wasRetried: boolean
+) {
+  return { error, category, trackName, retryAttempts, wasRetried };
+}
+
+export function sharedGetRetriesForCategory(category: string, _config: any): number {
+  if (category === 'transcode' || category === 'copy') return 1;
+  return 0;
+}
+
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  _maxRetries: number,
+  _delayMs?: number
+): Promise<T> {
+  return fn();
+}
+
+export const SHARED_DEFAULT_RETRY_CONFIG = {
+  transcode: 1,
+  copy: 1,
+  database: 0,
+  artwork: 0,
+  unknown: 0,
+  retryDelayMs: 1000,
+};
+
+export const VIDEO_RETRY_CONFIG = {
+  transcode: 0,
+  copy: 1,
+  database: 0,
+  artwork: 0,
+  unknown: 0,
+  retryDelayMs: 1000,
+};
+
+// =============================================================================
+// ENCODING_MODES constant
+// =============================================================================
+
+export const ENCODING_MODES = ['vbr', 'cbr'] as const;
+
+// =============================================================================
+// ContentTypeHandler registry (mock)
+// =============================================================================
+
+const handlerRegistry = new Map<string, any>();
+
+export function registerHandler(handler: any): void {
+  handlerRegistry.set(handler.type, handler);
+}
+
+export function getHandler(type: string): any {
+  return handlerRegistry.get(type) ?? null;
+}
+
+export function getAllHandlers(): any[] {
+  return Array.from(handlerRegistry.values());
+}
+
+export function clearHandlers(): void {
+  handlerRegistry.clear();
+}
+
+// =============================================================================
+// MusicHandler (mock)
+// =============================================================================
+
+export class MusicHandler {
+  readonly type = 'music';
+
+  generateMatchKey(source: any): string {
+    return getMatchKey(source);
+  }
+
+  generateDeviceMatchKey(device: any): string {
+    return getMatchKey(device);
+  }
+
+  applyTransformKey(source: any): string {
+    return getMatchKey(source);
+  }
+
+  getDeviceItemId(device: any): string {
+    return device.filePath ?? '';
+  }
+
+  detectUpdates(_source: any, _device: any, _options?: any): string[] {
+    return [];
+  }
+
+  filterDeviceItems(tracks: any[]): any[] {
+    return tracks.filter((t: any) => isMusicMediaType(t.mediaType ?? 0x0001));
+  }
+
+  planAdd(source: any, _options?: any) {
+    return { operation: { type: 'transcode', source, preset: { name: 'high' } } };
+  }
+
+  planUpdate(source: any, device: any, reasons: string[], _options?: any) {
+    return { type: 'update-metadata', source, track: device, reasons };
+  }
+
+  planRemove(device: any) {
+    return { type: 'remove', track: device };
+  }
+
+  estimateSize(operation: any): number {
+    return calculateOperationSize(operation);
+  }
+
+  estimateTime(_operation: any): number {
+    return 5;
+  }
+
+  getDisplayName(operation: any): string {
+    return getOperationDisplayName(operation);
+  }
+
+  getDryRunSummary(diff: any, plan: any): any {
+    return {
+      toAdd: diff.toAdd?.length ?? 0,
+      toRemove: diff.toRemove?.length ?? 0,
+      existing: diff.existing?.length ?? 0,
+      toUpdate: diff.toUpdate?.length ?? 0,
+      operationCounts: {},
+      estimatedSize: plan.estimatedSize ?? 0,
+      estimatedTime: plan.estimatedTime ?? 0,
+      warnings: [],
+      operations: [],
+    };
+  }
+
+  async executeOperation(_operation: any, _context: any): Promise<any> {
+    return { phase: 'complete' };
+  }
+}
+
+export function createMusicHandler(): MusicHandler {
+  return new MusicHandler();
+}
+
+// =============================================================================
+// VideoHandler (mock)
+// =============================================================================
+
+export class VideoHandler {
+  readonly type = 'video';
+
+  generateMatchKey(source: any): string {
+    return generateVideoMatchKey(source);
+  }
+
+  generateDeviceMatchKey(device: any): string {
+    return generateVideoMatchKey(device);
+  }
+
+  applyTransformKey(source: any): string {
+    return generateVideoMatchKey(source);
+  }
+
+  getDeviceItemId(device: any): string {
+    return device.id ?? '';
+  }
+
+  detectUpdates(_source: any, _device: any, _options?: any): string[] {
+    return [];
+  }
+
+  filterDeviceItems(tracks: any[]): any[] {
+    return tracks.filter((t: any) => isVideoMediaType(t.mediaType ?? 0));
+  }
+
+  planAdd(source: any, _options?: any) {
+    return { operation: { type: 'video-copy', source } };
+  }
+
+  planUpdate(source: any, device: any, reasons: string[], _options?: any) {
+    return { type: 'video-update-metadata', source, track: device, reasons };
+  }
+
+  planRemove(device: any) {
+    return { type: 'video-remove', video: device };
+  }
+
+  estimateSize(_operation: any): number {
+    return 0;
+  }
+
+  estimateTime(_operation: any): number {
+    return 5;
+  }
+
+  getDisplayName(operation: any): string {
+    return getVideoOperationDisplayName(operation);
+  }
+
+  getDryRunSummary(diff: any, plan: any): any {
+    return {
+      toAdd: diff.toAdd?.length ?? 0,
+      toRemove: diff.toRemove?.length ?? 0,
+      existing: diff.existing?.length ?? 0,
+      toUpdate: diff.toUpdate?.length ?? 0,
+      operationCounts: {},
+      estimatedSize: plan.estimatedSize ?? 0,
+      estimatedTime: plan.estimatedTime ?? 0,
+      warnings: [],
+      operations: [],
+    };
+  }
+
+  async executeOperation(_operation: any, _context: any): Promise<any> {
+    return { phase: 'complete' };
+  }
+}
+
+export function createVideoHandler(): VideoHandler {
+  return new VideoHandler();
+}
+
+// =============================================================================
+// UnifiedDiffer (mock)
+// =============================================================================
+
+export class UnifiedDiffer {
+  private _handler: any;
+
+  constructor(handler: any) {
+    this._handler = handler;
+  }
+
+  diff(sourceItems: any[], deviceItems: any[], _options?: any) {
+    if (deviceItems.length === 0) {
+      return {
+        toAdd: sourceItems,
+        toRemove: [],
+        existing: [],
+        toUpdate: [],
+      };
+    }
+    return {
+      toAdd: [],
+      toRemove: [],
+      existing: sourceItems.map((s: any, i: number) => ({
+        source: s,
+        device: deviceItems[i],
+      })),
+      toUpdate: [],
+    };
+  }
+}
+
+export function createUnifiedDiffer(handler: any) {
+  return new UnifiedDiffer(handler);
+}
+
+// =============================================================================
+// UnifiedPlanner (mock)
+// =============================================================================
+
+export class UnifiedPlanner {
+  private _handler: any;
+
+  constructor(handler: any) {
+    this._handler = handler;
+  }
+
+  plan(diff: any, _options?: any) {
+    const operations: any[] = [];
+    for (const item of diff.toAdd || []) {
+      const result = this._handler.planAdd(item, _options);
+      if (result?.operation) operations.push(result.operation);
+    }
+    return {
+      operations,
+      estimatedTime: 0,
+      estimatedSize: 0,
+      warnings: [],
+    };
+  }
+}
+
+export function createUnifiedPlanner(handler: any) {
+  return new UnifiedPlanner(handler);
+}
+
+export function orderOperations(operations: any[]): any[] {
+  const order: Record<string, number> = {
+    remove: 0,
+    'video-remove': 0,
+    'update-metadata': 1,
+    'video-update-metadata': 1,
+    copy: 2,
+    'video-copy': 2,
+    upgrade: 3,
+    'video-upgrade': 3,
+    transcode: 4,
+    'video-transcode': 4,
+  };
+  return [...operations].sort((a, b) => (order[a.type] ?? 99) - (order[b.type] ?? 99));
+}
+
+// =============================================================================
+// UnifiedExecutor (mock)
+// =============================================================================
+
+export class UnifiedExecutor {
+  private _handler: any;
+
+  constructor(handler: any) {
+    this._handler = handler;
+  }
+
+  async *execute(plan: any, _options?: any): AsyncIterable<any> {
+    const ops = plan.operations || [];
+    for (let i = 0; i < ops.length; i++) {
+      yield {
+        phase: 'in-progress',
+        operation: ops[i],
+        index: i,
+        current: i,
+        total: ops.length,
+        currentTrack: this._handler.getDisplayName(ops[i]),
+        bytesProcessed: 0,
+        bytesTotal: plan.estimatedSize || 0,
+      };
+    }
+    if (ops.length > 0) {
+      yield {
+        phase: 'complete',
+        operation: ops[ops.length - 1],
+        index: ops.length - 1,
+        current: ops.length - 1,
+        total: ops.length,
+        currentTrack: '',
+        bytesProcessed: plan.estimatedSize || 0,
+        bytesTotal: plan.estimatedSize || 0,
+      };
+    }
+  }
+
+  async executeAll(plan: any, options?: any) {
+    let completed = 0;
+    for await (const progress of this.execute(plan, options)) {
+      if (progress.phase !== 'complete') completed++;
+    }
+    return {
+      completed,
+      failed: 0,
+      skipped: 0,
+      errors: [],
+      categorizedErrors: [],
+      warnings: [],
+      bytesTransferred: plan.estimatedSize || 0,
+    };
+  }
+}
+
+export function createUnifiedExecutor(handler: any) {
+  return new UnifiedExecutor(handler);
 }
 
 // =============================================================================

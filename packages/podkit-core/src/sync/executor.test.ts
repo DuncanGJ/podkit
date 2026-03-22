@@ -2336,8 +2336,8 @@ function createMockStreamAdapter(options?: {
     name: 'mock-stream',
     adapterType: 'mock-stream',
     connect: async () => {},
-    getTracks: async () => [],
-    getFilteredTracks: async (_filter: TrackFilter) => [],
+    getItems: async () => [],
+    getFilteredItems: async (_filter: TrackFilter) => [],
     disconnect: async () => {},
     getFileAccess(track: CollectionTrack): FileAccess {
       return {
@@ -2397,9 +2397,7 @@ describe('DefaultSyncExecutor - prefetch pipeline (ADR-011)', () => {
     }
 
     // Both operations should complete successfully
-    const completedOps = progress.filter(
-      (p) => p.phase === 'transcoding' || p.phase === 'copying'
-    );
+    const completedOps = progress.filter((p) => p.phase === 'transcoding' || p.phase === 'copying');
     expect(completedOps.length).toBe(2);
 
     // No errors
@@ -2520,8 +2518,8 @@ describe('DefaultSyncExecutor - prefetch pipeline (ADR-011)', () => {
       name: 'failing-stream',
       adapterType: 'failing-stream',
       connect: async () => {},
-      getTracks: async () => [],
-      getFilteredTracks: async () => [],
+      getItems: async () => [],
+      getFilteredItems: async () => [],
       disconnect: async () => {},
       getFileAccess(_track: CollectionTrack): FileAccess {
         callCount++;

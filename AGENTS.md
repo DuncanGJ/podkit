@@ -184,7 +184,7 @@ Read [agents/docker.md](agents/docker.md) when working on Docker distribution, t
 
 Read [agents/releases.md](agents/releases.md) when creating changesets, reviewing release PRs, or publishing releases.
 
-Quick reference: `bunx changeset` to create a changeset. Required for user-facing changes to `podkit`, `@podkit/core`, or `@podkit/libgpod-node`.
+Quick reference: `bunx changeset` to create a changeset. Required for user-facing changes to `podkit`, `@podkit/core`, `@podkit/libgpod-node`, `@podkit/daemon` or `@podkit/docker`.
 
 ## Config Migrations
 

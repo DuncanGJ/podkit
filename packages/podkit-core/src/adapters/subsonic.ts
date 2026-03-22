@@ -254,7 +254,7 @@ function getCodec(suffix: string | undefined, contentType: string | undefined): 
  * placeholder responses during scanning. Servers that return errors for missing
  * artwork (like Gonic) simply have no placeholder hash, and filtering is a no-op.
  */
-export class SubsonicAdapter implements CollectionAdapter {
+export class SubsonicAdapter implements CollectionAdapter<CollectionTrack, TrackFilter> {
   readonly name = 'subsonic';
   readonly adapterType = 'subsonic';
 
@@ -346,12 +346,12 @@ export class SubsonicAdapter implements CollectionAdapter {
   }
 
   /**
-   * Get all tracks from the Subsonic server
+   * Get all items from the Subsonic server
    *
    * Paginates through all albums and extracts songs.
    * Results are cached after first fetch.
    */
-  async getTracks(): Promise<CollectionTrack[]> {
+  async getItems(): Promise<CollectionTrack[]> {
     if (this.tracks !== null) {
       return this.tracks;
     }
@@ -406,10 +406,10 @@ export class SubsonicAdapter implements CollectionAdapter {
   }
 
   /**
-   * Get tracks matching filter criteria
+   * Get items matching filter criteria
    */
-  async getFilteredTracks(filter: TrackFilter): Promise<CollectionTrack[]> {
-    const allTracks = await this.getTracks();
+  async getFilteredItems(filter: TrackFilter): Promise<CollectionTrack[]> {
+    const allTracks = await this.getItems();
     return this.applyFilter(allTracks, filter);
   }
 

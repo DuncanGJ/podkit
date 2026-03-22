@@ -16,7 +16,7 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { computeDiff, createDiffer, DefaultSyncDiffer } from './differ.js';
+import { computeDiff } from './differ.js';
 import type { CollectionTrack } from '../adapters/interface.js';
 import type { IPodTrack } from './types.js';
 
@@ -890,67 +890,6 @@ describe('computeDiff - performance', () => {
     // We check that 4x size doesn't take more than ~6x time (allowing for overhead)
     const ratio = times[2]! / times[0]!;
     expect(ratio).toBeLessThan(8); // Much less than 16x expected from O(n^2)
-  });
-});
-
-// =============================================================================
-// DefaultSyncDiffer Class Tests
-// =============================================================================
-
-describe('DefaultSyncDiffer', () => {
-  it('implements SyncDiffer interface', () => {
-    const differ = new DefaultSyncDiffer();
-
-    expect(typeof differ.diff).toBe('function');
-  });
-
-  it('produces same results as computeDiff', () => {
-    const differ = new DefaultSyncDiffer();
-
-    const collectionTracks = [
-      createCollectionTrack('Artist A', 'Song A', 'Album A'),
-      createCollectionTrack('Artist B', 'Song B', 'Album B'),
-    ];
-
-    const ipodTracks = [
-      createIPodTrack('Artist A', 'Song A', 'Album A'),
-      createIPodTrack('Artist C', 'Song C', 'Album C'),
-    ];
-
-    const directDiff = computeDiff(collectionTracks, ipodTracks);
-    const classDiff = differ.diff(collectionTracks, ipodTracks);
-
-    expect(classDiff.toAdd).toHaveLength(directDiff.toAdd.length);
-    expect(classDiff.toRemove).toHaveLength(directDiff.toRemove.length);
-    expect(classDiff.existing).toHaveLength(directDiff.existing.length);
-    expect(classDiff.toUpdate).toHaveLength(directDiff.toUpdate.length);
-  });
-});
-
-// =============================================================================
-// createDiffer Factory Tests
-// =============================================================================
-
-describe('createDiffer', () => {
-  it('creates a SyncDiffer instance', () => {
-    const differ = createDiffer();
-
-    expect(differ).toBeInstanceOf(DefaultSyncDiffer);
-    expect(typeof differ.diff).toBe('function');
-  });
-
-  it('creates functional differ instances', () => {
-    const differ = createDiffer();
-
-    const collectionTracks = [createCollectionTrack('Artist', 'Song', 'Album')];
-
-    const ipodTracks: IPodTrack[] = [];
-
-    const diff = differ.diff(collectionTracks, ipodTracks);
-
-    expect(diff.toAdd).toHaveLength(1);
-    expect(diff.toRemove).toHaveLength(0);
-    expect(diff.existing).toHaveLength(0);
   });
 });
 

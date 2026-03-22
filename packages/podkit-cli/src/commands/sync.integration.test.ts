@@ -52,7 +52,7 @@ describe('sync command integration', () => {
       // Use empty source directory
       const adapter = createDirectoryAdapter({ path: tempSourceDir! });
       await adapter.connect();
-      const collectionTracks = await adapter.getTracks();
+      const collectionTracks = await adapter.getItems();
 
       // Open iPod and get tracks using IpodDatabase
       const ipod = await IpodDatabase.open(testIpod!.path);
@@ -79,7 +79,7 @@ describe('sync command integration', () => {
       // Use empty source directory
       const adapter = createDirectoryAdapter({ path: tempSourceDir! });
       await adapter.connect();
-      const collectionTracks = await adapter.getTracks();
+      const collectionTracks = await adapter.getItems();
 
       // Open iPod and get tracks using IpodDatabase
       const ipod = await IpodDatabase.open(testIpod!.path);

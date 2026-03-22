@@ -8,7 +8,12 @@
 import type { CollectionTrack } from '../adapters/interface.js';
 import type { TrackMetadata } from '../types.js';
 import type { IPodTrack } from '../ipod/types.js';
-import type { EncodingMode, QualityPreset, TranscodeConfig } from '../transcode/types.js';
+import type {
+  EncodingMode,
+  QualityPreset,
+  TranscodeConfig,
+  TranscodeProgress,
+} from '../transcode/types.js';
 import type { CollectionVideo } from '../video/directory-adapter.js';
 import type { VideoTranscodeSettings } from '../video/types.js';
 import type { IPodVideo } from './video-differ.js';
@@ -220,6 +225,13 @@ export type SyncOperation =
       source: CollectionVideo;
       video: IPodVideo;
       newSeriesTitle?: string;
+    }
+  | {
+      type: 'video-upgrade';
+      source: CollectionVideo;
+      target: IPodVideo;
+      reason: UpgradeReason;
+      settings?: VideoTranscodeSettings;
     };
 
 /**
@@ -264,6 +276,7 @@ export interface SyncProgress {
     | 'video-transcoding'
     | 'video-copying'
     | 'video-updating-metadata'
+    | 'video-upgrading'
     | 'updating-db'
     | 'complete';
   current: number;
@@ -454,4 +467,100 @@ export interface PlanOptions {
    * @default true
    */
   artworkEnabled?: boolean;
+}
+
+// =============================================================================
+// Unified Executor Types
+// =============================================================================
+
+/**
+ * Error category for determining retry behavior and reporting
+ */
+export type ErrorCategory =
+  | 'transcode' // FFmpeg failure - retry once
+  | 'copy' // File copy failure - retry once
+  | 'database' // iPod database error - no retry
+  | 'artwork' // Artwork error - skip artwork only, continue sync
+  | 'unknown'; // Other errors - no retry
+
+/**
+ * Extended error with category information
+ */
+export interface CategorizedError {
+  /** The original error */
+  error: Error;
+  /** Category of the error */
+  category: ErrorCategory;
+  /** Track identifier for display */
+  trackName: string;
+  /** Number of retry attempts made */
+  retryAttempts: number;
+  /** Whether this error type was retried */
+  wasRetried: boolean;
+}
+
+/**
+ * Warning type for non-fatal issues during sync execution
+ */
+export type ExecutionWarningType = 'artwork' | 'metadata';
+
+/**
+ * A non-fatal warning generated during sync execution
+ *
+ * Warnings represent issues that don't prevent the sync from completing
+ * (e.g., artwork extraction failures) but should be reported to the user.
+ */
+export interface ExecutionWarning {
+  /** Type of warning */
+  type: ExecutionWarningType;
+  /** Track that triggered the warning */
+  track: { artist: string; title: string; album?: string };
+  /** Human-readable description of the issue */
+  message: string;
+}
+
+/**
+ * Extended progress information for sync operations.
+ *
+ * Used by both music and video executors.
+ */
+export interface ExecutorProgress extends SyncProgress {
+  /** Current operation being executed */
+  operation: SyncOperation;
+  /** Index of current operation (0-based) */
+  index: number;
+  /** Error if operation failed */
+  error?: Error;
+  /** Categorized error with additional context */
+  categorizedError?: CategorizedError;
+  /** Whether this operation was skipped (dry-run) */
+  skipped?: boolean;
+  /** Current retry attempt (0 = first try, 1 = first retry) */
+  retryAttempt?: number;
+  /** Transcode progress for video-transcode operations */
+  transcodeProgress?: TranscodeProgress;
+}
+
+/**
+ * Result of sync execution.
+ *
+ * Used by both music and video executors.
+ */
+export interface ExecuteResult {
+  /** Number of operations completed successfully */
+  completed: number;
+  /** Number of operations that failed */
+  failed: number;
+  /** Number of operations skipped (dry-run) */
+  skipped: number;
+  /** Errors encountered during execution (legacy format) */
+  errors: Array<{ operation: SyncOperation; error: Error }>;
+  /** Categorized errors with full context */
+  categorizedErrors: CategorizedError[];
+  /** Non-fatal warnings (e.g., artwork extraction failures) */
+  warnings: ExecutionWarning[];
+  /** Total bytes transferred */
+  bytesTransferred: number;
+  /** Whether execution was aborted */
+  aborted?: boolean;
 }

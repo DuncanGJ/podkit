@@ -160,7 +160,7 @@ describe('VideoDirectoryAdapter', () => {
     });
   });
 
-  describe('getFilePath', () => {
+  describe('getFileAccess', () => {
     it('returns video filePath property', () => {
       const adapter = new VideoDirectoryAdapter({ path: '/videos' });
 
@@ -177,7 +177,8 @@ describe('VideoDirectoryAdapter', () => {
         duration: 3600,
       };
 
-      expect(adapter.getFilePath(video)).toBe('/videos/test.mp4');
+      const access = adapter.getFileAccess(video);
+      expect(access).toEqual({ type: 'path', path: '/videos/test.mp4' });
     });
   });
 
@@ -195,7 +196,7 @@ describe('VideoDirectoryAdapter', () => {
     });
   });
 
-  describe('getFilteredVideos', () => {
+  describe('getFilteredItems', () => {
     let adapter: VideoDirectoryAdapter;
     let videos: CollectionVideo[];
 
@@ -275,60 +276,60 @@ describe('VideoDirectoryAdapter', () => {
     });
 
     it('filters by content type', async () => {
-      const movies = await adapter.getFilteredVideos({ contentType: 'movie' });
+      const movies = await adapter.getFilteredItems({ contentType: 'movie' });
       expect(movies).toHaveLength(2);
       expect(movies.every((v) => v.contentType === 'movie')).toBe(true);
 
-      const tvshows = await adapter.getFilteredVideos({ contentType: 'tvshow' });
+      const tvshows = await adapter.getFilteredItems({ contentType: 'tvshow' });
       expect(tvshows).toHaveLength(2);
       expect(tvshows.every((v) => v.contentType === 'tvshow')).toBe(true);
     });
 
     it('filters by genre (case-insensitive partial match)', async () => {
-      const action = await adapter.getFilteredVideos({ genre: 'action' });
+      const action = await adapter.getFilteredItems({ genre: 'action' });
       expect(action).toHaveLength(1);
       expect(action[0]!.title).toBe('Action Movie');
 
-      const drama = await adapter.getFilteredVideos({ genre: 'DRAMA' });
+      const drama = await adapter.getFilteredItems({ genre: 'DRAMA' });
       expect(drama).toHaveLength(2);
     });
 
     it('filters by year (exact match)', async () => {
-      const year2024 = await adapter.getFilteredVideos({ year: 2024 });
+      const year2024 = await adapter.getFilteredItems({ year: 2024 });
       expect(year2024).toHaveLength(2);
 
-      const year2023 = await adapter.getFilteredVideos({ year: 2023 });
+      const year2023 = await adapter.getFilteredItems({ year: 2023 });
       expect(year2023).toHaveLength(1);
       expect(year2023[0]!.title).toBe('Comedy Movie');
     });
 
     it('filters by series title', async () => {
-      const show = await adapter.getFilteredVideos({ seriesTitle: 'test' });
+      const show = await adapter.getFilteredItems({ seriesTitle: 'test' });
       expect(show).toHaveLength(2);
       expect(show.every((v) => v.seriesTitle === 'Test Show')).toBe(true);
     });
 
     it('filters by season number', async () => {
-      const season1 = await adapter.getFilteredVideos({ seasonNumber: 1 });
+      const season1 = await adapter.getFilteredItems({ seasonNumber: 1 });
       expect(season1).toHaveLength(1);
       expect(season1[0]!.episodeId).toBe('S01E01');
 
-      const season2 = await adapter.getFilteredVideos({ seasonNumber: 2 });
+      const season2 = await adapter.getFilteredItems({ seasonNumber: 2 });
       expect(season2).toHaveLength(1);
       expect(season2[0]!.episodeId).toBe('S02E01');
     });
 
     it('filters by path pattern', async () => {
-      const tvShowPath = await adapter.getFilteredVideos({ pathPattern: '**/TV Shows/**' });
+      const tvShowPath = await adapter.getFilteredItems({ pathPattern: '**/TV Shows/**' });
       expect(tvShowPath).toHaveLength(2);
       expect(tvShowPath.every((v) => v.filePath.includes('TV Shows'))).toBe(true);
 
-      const season1Path = await adapter.getFilteredVideos({ pathPattern: '**/Season 1/**' });
+      const season1Path = await adapter.getFilteredItems({ pathPattern: '**/Season 1/**' });
       expect(season1Path).toHaveLength(1);
     });
 
     it('combines multiple filters', async () => {
-      const result = await adapter.getFilteredVideos({
+      const result = await adapter.getFilteredItems({
         contentType: 'tvshow',
         seriesTitle: 'test',
         seasonNumber: 1,
@@ -339,7 +340,7 @@ describe('VideoDirectoryAdapter', () => {
     });
 
     it('returns all videos when no filter provided', async () => {
-      const result = await adapter.getFilteredVideos({});
+      const result = await adapter.getFilteredItems({});
       expect(result).toHaveLength(4);
     });
   });

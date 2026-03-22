@@ -79,11 +79,11 @@ describe('VideoDirectoryAdapter integration', () => {
     });
   });
 
-  describe('getVideos', () => {
+  describe('getItems', () => {
     it.skipIf(!fixturesExist)('returns all scanned videos', async () => {
       const adapter = new VideoDirectoryAdapter({ path: FIXTURES_DIR });
 
-      const videos = await adapter.getVideos();
+      const videos = await adapter.getItems();
 
       expect(videos.length).toBeGreaterThanOrEqual(4);
 
@@ -105,7 +105,7 @@ describe('VideoDirectoryAdapter integration', () => {
     it.skipIf(!fixturesExist)('detects movie content type', async () => {
       const adapter = new VideoDirectoryAdapter({ path: FIXTURES_DIR });
 
-      const videos = await adapter.getVideos();
+      const videos = await adapter.getItems();
       const movieVideo = videos.find((v) => v.filePath.includes('movie-with-metadata'));
 
       expect(movieVideo).toBeDefined();
@@ -120,7 +120,7 @@ describe('VideoDirectoryAdapter integration', () => {
     it.skipIf(!fixturesExist)('detects TV show content type', async () => {
       const adapter = new VideoDirectoryAdapter({ path: FIXTURES_DIR });
 
-      const videos = await adapter.getVideos();
+      const videos = await adapter.getItems();
       const tvVideo = videos.find((v) => v.filePath.includes('tvshow-episode'));
 
       expect(tvVideo).toBeDefined();
@@ -138,7 +138,7 @@ describe('VideoDirectoryAdapter integration', () => {
     it.skipIf(!fixturesExist)('extracts technical information', async () => {
       const adapter = new VideoDirectoryAdapter({ path: FIXTURES_DIR });
 
-      const videos = await adapter.getVideos();
+      const videos = await adapter.getItems();
       const compatibleVideo = videos.find((v) => v.filePath.includes('compatible-h264'));
 
       expect(compatibleVideo).toBeDefined();
@@ -152,7 +152,7 @@ describe('VideoDirectoryAdapter integration', () => {
     it.skipIf(!fixturesExist)('handles different video containers', async () => {
       const adapter = new VideoDirectoryAdapter({ path: FIXTURES_DIR });
 
-      const videos = await adapter.getVideos();
+      const videos = await adapter.getItems();
 
       // Should find MKV file
       const mkvVideo = videos.find((v) => v.filePath.endsWith('.mkv'));
@@ -167,12 +167,12 @@ describe('VideoDirectoryAdapter integration', () => {
     });
   });
 
-  describe('getFilteredVideos', () => {
+  describe('getFilteredItems', () => {
     it.skipIf(!fixturesExist)('filters by content type', async () => {
       const adapter = new VideoDirectoryAdapter({ path: FIXTURES_DIR });
 
-      const movies = await adapter.getFilteredVideos({ contentType: 'movie' });
-      const tvshows = await adapter.getFilteredVideos({ contentType: 'tvshow' });
+      const movies = await adapter.getFilteredItems({ contentType: 'movie' });
+      const tvshows = await adapter.getFilteredItems({ contentType: 'tvshow' });
 
       expect(movies.every((v) => v.contentType === 'movie')).toBe(true);
       expect(tvshows.every((v) => v.contentType === 'tvshow')).toBe(true);
@@ -181,7 +181,7 @@ describe('VideoDirectoryAdapter integration', () => {
     it.skipIf(!fixturesExist)('filters by year', async () => {
       const adapter = new VideoDirectoryAdapter({ path: FIXTURES_DIR });
 
-      const videos2024 = await adapter.getFilteredVideos({ year: 2024 });
+      const videos2024 = await adapter.getFilteredItems({ year: 2024 });
 
       expect(videos2024.length).toBeGreaterThan(0);
       expect(videos2024.every((v) => v.year === 2024)).toBe(true);
@@ -190,7 +190,7 @@ describe('VideoDirectoryAdapter integration', () => {
     it.skipIf(!fixturesExist)('filters by genre', async () => {
       const adapter = new VideoDirectoryAdapter({ path: FIXTURES_DIR });
 
-      const dramaVideos = await adapter.getFilteredVideos({ genre: 'Drama' });
+      const dramaVideos = await adapter.getFilteredItems({ genre: 'Drama' });
 
       expect(dramaVideos.length).toBeGreaterThan(0);
       expect(dramaVideos.every((v) => v.genre?.toLowerCase().includes('drama'))).toBe(true);
@@ -199,7 +199,7 @@ describe('VideoDirectoryAdapter integration', () => {
     it.skipIf(!fixturesExist)('filters by path pattern', async () => {
       const adapter = new VideoDirectoryAdapter({ path: FIXTURES_DIR });
 
-      const mp4Videos = await adapter.getFilteredVideos({ pathPattern: '*.mp4' });
+      const mp4Videos = await adapter.getFilteredItems({ pathPattern: '*.mp4' });
 
       expect(mp4Videos.length).toBeGreaterThan(0);
       expect(mp4Videos.every((v) => v.filePath.endsWith('.mp4'))).toBe(true);
@@ -213,7 +213,7 @@ describe('VideoDirectoryAdapter integration', () => {
         extensions: ['mp4'],
       });
 
-      const videos = await adapter.getVideos();
+      const videos = await adapter.getItems();
 
       expect(videos.every((v) => v.filePath.endsWith('.mp4'))).toBe(true);
     });
@@ -224,7 +224,7 @@ describe('VideoDirectoryAdapter integration', () => {
         extensions: ['mp4', 'mkv'],
       });
 
-      const videos = await adapter.getVideos();
+      const videos = await adapter.getItems();
 
       expect(videos.every((v) => v.filePath.endsWith('.mp4') || v.filePath.endsWith('.mkv'))).toBe(
         true

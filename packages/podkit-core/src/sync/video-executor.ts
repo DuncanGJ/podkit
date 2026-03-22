@@ -22,64 +22,37 @@
  * @module
  */
 
-import { mkdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { randomUUID } from 'node:crypto';
-import { rm } from 'node:fs/promises';
-
-import type { SyncProgress, SyncOperation, ExecuteOptions } from './types.js';
-import type { VideoSyncPlan } from './video-planner.js';
+import type { SyncOperation, ExecuteOptions, SyncPlan, ExecutorProgress } from './types.js';
 import type { TranscodeProgress } from '../transcode/types.js';
 import type { IpodDatabase } from '../ipod/index.js';
-import type { CollectionVideo } from '../video/directory-adapter.js';
-import { buildVideoSyncTag, writeSyncTag } from './sync-tags.js';
-import { transcodeVideo } from '../video/transcode.js';
-import { probeVideo } from '../video/probe.js';
-import { createVideoTrackInput } from '../ipod/video.js';
 
 // =============================================================================
 // Helpers
 // =============================================================================
 
 /**
- * Format episode title from video metadata (mirrors ipod/video.ts formatEpisodeTitle)
+ * Map an operation type to its corresponding progress phase
  */
-function formatVideoEpisodeTitle(video: CollectionVideo): string {
-  if (video.episodeId) {
-    return video.episodeId;
+function getPhaseForOperationType(type: SyncOperation['type']): ExecutorProgress['phase'] {
+  switch (type) {
+    case 'video-transcode':
+      return 'video-transcoding';
+    case 'video-copy':
+      return 'video-copying';
+    case 'video-remove':
+      return 'removing';
+    case 'video-update-metadata':
+      return 'video-updating-metadata';
+    case 'video-upgrade':
+      return 'video-upgrading';
+    default:
+      return 'preparing';
   }
-  if (video.seasonNumber !== undefined && video.episodeNumber !== undefined) {
-    const ep = String(video.episodeNumber).padStart(2, '0');
-    const season = String(video.seasonNumber).padStart(2, '0');
-    return `S${season}E${ep}`;
-  }
-  return `Episode ${video.episodeNumber ?? 1}`;
 }
 
 // =============================================================================
 // Types
 // =============================================================================
-
-/**
- * Extended progress information for video sync operations
- */
-export interface VideoExecutorProgress extends SyncProgress {
-  /** Current operation being executed */
-  operation: SyncOperation;
-
-  /** Index of current operation (0-based) */
-  index: number;
-
-  /** Error if operation failed */
-  error?: Error;
-
-  /** Whether this operation was skipped (dry-run) */
-  skipped?: boolean;
-
-  /** Transcode progress for video-transcode operations */
-  transcodeProgress?: TranscodeProgress;
-}
 
 /**
  * Extended options for video sync execution
@@ -109,26 +82,6 @@ export interface VideoExecuteOptions extends ExecuteOptions {
    * @default 10
    */
   saveInterval?: number;
-}
-
-/**
- * Result of video sync execution
- */
-export interface VideoExecuteResult {
-  /** Number of operations completed successfully */
-  completed: number;
-
-  /** Number of operations that failed */
-  failed: number;
-
-  /** Number of operations skipped (dry-run or unsupported) */
-  skipped: number;
-
-  /** Errors encountered during execution */
-  errors: Array<{ operation: SyncOperation; error: Error }>;
-
-  /** Total bytes transferred */
-  bytesTransferred: number;
 }
 
 /**
@@ -170,529 +123,12 @@ export interface VideoSyncExecutor {
    * }
    * ```
    */
-  execute(plan: VideoSyncPlan, options?: VideoExecuteOptions): AsyncIterable<VideoExecutorProgress>;
+  execute(plan: SyncPlan, options?: VideoExecuteOptions): AsyncIterable<ExecutorProgress>;
 }
 
 // =============================================================================
 // Implementation
 // =============================================================================
-
-/**
- * Default video sync executor implementation
- */
-export class DefaultVideoSyncExecutor implements VideoSyncExecutor {
-  private ipod: IpodDatabase;
-  /** Video quality preset for sync tag writing (set during execute()) */
-  private videoQuality?: string;
-
-  constructor(deps: VideoExecutorDependencies) {
-    this.ipod = deps.ipod;
-  }
-
-  /**
-   * Execute a video sync plan
-   */
-  async *execute(
-    plan: VideoSyncPlan,
-    options: VideoExecuteOptions = {}
-  ): AsyncIterable<VideoExecutorProgress> {
-    const {
-      dryRun = false,
-      continueOnError = false,
-      tempDir = tmpdir(),
-      signal,
-      onTranscodeProgress,
-      videoQuality,
-      saveInterval = 10,
-    } = options;
-
-    // Store video quality for sync tag writing
-    this.videoQuality = videoQuality;
-
-    const total = plan.operations.length;
-    let bytesProcessed = 0;
-
-    // Create temp directory for transcoded files
-    const transcodeDir = join(tempDir, `podkit-video-${randomUUID()}`);
-    const hasTranscodes = plan.operations.some((op) => op.type === 'video-transcode');
-
-    if (hasTranscodes && !dryRun) {
-      await mkdir(transcodeDir, { recursive: true });
-    }
-
-    try {
-      // Dry-run mode - just simulate
-      if (dryRun) {
-        yield* this.executeDryRun(plan);
-        return;
-      }
-
-      // Real execution
-      let completed = 0;
-      const checkpointSave = async () => {
-        completed++;
-        if (saveInterval > 0 && completed % saveInterval === 0 && !signal?.aborted) {
-          await this.ipod.save();
-        }
-      };
-
-      for (let index = 0; index < plan.operations.length; index++) {
-        const operation = plan.operations[index]!;
-
-        // Check for abort
-        if (signal?.aborted) {
-          throw new Error('Video sync aborted');
-        }
-
-        try {
-          if (operation.type === 'video-transcode') {
-            // Track bytes through yielded progress
-            let lastProgress: VideoExecutorProgress | undefined;
-            for await (const progress of this.executeTranscode(
-              operation,
-              index,
-              total,
-              bytesProcessed,
-              plan.estimatedSize,
-              transcodeDir,
-              onTranscodeProgress,
-              signal
-            )) {
-              yield progress;
-              lastProgress = progress;
-            }
-            // Update bytes from final progress
-            if (lastProgress) {
-              bytesProcessed = lastProgress.bytesProcessed;
-            }
-
-            await checkpointSave();
-          } else if (operation.type === 'video-copy') {
-            // Track bytes through yielded progress
-            let lastProgress: VideoExecutorProgress | undefined;
-            for await (const progress of this.executeCopy(
-              operation,
-              index,
-              total,
-              bytesProcessed,
-              plan.estimatedSize
-            )) {
-              yield progress;
-              lastProgress = progress;
-            }
-            // Update bytes from final progress
-            if (lastProgress) {
-              bytesProcessed = lastProgress.bytesProcessed;
-            }
-
-            await checkpointSave();
-          } else if (operation.type === 'video-remove') {
-            yield* this.executeRemove(operation, index, total, bytesProcessed, plan.estimatedSize);
-          } else if (operation.type === 'video-update-metadata') {
-            yield* this.executeUpdateMetadata(
-              operation,
-              index,
-              total,
-              bytesProcessed,
-              plan.estimatedSize
-            );
-          }
-        } catch (error) {
-          const err = error instanceof Error ? error : new Error(String(error));
-
-          yield {
-            phase: 'video-transcoding',
-            operation,
-            index,
-            current: index,
-            total,
-            currentTrack: getVideoOperationDisplayName(operation),
-            bytesProcessed,
-            bytesTotal: plan.estimatedSize,
-            error: err,
-          };
-
-          if (!continueOnError) {
-            throw err;
-          }
-        }
-      }
-
-      // Emit completion
-      if (plan.operations.length > 0) {
-        yield {
-          phase: 'complete',
-          operation: plan.operations[plan.operations.length - 1]!,
-          index: plan.operations.length - 1,
-          current: plan.operations.length - 1,
-          total,
-          currentTrack: getVideoOperationDisplayName(plan.operations[plan.operations.length - 1]!),
-          bytesProcessed,
-          bytesTotal: plan.estimatedSize,
-        };
-      }
-    } finally {
-      // Cleanup temp directory
-      if (hasTranscodes && !dryRun) {
-        try {
-          await rm(transcodeDir, { recursive: true, force: true });
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
-    }
-  }
-
-  /**
-   * Execute in dry-run mode
-   */
-  private async *executeDryRun(plan: VideoSyncPlan): AsyncIterable<VideoExecutorProgress> {
-    const total = plan.operations.length;
-    const bytesProcessed = 0;
-
-    for (let index = 0; index < plan.operations.length; index++) {
-      const operation = plan.operations[index]!;
-
-      const phase =
-        operation.type === 'video-transcode'
-          ? 'video-transcoding'
-          : operation.type === 'video-copy'
-            ? 'video-copying'
-            : operation.type === 'video-remove'
-              ? 'removing'
-              : operation.type === 'video-update-metadata'
-                ? 'video-updating-metadata'
-                : 'preparing';
-
-      yield {
-        phase,
-        operation,
-        index,
-        current: index,
-        total,
-        currentTrack: getVideoOperationDisplayName(operation),
-        bytesProcessed,
-        bytesTotal: plan.estimatedSize,
-        skipped: true,
-      };
-    }
-
-    // Emit completion
-    if (plan.operations.length > 0) {
-      yield {
-        phase: 'complete',
-        operation: plan.operations[plan.operations.length - 1]!,
-        index: plan.operations.length - 1,
-        current: plan.operations.length - 1,
-        total,
-        currentTrack: getVideoOperationDisplayName(plan.operations[plan.operations.length - 1]!),
-        bytesProcessed,
-        bytesTotal: plan.estimatedSize,
-      };
-    }
-  }
-
-  /**
-   * Execute a video transcode operation
-   */
-  private async *executeTranscode(
-    operation: Extract<SyncOperation, { type: 'video-transcode' }>,
-    index: number,
-    total: number,
-    bytesProcessed: number,
-    bytesTotal: number,
-    transcodeDir: string,
-    onTranscodeProgress?: (progress: TranscodeProgress) => void,
-    signal?: AbortSignal
-  ): AsyncIterable<VideoExecutorProgress> {
-    const { source, settings } = operation;
-
-    // Generate output filename
-    const outputFilename = `${randomUUID()}.m4v`;
-    const tempOutputPath = join(transcodeDir, outputFilename);
-
-    // Track latest progress for yielding
-    let latestTranscodeProgress: TranscodeProgress | undefined;
-    let transcodeComplete = false;
-    let transcodeError: Error | undefined;
-
-    // Start transcoding in background
-    const transcodePromise = transcodeVideo(source.filePath, tempOutputPath, settings, {
-      onProgress: (progress) => {
-        latestTranscodeProgress = progress;
-        onTranscodeProgress?.(progress);
-      },
-      signal,
-    })
-      .then(() => {
-        transcodeComplete = true;
-      })
-      .catch((err) => {
-        transcodeError = err instanceof Error ? err : new Error(String(err));
-        transcodeComplete = true;
-      });
-
-    // Yield progress updates while transcoding
-    while (!transcodeComplete) {
-      yield {
-        phase: 'video-transcoding',
-        operation,
-        index,
-        current: index,
-        total,
-        currentTrack: source.title,
-        bytesProcessed,
-        bytesTotal,
-        transcodeProgress: latestTranscodeProgress,
-      };
-
-      // Wait a bit before next update (100ms)
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-
-    // Check for errors
-    if (transcodeError) {
-      throw transcodeError;
-    }
-
-    // Wait for promise to fully resolve
-    await transcodePromise;
-
-    // Get transcoded file size
-    const outputStats = await stat(tempOutputPath);
-
-    // Probe the source video for metadata (title, duration, etc.)
-    const analysis = await probeVideo(source.filePath);
-
-    // Probe the transcoded output for accurate bitrate (source bitrate != output bitrate)
-    const outputAnalysis = await probeVideo(tempOutputPath);
-
-    // Create track input for iPod database — use source metadata but output bitrate/size
-    const trackInput = createVideoTrackInput(source, analysis, {
-      size: outputStats.size,
-      bitrate: outputAnalysis.videoBitrate + outputAnalysis.audioBitrate,
-    });
-
-    // Apply transformed series title if set by video transforms
-    if (operation.transformedSeriesTitle) {
-      trackInput.artist = operation.transformedSeriesTitle;
-      trackInput.tvShow = operation.transformedSeriesTitle;
-      if (trackInput.album && source.contentType === 'tvshow') {
-        trackInput.album = `${operation.transformedSeriesTitle}, Season ${source.seasonNumber ?? 1}`;
-      }
-    }
-
-    // Write sync tag for video quality if configured
-    if (this.videoQuality) {
-      const syncTag = buildVideoSyncTag(this.videoQuality);
-      trackInput.comment = writeSyncTag(trackInput.comment, syncTag);
-    }
-
-    // Add track to iPod and copy file
-    const track = this.ipod.addTrack(trackInput);
-    track.copyFile(tempOutputPath);
-
-    // Yield completion progress
-    yield {
-      phase: 'video-transcoding',
-      operation,
-      index,
-      current: index,
-      total,
-      currentTrack: source.title,
-      bytesProcessed: bytesProcessed + outputStats.size,
-      bytesTotal,
-    };
-  }
-
-  /**
-   * Execute a video copy operation (passthrough)
-   */
-  private async *executeCopy(
-    operation: Extract<SyncOperation, { type: 'video-copy' }>,
-    index: number,
-    total: number,
-    bytesProcessed: number,
-    bytesTotal: number
-  ): AsyncIterable<VideoExecutorProgress> {
-    const { source } = operation;
-
-    // Yield start progress
-    yield {
-      phase: 'video-copying',
-      operation,
-      index,
-      current: index,
-      total,
-      currentTrack: source.title,
-      bytesProcessed,
-      bytesTotal,
-    };
-
-    // Get file stats
-    const fileStats = await stat(source.filePath);
-
-    // Probe the source video for metadata
-    const analysis = await probeVideo(source.filePath);
-
-    // Create track input for iPod database
-    const trackInput = createVideoTrackInput(source, analysis, {
-      size: fileStats.size,
-    });
-
-    // Apply transformed series title if set by video transforms
-    if (operation.transformedSeriesTitle) {
-      trackInput.artist = operation.transformedSeriesTitle;
-      trackInput.tvShow = operation.transformedSeriesTitle;
-      if (trackInput.album && source.contentType === 'tvshow') {
-        trackInput.album = `${operation.transformedSeriesTitle}, Season ${source.seasonNumber ?? 1}`;
-      }
-    }
-
-    // Add track to iPod and copy file
-    const track = this.ipod.addTrack(trackInput);
-    track.copyFile(source.filePath);
-
-    // Yield completion progress
-    yield {
-      phase: 'video-copying',
-      operation,
-      index,
-      current: index,
-      total,
-      currentTrack: source.title,
-      bytesProcessed: bytesProcessed + fileStats.size,
-      bytesTotal,
-    };
-  }
-
-  /**
-   * Execute a video remove operation
-   */
-  private async *executeRemove(
-    operation: Extract<SyncOperation, { type: 'video-remove' }>,
-    index: number,
-    total: number,
-    bytesProcessed: number,
-    bytesTotal: number
-  ): AsyncIterable<VideoExecutorProgress> {
-    const { video } = operation;
-
-    // Yield start progress
-    yield {
-      phase: 'removing',
-      operation,
-      index,
-      current: index,
-      total,
-      currentTrack: video.title,
-      bytesProcessed,
-      bytesTotal,
-    };
-
-    // Find the matching track in the database by file path or metadata
-    const tracks = this.ipod.getTracks();
-    const foundTrack = tracks.find(
-      (t) =>
-        t.filePath === video.filePath || (t.title === video.title && t.tvShow === video.seriesTitle)
-    );
-
-    if (!foundTrack) {
-      throw new Error(`Video track not found in database: ${video.title}`);
-    }
-
-    // Remove the track (this also removes the file)
-    foundTrack.remove();
-
-    // Yield completion progress
-    yield {
-      phase: 'removing',
-      operation,
-      index,
-      current: index,
-      total,
-      currentTrack: video.title,
-      bytesProcessed,
-      bytesTotal,
-    };
-  }
-  /**
-   * Execute a video metadata update operation
-   */
-  private async *executeUpdateMetadata(
-    operation: Extract<SyncOperation, { type: 'video-update-metadata' }>,
-    index: number,
-    total: number,
-    bytesProcessed: number,
-    bytesTotal: number
-  ): AsyncIterable<VideoExecutorProgress> {
-    const { video, source, newSeriesTitle } = operation;
-
-    // Yield start progress
-    yield {
-      phase: 'video-updating-metadata',
-      operation,
-      index,
-      current: index,
-      total,
-      currentTrack: video.title,
-      bytesProcessed,
-      bytesTotal,
-    };
-
-    // Find the matching track in the database by file path or metadata
-    const tracks = this.ipod.getTracks();
-    const foundTrack = tracks.find(
-      (t) =>
-        t.filePath === video.filePath || (t.title === video.title && t.tvShow === video.seriesTitle)
-    );
-
-    if (!foundTrack) {
-      throw new Error(`Video track not found in database: ${video.title}`);
-    }
-
-    // Build the full metadata update from the source video
-    if (source.contentType === 'tvshow') {
-      const seriesTitle = newSeriesTitle ?? source.seriesTitle ?? source.title;
-      const episodeTitle = source.title || formatVideoEpisodeTitle(source);
-
-      foundTrack.update({
-        title: episodeTitle,
-        artist: seriesTitle,
-        album: `${seriesTitle}, Season ${source.seasonNumber ?? 1}`,
-        tvShow: seriesTitle,
-        tvEpisode: episodeTitle,
-        trackNumber: source.episodeNumber,
-        discNumber: source.seasonNumber,
-      });
-    } else if (source.contentType === 'movie') {
-      foundTrack.update({
-        title: source.title,
-        artist: source.director ?? source.studio,
-        album: source.title,
-      });
-    } else if (newSeriesTitle !== undefined) {
-      // Fallback: only update series title fields (legacy behavior)
-      foundTrack.update({
-        artist: newSeriesTitle,
-        album: `${newSeriesTitle}, Season ${video.seasonNumber ?? 1}`,
-        tvShow: newSeriesTitle,
-      });
-    }
-
-    // Yield completion progress
-    yield {
-      phase: 'video-updating-metadata',
-      operation,
-      index,
-      current: index,
-      total,
-      currentTrack: video.title,
-      bytesProcessed,
-      bytesTotal,
-    };
-  }
-}
 
 /**
  * Placeholder video sync executor (dry-run only, no dependencies)
@@ -704,9 +140,9 @@ export class PlaceholderVideoSyncExecutor implements VideoSyncExecutor {
    * Execute a video sync plan (dry-run only)
    */
   async *execute(
-    plan: VideoSyncPlan,
+    plan: SyncPlan,
     options: VideoExecuteOptions = {}
-  ): AsyncIterable<VideoExecutorProgress> {
+  ): AsyncIterable<ExecutorProgress> {
     const { dryRun = false } = options;
 
     if (!dryRun) {
@@ -722,16 +158,7 @@ export class PlaceholderVideoSyncExecutor implements VideoSyncExecutor {
     for (let index = 0; index < plan.operations.length; index++) {
       const operation = plan.operations[index]!;
 
-      const phase =
-        operation.type === 'video-transcode'
-          ? 'video-transcoding'
-          : operation.type === 'video-copy'
-            ? 'video-copying'
-            : operation.type === 'video-remove'
-              ? 'removing'
-              : operation.type === 'video-update-metadata'
-                ? 'video-updating-metadata'
-                : 'preparing';
+      const phase = getPhaseForOperationType(operation.type);
 
       yield {
         phase,
@@ -776,6 +203,17 @@ export function getVideoOperationDisplayName(operation: SyncOperation): string {
         return `${showName} - ${video.episodeId}`;
       }
       // For movies, just use the title (with year if available)
+      if (video.year) {
+        return `${video.title} (${video.year})`;
+      }
+      return video.title;
+    }
+    case 'video-upgrade': {
+      const video = operation.source;
+      if (video.contentType === 'tvshow' && video.episodeId) {
+        const showName = video.seriesTitle || video.title;
+        return `${showName} - ${video.episodeId}`;
+      }
       if (video.year) {
         return `${video.title} (${video.year})`;
       }
@@ -831,10 +269,8 @@ export function getVideoOperationDisplayName(operation: SyncOperation): string {
  * ipod.close();
  * ```
  */
-export function createVideoExecutor(deps?: VideoExecutorDependencies): VideoSyncExecutor {
-  if (deps?.ipod) {
-    return new DefaultVideoSyncExecutor(deps);
-  }
-  // Return placeholder for dry-run only usage
+export function createVideoExecutor(_deps?: VideoExecutorDependencies): VideoSyncExecutor {
+  // Video execution uses UnifiedExecutor + VideoHandler.
+  // This factory returns the placeholder (dry-run only) executor.
   return new PlaceholderVideoSyncExecutor();
 }

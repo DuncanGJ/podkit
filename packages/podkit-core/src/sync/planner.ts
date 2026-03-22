@@ -37,7 +37,6 @@ import type {
   SyncDiff,
   SyncOperation,
   SyncPlan,
-  SyncPlanner,
   SyncWarning,
   TranscodePresetRef,
   UpdateTrack,
@@ -627,6 +626,7 @@ export function calculateOperationSize(operation: SyncOperation): number {
     case 'video-copy':
     case 'video-remove':
     case 'video-update-metadata':
+    case 'video-upgrade':
       return calculateVideoOperationSize(operation);
   }
 }
@@ -671,6 +671,7 @@ function calculateOperationTime(operation: SyncOperation): number {
     case 'video-copy':
     case 'video-remove':
     case 'video-update-metadata':
+    case 'video-upgrade':
       return calculateVideoOperationTime(operation);
   }
 }
@@ -816,12 +817,22 @@ export function getPlanSummary(plan: SyncPlan): {
   removeCount: number;
   updateCount: number;
   upgradeCount: number;
+  videoTranscodeCount: number;
+  videoCopyCount: number;
+  videoRemoveCount: number;
+  videoUpdateCount: number;
+  videoUpgradeCount: number;
 } {
   let transcodeCount = 0;
   let copyCount = 0;
   let removeCount = 0;
   let updateCount = 0;
   let upgradeCount = 0;
+  let videoTranscodeCount = 0;
+  let videoCopyCount = 0;
+  let videoRemoveCount = 0;
+  let videoUpdateCount = 0;
+  let videoUpgradeCount = 0;
 
   for (const op of plan.operations) {
     switch (op.type) {
@@ -840,31 +851,34 @@ export function getPlanSummary(plan: SyncPlan): {
       case 'upgrade':
         upgradeCount++;
         break;
+      case 'video-transcode':
+        videoTranscodeCount++;
+        break;
+      case 'video-copy':
+        videoCopyCount++;
+        break;
+      case 'video-remove':
+        videoRemoveCount++;
+        break;
+      case 'video-update-metadata':
+        videoUpdateCount++;
+        break;
+      case 'video-upgrade':
+        videoUpgradeCount++;
+        break;
     }
   }
 
-  return { transcodeCount, copyCount, removeCount, updateCount, upgradeCount };
-}
-
-// =============================================================================
-// SyncPlanner Implementation
-// =============================================================================
-
-/**
- * Default implementation of SyncPlanner interface
- */
-export class DefaultSyncPlanner implements SyncPlanner {
-  /**
-   * Create an execution plan from a diff
-   */
-  plan(diff: SyncDiff, options?: PlanOptions): SyncPlan {
-    return createPlan(diff, options);
-  }
-}
-
-/**
- * Create a new SyncPlanner instance
- */
-export function createPlanner(): SyncPlanner {
-  return new DefaultSyncPlanner();
+  return {
+    transcodeCount,
+    copyCount,
+    removeCount,
+    updateCount,
+    upgradeCount,
+    videoTranscodeCount,
+    videoCopyCount,
+    videoRemoveCount,
+    videoUpdateCount,
+    videoUpgradeCount,
+  };
 }

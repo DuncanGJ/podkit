@@ -38,7 +38,6 @@ import type {
   MatchedTrack,
   MetadataChange,
   SyncDiff,
-  SyncDiffer,
   UpdateTrack,
   UpgradeReason,
 } from './types.js';
@@ -655,37 +654,4 @@ function determineSyncTagDirection(
 
   // Encoding mode change at same quality is a re-transcode (treat as upgrade)
   return 'preset-upgrade';
-}
-
-/**
- * Default implementation of SyncDiffer interface
- *
- * This class wraps the computeDiff function to implement the SyncDiffer interface.
- * It can be extended to add caching or other optimizations.
- */
-export class DefaultSyncDiffer implements SyncDiffer {
-  /**
-   * Compare collection tracks to iPod tracks
-   *
-   * @param collectionTracks - Tracks from the collection source
-   * @param ipodTracks - Tracks currently on the iPod
-   * @param options - Diff options including transform configuration
-   * @returns The computed diff
-   */
-  diff(
-    collectionTracks: CollectionTrack[],
-    ipodTracks: IPodTrack[],
-    options?: DiffOptions
-  ): SyncDiff {
-    return computeDiff(collectionTracks, ipodTracks, options);
-  }
-}
-
-/**
- * Create a new SyncDiffer instance
- *
- * @returns A new DefaultSyncDiffer instance
- */
-export function createDiffer(): SyncDiffer {
-  return new DefaultSyncDiffer();
 }

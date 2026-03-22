@@ -16,6 +16,7 @@ export type {
   FileAccess,
   CollectionTrack,
   CollectionAdapter,
+  MusicAdapter,
   AdapterConfig,
   DirectoryAdapterConfig as AdapterDirectoryConfig,
   SubsonicAdapterConfig as AdapterSubsonicConfig,
@@ -57,10 +58,17 @@ export type {
   MetadataChange,
   UpdateTrack,
   DiffOptions,
+  // Unified executor types (canonical definitions)
+  ErrorCategory,
+  CategorizedError,
+  ExecutionWarningType,
+  ExecutionWarning,
+  ExecutorProgress,
+  ExecuteResult,
 } from './sync/types.js';
 
 // Differ
-export { computeDiff, createDiffer, DefaultSyncDiffer } from './sync/differ.js';
+export { computeDiff } from './sync/differ.js';
 
 // Upgrade detection (self-healing sync)
 export {
@@ -79,8 +87,6 @@ export type { PresetChangeOptions } from './sync/upgrades.js';
 // Planner
 export {
   createPlan,
-  createPlanner,
-  DefaultSyncPlanner,
   isIPodCompatible,
   requiresTranscoding,
   estimateTranscodedSize,
@@ -119,17 +125,22 @@ export {
   buildVideoSyncTag,
 } from './sync/sync-tags.js';
 
-// Sync executor
+// Shared error handling (canonical implementations)
+export type { RetryConfig as SharedRetryConfig } from './sync/error-handling.js';
+export {
+  categorizeError as sharedCategorizeError,
+  createCategorizedError as sharedCreateCategorizedError,
+  getRetriesForCategory as sharedGetRetriesForCategory,
+  withRetry,
+  DEFAULT_RETRY_CONFIG as SHARED_DEFAULT_RETRY_CONFIG,
+  VIDEO_RETRY_CONFIG,
+} from './sync/error-handling.js';
+
+// Sync executor (implementation-specific types)
 export type {
-  ExecutorProgress,
   ExtendedExecuteOptions,
-  ExecuteResult,
   ExecutorDependencies,
-  ErrorCategory,
-  CategorizedError,
   RetryConfig,
-  ExecutionWarning,
-  ExecutionWarningType,
   SyncTagConfig,
 } from './sync/executor.js';
 export {
@@ -426,6 +437,12 @@ export type {
 } from './video/directory-adapter.js';
 export { VideoDirectoryAdapter, createVideoDirectoryAdapter } from './video/directory-adapter.js';
 
+// Video adapter type alias (defined here to avoid circular imports between adapters/ and video/)
+import type { CollectionAdapter } from './adapters/interface.js';
+import type { CollectionVideo, VideoFilter } from './video/directory-adapter.js';
+/** Video collection adapter type alias */
+export type VideoAdapter = CollectionAdapter<CollectionVideo, VideoFilter>;
+
 // Video sync differ
 export type {
   IPodVideo,
@@ -436,17 +453,11 @@ export type {
   VideoUpdateTrack,
   VideoUpdateReason,
 } from './sync/video-differ.js';
-export {
-  diffVideos,
-  generateVideoMatchKey,
-  createVideoDiffer,
-  DefaultVideoSyncDiffer,
-} from './sync/video-differ.js';
+export { diffVideos, generateVideoMatchKey } from './sync/video-differ.js';
 
 // Video sync planner
 export type {
   VideoSyncPlanOptions,
-  VideoSyncPlan,
   VideoSyncWarning,
   VideoSyncWarningType,
   VideoPlanSummary,
@@ -456,22 +467,17 @@ export {
   planVideoSync,
   willVideoPlanFit,
   getVideoPlanSummary,
-  createVideoPlanner,
-  DefaultVideoSyncPlanner,
   estimateTranscodedSize as estimateVideoTranscodedSize,
   estimatePassthroughSize,
 } from './sync/video-planner.js';
 
 // Video sync executor
 export type {
-  VideoExecutorProgress,
   VideoExecuteOptions,
-  VideoExecuteResult,
   VideoSyncExecutor,
   VideoExecutorDependencies,
 } from './sync/video-executor.js';
 export {
-  DefaultVideoSyncExecutor,
   PlaceholderVideoSyncExecutor,
   getVideoOperationDisplayName,
   createVideoExecutor,
@@ -510,6 +516,33 @@ export {
   iTunNORMToSoundcheck,
   extractSoundcheck,
 } from './sync/soundcheck.js';
+
+// ContentTypeHandler interface and registry
+export type {
+  ContentTypeHandler,
+  HandlerDiffOptions,
+  HandlerPlanOptions,
+  ExecutionContext,
+  OperationProgress,
+  DryRunSummary,
+} from './sync/content-type.js';
+export { registerHandler, getHandler, getAllHandlers, clearHandlers } from './sync/content-type.js';
+
+// Content type handlers
+export { MusicHandler, createMusicHandler } from './sync/handlers/music-handler.js';
+export { VideoHandler, createVideoHandler } from './sync/handlers/video-handler.js';
+
+// Unified differ
+export type { UnifiedSyncDiff, UnifiedDiffOptions } from './sync/unified-differ.js';
+export { UnifiedDiffer, createUnifiedDiffer } from './sync/unified-differ.js';
+
+// Unified planner
+export type { UnifiedPlanOptions, PlanAddResult } from './sync/unified-planner.js';
+export { UnifiedPlanner, createUnifiedPlanner, orderOperations } from './sync/unified-planner.js';
+
+// Unified executor
+export type { UnifiedExecuteOptions } from './sync/unified-executor.js';
+export { UnifiedExecutor, createUnifiedExecutor } from './sync/unified-executor.js';
 
 // Stream utilities (for remote sources)
 export { streamToTempFile, cleanupTempFile } from './utils/stream.js';

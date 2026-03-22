@@ -266,7 +266,7 @@ describe('SubsonicAdapter connection', () => {
 describe('SubsonicAdapter getTracks', () => {
   it('returns empty array for empty library', async () => {
     const adapter = createAdapter();
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks).toEqual([]);
     expect(serverState.albumListCount).toBe(1);
@@ -306,7 +306,7 @@ describe('SubsonicAdapter getTracks', () => {
     };
 
     const adapter = createAdapter();
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks).toHaveLength(2);
     expect(tracks[0]).toMatchObject({
@@ -341,7 +341,7 @@ describe('SubsonicAdapter getTracks', () => {
     };
 
     const adapter = createAdapter();
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks[0]?.duration).toBe(180000); // 180 seconds = 180000 ms
   });
@@ -370,7 +370,7 @@ describe('SubsonicAdapter getTracks', () => {
     };
 
     const adapter = createAdapter();
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks[0]?.lossless).toBe(true);
     expect(tracks[0]?.fileType).toBe('flac');
@@ -400,7 +400,7 @@ describe('SubsonicAdapter getTracks', () => {
     };
 
     const adapter = createAdapter();
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks[0]?.lossless).toBe(false);
     expect(tracks[0]?.fileType).toBe('mp3');
@@ -424,11 +424,11 @@ describe('SubsonicAdapter getTracks', () => {
     const adapter = createAdapter();
 
     // First call
-    const tracks1 = await adapter.getTracks();
+    const tracks1 = await adapter.getItems();
     const albumListCountAfterFirst = serverState.albumListCount;
 
     // Second call should use cache
-    const tracks2 = await adapter.getTracks();
+    const tracks2 = await adapter.getItems();
 
     expect(tracks1).toBe(tracks2); // Same array reference (cached)
     expect(serverState.albumListCount).toBe(albumListCountAfterFirst); // No additional API calls
@@ -459,7 +459,7 @@ describe('SubsonicAdapter getTracks', () => {
     );
 
     const adapter = createAdapter();
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks).toHaveLength(3);
   });
@@ -519,7 +519,7 @@ describe('SubsonicAdapter filtering', () => {
 
   it('filters by artist', async () => {
     const adapter = createAdapter();
-    const filtered = await adapter.getFilteredTracks({ artist: 'Rock' });
+    const filtered = await adapter.getFilteredItems({ artist: 'Rock' });
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.artist).toBe('Rock Band');
@@ -527,7 +527,7 @@ describe('SubsonicAdapter filtering', () => {
 
   it('filters by album', async () => {
     const adapter = createAdapter();
-    const filtered = await adapter.getFilteredTracks({ album: 'Jazz' });
+    const filtered = await adapter.getFilteredItems({ album: 'Jazz' });
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.album).toBe('Jazz Album');
@@ -535,7 +535,7 @@ describe('SubsonicAdapter filtering', () => {
 
   it('filters by genre', async () => {
     const adapter = createAdapter();
-    const filtered = await adapter.getFilteredTracks({ genre: 'Rock' });
+    const filtered = await adapter.getFilteredItems({ genre: 'Rock' });
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.genre).toBe('Rock');
@@ -543,7 +543,7 @@ describe('SubsonicAdapter filtering', () => {
 
   it('filters by year', async () => {
     const adapter = createAdapter();
-    const filtered = await adapter.getFilteredTracks({ year: 2024 });
+    const filtered = await adapter.getFilteredItems({ year: 2024 });
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.year).toBe(2024);
@@ -590,7 +590,7 @@ describe('SubsonicAdapter file access', () => {
     };
 
     const adapter = createAdapter();
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
     const access = adapter.getFileAccess(tracks[0]!);
 
     if (access.type === 'stream') {
@@ -630,7 +630,7 @@ describe('SubsonicAdapter disconnect', () => {
     const adapter = createAdapter();
 
     // Fetch tracks to populate cache
-    await adapter.getTracks();
+    await adapter.getItems();
     expect(adapter.getTrackCount()).toBe(1);
 
     // Disconnect
@@ -692,7 +692,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
     serverState.coverArt = { 'al-1': realArtwork };
 
     const adapter = createAdapter(false);
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks[0]?.hasArtwork).toBeUndefined();
     expect(tracks[0]?.artworkHash).toBeUndefined();
@@ -708,7 +708,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
     serverState.coverArt = { 'al-1': realArtwork };
 
     const adapter = createAdapter(true);
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks[0]?.hasArtwork).toBe(true);
   });
@@ -717,7 +717,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
     setupSingleTrack('al-missing');
 
     const adapter = createAdapter(true);
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks[0]?.hasArtwork).toBe(false);
   });
@@ -726,7 +726,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
     setupSingleTrack(undefined);
 
     const adapter = createAdapter(true);
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks[0]?.hasArtwork).toBe(false);
   });
@@ -759,7 +759,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
     serverState.placeholder = placeholderImage;
 
     const adapter = createAdapter(true);
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks[0]?.hasArtwork).toBe(false);
   });
@@ -770,7 +770,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
     serverState.placeholder = placeholderImage;
 
     const adapter = createAdapter(true);
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks[0]?.hasArtwork).toBe(true);
   });
@@ -806,7 +806,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
     serverState.placeholder = placeholderImage;
 
     const adapter = createAdapter(true);
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks.find((t) => t.id === 'song1')?.hasArtwork).toBe(true);
     expect(tracks.find((t) => t.id === 'song2')?.hasArtwork).toBe(false);
@@ -821,7 +821,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
     serverState.coverArt = { 'al-1': realArtwork };
 
     const adapter = createAdapter(true);
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks[0]?.hasArtwork).toBe(true);
     expect(tracks[0]?.artworkHash).toBe(hashArtwork(realArtwork));
@@ -852,7 +852,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
     serverState.coverArt = { 'al-1': realArtwork };
 
     const adapter = createAdapter(true);
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     expect(tracks).toHaveLength(3);
     for (const track of tracks) expect(track.hasArtwork).toBe(true);
@@ -865,7 +865,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
     serverState.placeholder = placeholderImage;
 
     const adapter = createAdapter(true);
-    await adapter.getTracks();
+    await adapter.getItems();
     expect(serverState.coverArtRequests['al-1']).toBe(1);
 
     await adapter.disconnect();
@@ -873,7 +873,7 @@ describe('SubsonicAdapter artwork presence detection', () => {
 
     // Re-fetch makes fresh requests (including placeholder probe on reconnect)
     serverState.coverArtRequests = {};
-    await adapter.getTracks();
+    await adapter.getItems();
     expect(serverState.coverArtRequests['al-1']).toBe(1);
   });
 });

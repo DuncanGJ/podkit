@@ -91,13 +91,13 @@ describe('DirectoryAdapter integration', () => {
     const adapter = new DirectoryAdapter({ path: testDir });
     await adapter.connect();
 
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
     expect(tracks).toHaveLength(4);
   });
 
   it('parses metadata from MP3 files', async () => {
     const adapter = new DirectoryAdapter({ path: testDir });
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     const mp3Track = tracks.find((t) => t.filePath.endsWith('test-mp3.mp3'));
     expect(mp3Track).toBeDefined();
@@ -112,7 +112,7 @@ describe('DirectoryAdapter integration', () => {
 
   it('handles unicode metadata correctly', async () => {
     const adapter = new DirectoryAdapter({ path: testDir });
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     const unicodeTrack = tracks.find((t) => t.filePath.includes('unicode'));
     expect(unicodeTrack).toBeDefined();
@@ -123,7 +123,7 @@ describe('DirectoryAdapter integration', () => {
 
   it('handles files with no metadata', async () => {
     const adapter = new DirectoryAdapter({ path: testDir });
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     const noMetadataTrack = tracks.find((t) => t.filePath.includes('no-metadata'));
     expect(noMetadataTrack).toBeDefined();
@@ -135,7 +135,7 @@ describe('DirectoryAdapter integration', () => {
 
   it('scans subdirectories recursively', async () => {
     const adapter = new DirectoryAdapter({ path: testDir });
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     const nestedTrack = tracks.find((t) => t.filePath.includes('nested-track'));
     expect(nestedTrack).toBeDefined();
@@ -144,7 +144,7 @@ describe('DirectoryAdapter integration', () => {
 
   it('extracts duration from audio files', async () => {
     const adapter = new DirectoryAdapter({ path: testDir });
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     // All generated files should have duration
     for (const track of tracks) {
@@ -155,7 +155,7 @@ describe('DirectoryAdapter integration', () => {
 
   it('filters tracks by artist', async () => {
     const adapter = new DirectoryAdapter({ path: testDir });
-    const filtered = await adapter.getFilteredTracks({ artist: 'Test Artist' });
+    const filtered = await adapter.getFilteredItems({ artist: 'Test Artist' });
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0]!.artist).toBe('Test Artist');
@@ -163,7 +163,7 @@ describe('DirectoryAdapter integration', () => {
 
   it('filters tracks by album', async () => {
     const adapter = new DirectoryAdapter({ path: testDir });
-    const filtered = await adapter.getFilteredTracks({ album: 'Nested' });
+    const filtered = await adapter.getFilteredItems({ album: 'Nested' });
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0]!.album).toBe('Nested Album');
@@ -171,7 +171,7 @@ describe('DirectoryAdapter integration', () => {
 
   it('filters tracks by path pattern', async () => {
     const adapter = new DirectoryAdapter({ path: testDir });
-    const filtered = await adapter.getFilteredTracks({ pathPattern: '**/subdir/**' });
+    const filtered = await adapter.getFilteredItems({ pathPattern: '**/subdir/**' });
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0]!.title).toBe('Nested Track');
@@ -205,7 +205,7 @@ describe('DirectoryAdapter integration', () => {
 
   it('getFileAccess returns path-based access with correct path', async () => {
     const adapter = new DirectoryAdapter({ path: testDir });
-    const tracks = await adapter.getTracks();
+    const tracks = await adapter.getItems();
 
     for (const track of tracks) {
       const access = adapter.getFileAccess(track);
@@ -269,7 +269,7 @@ describe('DirectoryAdapter performance', () => {
       const start = performance.now();
 
       const adapter = new DirectoryAdapter({ path: testDir });
-      const tracks = await adapter.getTracks();
+      const tracks = await adapter.getItems();
 
       const elapsed = performance.now() - start;
 
