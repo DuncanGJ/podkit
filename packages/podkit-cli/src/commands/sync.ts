@@ -438,13 +438,13 @@ function getEffectiveSkipUpgrades(
 /**
  * Get effective transfer mode
  *
- * Resolution order: device transferMode > global transferMode > undefined (defaults to fast)
+ * Resolution order: device transferMode > global transferMode > 'fast' (default)
  */
 function getEffectiveTransferMode(
   config: PodkitConfig,
   deviceConfig?: DeviceConfig
-): import('@podkit/core').TransferMode | undefined {
-  return deviceConfig?.transferMode ?? config.transferMode;
+): import('@podkit/core').TransferMode {
+  return deviceConfig?.transferMode ?? config.transferMode ?? 'fast';
 }
 
 /**

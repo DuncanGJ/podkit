@@ -510,7 +510,17 @@ export async function genericSyncCollection<TSource, TDevice>(
   if (plan.operations.length === 0) {
     presenter.formatAlreadySynced(out, sourceItems.length, deviceItems.length);
     await adapter.disconnect();
-    return { success: true, completed: 0, failed: 0 };
+    return {
+      success: true,
+      completed: 0,
+      failed: 0,
+      ...(postDiffData.artworkMissingBaseline !== undefined
+        ? { artworkMissingBaseline: postDiffData.artworkMissingBaseline as number }
+        : {}),
+      ...(postDiffData.transferModeMismatch !== undefined
+        ? { transferModeMismatch: postDiffData.transferModeMismatch as number }
+        : {}),
+    };
   }
 
   // 10. Execution header

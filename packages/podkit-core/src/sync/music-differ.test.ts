@@ -2419,7 +2419,7 @@ describe('forceTransferMode', () => {
     expect(diff.existing).toHaveLength(1);
   });
 
-  it('treats legacy sync tags (no transfer field) as transfer=fast', () => {
+  it('treats legacy sync tags (no transfer field) as missing, not fast', () => {
     const source = createCollectionTrack('Artist', 'Track', 'Album', {
       lossless: true,
       fileType: 'flac',
@@ -2438,8 +2438,31 @@ describe('forceTransferMode', () => {
 
     expect(diff.toUpdate).toHaveLength(1);
     expect(diff.toUpdate[0]!.reason).toBe('transfer-mode-changed');
-    expect(diff.toUpdate[0]!.changes[0]!.from).toBe('fast');
+    expect(diff.toUpdate[0]!.changes[0]!.from).toBe('none');
     expect(diff.toUpdate[0]!.changes[0]!.to).toBe('portable');
+  });
+
+  it('stamps sync tag when transfer mode is missing and effective mode is fast (metadata-only)', () => {
+    const source = createCollectionTrack('Artist', 'Track', 'Album', {
+      lossless: true,
+      fileType: 'flac',
+    });
+    const ipod = createIPodTrack('Artist', 'Track', 'Album', {
+      bitrate: 256,
+      filetype: 'AAC audio file',
+      comment: '[podkit:v1 quality=high encoding=vbr]',
+    });
+
+    const diff = computeMusicDiff([source], [ipod], {
+      forceTransferMode: true,
+      effectiveTransferMode: 'fast',
+      transcodingActive: true,
+    });
+
+    expect(diff.toUpdate).toHaveLength(1);
+    expect(diff.toUpdate[0]!.reason).toBe('sync-tag-write');
+    const commentChange = diff.toUpdate[0]!.changes.find((c) => c.field === 'comment');
+    expect(commentChange!.to).toContain('transfer=fast');
   });
 
   it('affects copy-format tracks (MP3) unlike forceTranscode', () => {

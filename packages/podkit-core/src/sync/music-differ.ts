@@ -376,23 +376,48 @@ export function computeMusicDiff(
   // Post-processing: force re-processing when transfer mode changed.
   // Affects ALL tracks (including copy-format), unlike forceTranscode which only
   // affects lossless-source tracks.
+  //
+  // Two cases:
+  // 1. Transfer mode is missing from sync tag (legacy tracks) — if the effective
+  //    mode is 'fast' (the legacy default behavior), this is metadata-only (stamp
+  //    the tag). If the effective mode is different, the file needs re-processing.
+  // 2. Transfer mode is present but differs — file replacement needed.
   if (options?.forceTransferMode && options?.effectiveTransferMode) {
     const targetTransferMode = options.effectiveTransferMode;
     const stillExisting: MatchedTrack[] = [];
 
     for (const match of existing) {
       const syncTag = parseSyncTag(match.ipod.comment);
-      const tagTransferMode = syncTag?.transferMode ?? 'fast'; // Legacy default
+      const tagTransferMode = syncTag?.transferMode;
 
-      if (tagTransferMode !== targetTransferMode) {
+      if (tagTransferMode === targetTransferMode) {
+        stillExisting.push(match);
+      } else if (tagTransferMode === undefined && targetTransferMode === 'fast') {
+        // Missing transfer mode + effective is 'fast': the file was already
+        // transferred with fast behavior (the only behavior before transfer modes).
+        // Just stamp the sync tag — no file re-transfer needed.
+        const updatedTag = { ...syncTag!, transferMode: targetTransferMode };
+        toUpdate.push({
+          source: match.collection,
+          ipod: match.ipod,
+          reason: 'sync-tag-write',
+          changes: [
+            {
+              field: 'comment',
+              from: match.ipod.comment ?? '',
+              to: formatSyncTag(updatedTag),
+            },
+          ],
+        });
+      } else {
+        // Transfer mode actually changed (or missing + effective is not 'fast')
+        // — file needs re-processing.
         toUpdate.push({
           source: match.collection,
           ipod: match.ipod,
           reason: 'transfer-mode-changed',
-          changes: [{ field: 'comment', from: tagTransferMode, to: targetTransferMode }],
+          changes: [{ field: 'comment', from: tagTransferMode ?? 'none', to: targetTransferMode }],
         });
-      } else {
-        stillExisting.push(match);
       }
     }
 

@@ -162,12 +162,12 @@ export class MusicPresenter implements ContentTypePresenter<CollectionTrack, IPo
         }
       }
 
-      // Count tracks whose sync tag mode doesn't match the effective transferMode.
-      // Treat missing transferMode (legacy sync tags) as 'fast' — the system default.
+      // Count tracks whose sync tag transfer mode doesn't match the effective setting.
+      // Missing transferMode (legacy sync tags) counts as a mismatch — these tracks
+      // need --force-transfer-mode to have their sync tag updated.
       const syncTag = core.parseSyncTag(match.ipod.comment);
       if (syncTag) {
-        const tagMode = syncTag.transferMode ?? 'fast';
-        if (tagMode !== effectiveTransferMode) {
+        if (syncTag.transferMode !== effectiveTransferMode) {
           transferModeMismatch++;
         }
       }
