@@ -1257,6 +1257,7 @@ describe('formatStatsText', () => {
       syncTagTracks: 0,
       syncTagComplete: 0,
       syncTagMissingArt: 0,
+      syncTagMissingTransfer: 0,
       soundCheckSources: {
         iTunNORM: 50,
         replayGain_track: 25,
@@ -1282,6 +1283,7 @@ describe('formatStatsText', () => {
       syncTagTracks: 0,
       syncTagComplete: 0,
       syncTagMissingArt: 0,
+      syncTagMissingTransfer: 0,
       soundCheckSources: {
         iTunNORM: 50,
         replayGain_track: 25,

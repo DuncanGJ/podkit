@@ -60,6 +60,7 @@ function createVideoSyncArgs(
     effectiveVideoTransforms: {
       showLanguage: { enabled: false, format: '', expand: false },
     },
+    effectiveTransferMode: undefined,
     forceMetadata: false,
   };
   const core = {
