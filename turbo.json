@@ -3,8 +3,29 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "package.json", "tsconfig.json"],
+      "inputs": [
+        "src/**",
+        "!src/**/*.test.ts",
+        "!src/__tests__/**",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.build.json"
+      ],
       "outputs": ["dist/**"]
+    },
+    "@podkit/libgpod-node#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "!src/**/*.test.ts",
+        "!src/__tests__/**",
+        "native/**",
+        "binding.gyp",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.build.json"
+      ],
+      "outputs": ["dist/**", "build/**"]
     },
     "@podkit/docs-site#test": { "dependsOn": [] },
     "@podkit/docs-site#test:unit": { "dependsOn": [] },
@@ -14,7 +35,7 @@
     "@podkit/demo#test:integration": { "dependsOn": [] },
     "@podkit/demo#build": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "build.ts", "package.json", "tsconfig.json"],
+      "inputs": ["src/**", "!src/**/*.test.ts", "build.ts", "package.json", "tsconfig.json"],
       "outputs": ["bin/**"]
     },
     "test": {
@@ -45,7 +66,7 @@
     },
     "compile": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "package.json"],
+      "inputs": ["src/**", "!src/**/*.test.ts", "!src/__tests__/**", "package.json"],
       "outputs": ["bin/**"]
     },
     "record": {
