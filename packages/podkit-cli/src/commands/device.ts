@@ -241,6 +241,7 @@ export interface DeviceInfoOutput {
   status?: {
     mounted: boolean;
     mountPoint?: string;
+    volumeUuid?: string;
     model?: {
       name: string;
       number: string | null;
@@ -1516,6 +1517,18 @@ const infoSubcommand = new Command('info')
         } else if (resolveResult.deviceInfo) {
           liveStatus = { mounted: false };
         }
+
+        // Look up filesystem UUID for the mount point
+        if (liveStatus?.mounted && resolveResult.path) {
+          try {
+            const uuid = await manager.getUuidForMountPoint(resolveResult.path);
+            if (uuid) {
+              liveStatus.volumeUuid = uuid;
+            }
+          } catch {
+            // Gracefully skip UUID display when extraction fails
+          }
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -1553,6 +1566,9 @@ const infoSubcommand = new Command('info')
           }
         } else if (cliPath) {
           out.print(`Device: ${cliPath} (path mode)`);
+          if (liveStatus?.volumeUuid) {
+            out.print(`  Volume UUID:   ${liveStatus.volumeUuid}`);
+          }
         }
 
         if (liveStatus) {
