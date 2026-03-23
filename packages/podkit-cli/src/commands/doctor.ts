@@ -9,8 +9,8 @@
  * ```bash
  * podkit doctor                                           # Run all checks
  * podkit doctor --json                                    # JSON output
- * podkit doctor --repair artwork-integrity -c main        # Repair by check ID
- * podkit doctor --repair artwork-integrity -c main --dry-run  # Preview repair
+ * podkit doctor --repair artwork-rebuild -c main        # Repair by check ID
+ * podkit doctor --repair artwork-rebuild -c main --dry-run  # Preview repair
  * ```
  */
 
@@ -136,7 +136,7 @@ async function resolveDevice(out: OutputContext): Promise<{ path: string } | { e
 
 export const doctorCommand = new Command('doctor')
   .description('run health checks on an iPod')
-  .option('--repair <check-id>', 'repair a specific check by ID (e.g. artwork-integrity)')
+  .option('--repair <check-id>', 'repair a specific check by ID (e.g. artwork-rebuild)')
   .option('-c, --collection <name>', 'music collection to use as artwork source')
   .option('--dry-run', 'preview repair without modifying the iPod')
   .option('--format <fmt>', 'output format for file lists (csv)')
@@ -277,6 +277,9 @@ async function runDiagnostics(
     out.newline();
 
     for (const check of report.checks) {
+      // Skip repair-only checks in diagnostic output (they have no detection logic)
+      if (check.repairOnly) continue;
+
       const sym = statusSymbol(check.status);
       out.print(`  ${sym} ${check.name}    ${check.summary}`);
 
@@ -318,6 +321,13 @@ async function runDiagnostics(
           }
           const reqStr = reqHints.length > 0 ? ` ${reqHints.join(' ')}` : '';
           out.print(`    To repair: podkit doctor --repair ${check.id}${reqStr}`);
+
+          // For artwork-rebuild, offer the reset alternative (no source needed)
+          if (check.id === 'artwork-rebuild') {
+            out.print(
+              `    Or clear all artwork (no source needed): podkit doctor --repair artwork-reset`
+            );
+          }
         }
       }
 

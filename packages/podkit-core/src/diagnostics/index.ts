@@ -9,7 +9,8 @@
  */
 
 import { IpodDatabase } from '../ipod/database.js';
-import { artworkIntegrityCheck } from './checks/artwork.js';
+import { artworkRebuildCheck } from './checks/artwork.js';
+import { artworkResetCheck } from './checks/artwork-reset.js';
 import { orphanFilesCheck } from './checks/orphans.js';
 import type { DiagnosticCheck, DiagnosticReport, DiagnosticContext } from './types.js';
 
@@ -29,13 +30,13 @@ export type {
 // ── Registry ────────────────────────────────────────────────────────────────
 
 /** All registered diagnostic checks */
-const CHECKS: DiagnosticCheck[] = [artworkIntegrityCheck, orphanFilesCheck];
+const CHECKS: DiagnosticCheck[] = [artworkRebuildCheck, artworkResetCheck, orphanFilesCheck];
 
 /**
  * Get a diagnostic check by ID.
  *
  * Useful for the CLI to look up a specific check when the user requests
- * a targeted repair (e.g. `podkit doctor --repair artwork-integrity`).
+ * a targeted repair (e.g. `podkit doctor --repair artwork-rebuild`).
  */
 export function getDiagnosticCheck(id: string): DiagnosticCheck | undefined {
   return CHECKS.find((c) => c.id === id);
@@ -69,6 +70,7 @@ export async function runDiagnostics(mountPoint: string): Promise<DiagnosticRepo
         id: check.id,
         name: check.name,
         hasRepair: check.repair !== undefined,
+        repairOnly: check.repairOnly ?? false,
         ...result,
       });
     }

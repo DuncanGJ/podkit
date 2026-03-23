@@ -46,16 +46,16 @@ function runCli(args: string): { stdout: string; stderr: string; exitCode: numbe
 
 describe('doctor --repair argument validation', () => {
   it('requires -d flag when --repair is used', () => {
-    const result = runCli('doctor --repair artwork-integrity');
+    const result = runCli('doctor --repair artwork-rebuild');
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('Repair requires an explicit device');
     expect(result.stderr).toContain('-d');
   });
 
-  it('requires -c flag when --repair is used for artwork-integrity', () => {
+  it('requires -c flag when --repair is used for artwork-rebuild', () => {
     // Use a nonexistent path for -d so we get past the device check
-    const result = runCli('doctor --repair artwork-integrity -d /tmp/fake-ipod');
+    const result = runCli('doctor --repair artwork-rebuild -d /tmp/fake-ipod');
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('requires a source collection');
@@ -83,7 +83,7 @@ describe('doctor --repair argument validation', () => {
 
   it('requires both -d and -c together for artwork repair', () => {
     // Only -c without -d
-    const result = runCli('doctor --repair artwork-integrity -c navidrome');
+    const result = runCli('doctor --repair artwork-rebuild -c navidrome');
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain('Repair requires an explicit device');

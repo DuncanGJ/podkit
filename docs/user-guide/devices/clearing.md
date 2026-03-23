@@ -2,7 +2,7 @@
 title: Clearing Content
 description: Remove tracks and other content from iPod devices with podkit.
 sidebar:
-  order: 6
+  order: 7
 ---
 
 The `podkit device clear` command removes content from an iPod without recreating the database. Use this when you want to remove tracks but keep the iPod database intact.

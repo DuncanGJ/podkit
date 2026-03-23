@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-Artwork corruption is one of the most well-known iPod issues — wrong album art, glitched images, artwork that changes after a reboot. It has affected users of every iPod management tool (iTunes, gtkpod, Rhythmbox, and others) since the early days of the iPod. This page explains the technical background. For practical steps to diagnose and fix the issue, see [Artwork Repair](/troubleshooting/artwork-repair).
+Artwork corruption is one of the most well-known iPod issues — wrong album art, glitched images, artwork that changes after a reboot. It has affected users of every iPod management tool (iTunes, gtkpod, Rhythmbox, and others) since the early days of the iPod. This page explains the technical background. For practical steps to diagnose and fix the issue, see [iPod Health Checks](/user-guide/devices/doctor#repairing-artwork-corruption).
 
 ## How iPod Artwork Storage Works
 
@@ -76,7 +76,7 @@ Because there are no existing thumbnail references after step 1, the fragile com
 
 ### Repairing
 
-The only way to fix artwork corruption is to rebuild the artwork from scratch. If you manage your iPod with podkit, run `podkit doctor --repair artwork-integrity` to rebuild all artwork from your source collection. See [Artwork Repair](/troubleshooting/artwork-repair) for full instructions.
+The only way to fix artwork corruption is to rebuild the artwork from scratch. podkit offers two repair options: `podkit doctor --repair artwork-reset` to clear artwork quickly (no source needed), or `podkit doctor --repair artwork-rebuild -c <collection>` to rebuild from source. See [iPod Health Checks](/user-guide/devices/doctor#repairing-artwork-corruption) for details.
 
 If you use other software (iTunes, gtkpod, etc.), the equivalent fix is to remove all music and videos from the iPod — which empties the artwork database — and then re-sync everything. There is no partial fix because the corrupted entries are self-perpetuating (see above).
 

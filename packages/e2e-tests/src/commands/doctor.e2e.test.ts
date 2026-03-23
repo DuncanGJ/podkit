@@ -198,7 +198,7 @@ describe('podkit doctor', () => {
           expect(json).not.toBeNull();
           expect(json!.healthy).toBe(true);
 
-          const artworkCheck = json!.checks.find((c) => c.id === 'artwork-integrity');
+          const artworkCheck = json!.checks.find((c) => c.id === 'artwork-rebuild');
           expect(artworkCheck).toBeDefined();
           expect(artworkCheck!.status).toBe('pass');
         } finally {
@@ -229,7 +229,7 @@ describe('podkit doctor', () => {
           expect(json).not.toBeNull();
           expect(json!.healthy).toBe(false);
 
-          const artworkCheck = json!.checks.find((c) => c.id === 'artwork-integrity');
+          const artworkCheck = json!.checks.find((c) => c.id === 'artwork-rebuild');
           expect(artworkCheck).toBeDefined();
           expect(artworkCheck!.status).toBe('fail');
           expect(artworkCheck!.details).toBeDefined();
@@ -252,7 +252,7 @@ describe('podkit doctor', () => {
 
         // libgpod may initialize an empty ArtworkDB during IpodDatabase.open(),
         // so the check may return 'skip' (no file) or 'pass' (valid but empty).
-        const artworkCheck = json!.checks.find((c) => c.id === 'artwork-integrity');
+        const artworkCheck = json!.checks.find((c) => c.id === 'artwork-rebuild');
         expect(artworkCheck).toBeDefined();
         expect(['skip', 'pass']).toContain(artworkCheck!.status);
       });
@@ -272,7 +272,7 @@ describe('podkit doctor', () => {
         // libgpod may rewrite the empty file during IpodDatabase.open(),
         // producing a valid-but-empty ArtworkDB. Either 'skip' (still empty)
         // or 'pass' (valid header, no entries) is acceptable.
-        const artworkCheck = json!.checks.find((c) => c.id === 'artwork-integrity');
+        const artworkCheck = json!.checks.find((c) => c.id === 'artwork-rebuild');
         expect(artworkCheck).toBeDefined();
         expect(['skip', 'pass']).toContain(artworkCheck!.status);
       });
@@ -349,13 +349,13 @@ describe('podkit doctor', () => {
 
   describe('argument validation', () => {
     it('requires -d for --repair', async () => {
-      const result = await runCli(['doctor', '--repair', 'artwork-integrity']);
+      const result = await runCli(['doctor', '--repair', 'artwork-rebuild']);
 
       expect(result.exitCode).toBe(1);
       expect(result.stderr).toContain('Repair requires an explicit device');
     }, 30000);
 
-    it('requires -c for --repair artwork-integrity', async () => {
+    it('requires -c for --repair artwork-rebuild', async () => {
       await withTarget(async (target) => {
         const configDir = await mkdtemp(join(tmpdir(), 'podkit-config-'));
 
@@ -368,7 +368,7 @@ describe('podkit doctor', () => {
             configPath,
             'doctor',
             '--repair',
-            'artwork-integrity',
+            'artwork-rebuild',
             '--device',
             target.path,
           ]);

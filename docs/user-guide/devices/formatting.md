@@ -2,7 +2,7 @@
 title: Formatting a Device
 description: Format iPod devices with podkit, including current limitations and workarounds.
 sidebar:
-  order: 8
+  order: 9
 ---
 
 :::caution

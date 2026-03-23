@@ -69,7 +69,7 @@ export interface RepairRunOptions {
 // ── Diagnostic check ─────────────────────────────────────────────────────────
 
 export interface DiagnosticCheck {
-  /** Unique identifier, e.g. "artwork-integrity" */
+  /** Unique identifier, e.g. "artwork-rebuild" */
   id: string;
   /** Human-readable name, e.g. "Artwork Integrity" */
   name: string;
@@ -77,6 +77,8 @@ export interface DiagnosticCheck {
   check(ctx: DiagnosticContext): Promise<CheckResult>;
   /** If this check can auto-repair, how */
   repair?: DiagnosticRepair;
+  /** If true, this check has no detection logic — it only exposes a repair action */
+  repairOnly?: boolean;
 }
 
 // ── Report ───────────────────────────────────────────────────────────────────
@@ -87,7 +89,9 @@ export interface DiagnosticReport {
   /** Device model name */
   deviceModel: string;
   /** Individual check results */
-  checks: Array<{ id: string; name: string; hasRepair: boolean } & CheckResult>;
+  checks: Array<
+    { id: string; name: string; hasRepair: boolean; repairOnly: boolean } & CheckResult
+  >;
   /** Overall health: true if all checks passed */
   healthy: boolean;
 }

@@ -175,7 +175,7 @@ Both settings can be configured globally or per device in the config file. See [
 
 ## Troubleshooting
 
-If your iPod is showing wrong artwork (artwork from a different album, glitched images), the artwork database may be corrupted. Run `podkit doctor` to check, and see [Artwork Repair](/troubleshooting/artwork-repair) for repair instructions.
+If your iPod is showing wrong artwork (artwork from a different album, glitched images), the artwork database may be corrupted. Run `podkit doctor` to check your iPod's health. You can clear corrupted artwork quickly with `podkit doctor --repair artwork-reset`, or rebuild from your source collection with `podkit doctor --repair artwork-rebuild -c <collection>`. See [iPod Health Checks](/user-guide/devices/doctor#repairing-artwork-corruption) for the full walkthrough.
 
 ## See Also
 
@@ -183,5 +183,5 @@ If your iPod is showing wrong artwork (artwork from a different album, glitched 
 - [Music Syncing](/user-guide/syncing/music) -- Supported formats and metadata handling
 - [Config File Reference](/reference/config-file) -- `artwork` and `checkArtwork` options
 - [CLI Commands](/reference/cli-commands) -- `--no-artwork` and `--check-artwork` flags
-- [Artwork Repair](/troubleshooting/artwork-repair) -- Diagnosing and repairing corrupted artwork
+- [iPod Health Checks](/user-guide/devices/doctor) -- Diagnosing and repairing artwork problems
 - [Artwork Corruption Background](/devices/artwork-corruption) -- Technical details on the corruption issue

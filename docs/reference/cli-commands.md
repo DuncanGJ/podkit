@@ -427,6 +427,8 @@ podkit device reset [-d <name>] [options]
 
 Wipe all artwork from the iPod and clear artwork sync tags. The next `podkit sync` will re-add artwork from your source collection.
 
+This is also available through the doctor workflow as `podkit doctor --repair artwork-reset`. See [iPod Health Checks](/user-guide/devices/doctor#repairing-artwork-corruption) for when to use each approach.
+
 ```bash
 podkit device reset-artwork [-d <name>] [options]
 ```
@@ -633,7 +635,7 @@ podkit doctor [options]
 
 | Option | Description |
 |--------|-------------|
-| `--repair <check-id>` | Repair a specific check by ID, e.g. `artwork-integrity` (requires `-d`; some checks also need `-c`) |
+| `--repair <check-id>` | Repair a specific check by ID, e.g. `artwork-rebuild` (requires `-d`; some checks also need `-c`) |
 | `--dry-run` | Preview repair without modifying the iPod |
 | `--format csv` | Export orphan file list as CSV (path and size) |
 
@@ -647,10 +649,13 @@ podkit doctor
 podkit doctor -d myipod
 
 # Repair corrupted artwork (device and collection are required)
-podkit doctor -d myipod -c main --repair artwork-integrity
+podkit doctor -d myipod -c main --repair artwork-rebuild
+
+# Clear all artwork without a source collection
+podkit doctor --repair artwork-reset
 
 # Preview what repair would do
-podkit doctor -d myipod -c main --repair artwork-integrity --dry-run
+podkit doctor -d myipod -c main --repair artwork-rebuild --dry-run
 
 # Verbose output with orphan breakdown by directory and extension
 podkit doctor --verbose
@@ -667,10 +672,11 @@ Pressing Ctrl+C during a repair triggers a graceful shutdown — partial repair 
 
 | Check | Description | Repair |
 |-------|-------------|--------|
-| Artwork Integrity | Verifies ArtworkDB offsets are within .ithmb file bounds | `--repair artwork-integrity -c <collection>` |
+| Artwork Integrity | Verifies ArtworkDB offsets are within .ithmb file bounds | `--repair artwork-rebuild -c <collection>` |
+| Artwork Reset | Clears all artwork without needing a source collection | `--repair artwork-reset` |
 | Orphan Files | Detects unreferenced files in iPod_Control/Music that waste storage | `--repair orphan-files` |
 
-See [Artwork Repair](/troubleshooting/artwork-repair) for details on diagnosing and repairing artwork corruption.
+See [iPod Health Checks](/user-guide/devices/doctor) for a full guide to using doctor, including when to use each repair option.
 
 ## `podkit eject`
 

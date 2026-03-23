@@ -27,6 +27,7 @@ Read these documents based on what you're working on:
 | Subsonic source | [docs/user-guide/subsonic-source.md](../docs/user-guide/subsonic-source.md) |
 | iPod internals | [docs/devices/ipod-internals.md](../docs/devices/ipod-internals.md) |
 | Troubleshooting | [docs/troubleshooting/](../docs/troubleshooting/) |
+| iPod health checks (doctor) | [docs/user-guide/devices/doctor.md](../docs/user-guide/devices/doctor.md) |
 | Compilation albums | [docs/user-guide/syncing/compilation-albums.md](../docs/user-guide/syncing/compilation-albums.md) |
 | Artwork | [docs/user-guide/syncing/artwork.md](../docs/user-guide/syncing/artwork.md) |
 | Sound Check | [docs/user-guide/syncing/sound-check.md](../docs/user-guide/syncing/sound-check.md) |

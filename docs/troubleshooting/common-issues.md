@@ -143,7 +143,7 @@ podkit sync --force-transcode
 
 **Cause:** The iPod's artwork database has become out of sync with the thumbnail data files. This is a common issue across all iPod management software (including iTunes), usually triggered by disconnecting the iPod before all data is flushed.
 
-**Solution:** Run `podkit doctor` to diagnose, then `podkit doctor --repair artwork-integrity` to rebuild. See [Artwork Repair](/troubleshooting/artwork-repair) for full instructions.
+**Solution:** Run `podkit doctor` to diagnose. You can either reset artwork quickly with `podkit doctor --repair artwork-reset` (no source collection needed) or rebuild from source with `podkit doctor --repair artwork-rebuild -c <collection>`. See [iPod Health Checks](/user-guide/devices/doctor#repairing-artwork-corruption) for details.
 
 ### Artwork not displaying
 
@@ -170,19 +170,7 @@ podkit sync --force-transcode
 
 **Cause:** If a sync was force-quit (double Ctrl+C), crashed, or the iPod was disconnected mid-sync, audio files may have been copied to the iPod without being registered in the database. These orphaned files waste storage space but don't cause corruption.
 
-**Solution:** Run `podkit doctor` to detect orphans, then repair:
-```bash
-# Check for orphaned files
-podkit doctor
-
-# Remove orphaned files to reclaim space
-podkit doctor --repair orphan-files
-
-# Preview what would be deleted first
-podkit doctor --repair orphan-files --dry-run
-```
-
-A single Ctrl+C during sync triggers a graceful shutdown that saves all completed work — orphaned files only occur from force-quit, crashes, or disconnection.
+**Solution:** Run `podkit doctor` to detect orphans, then `podkit doctor --repair orphan-files` to remove them. A single Ctrl+C during sync triggers a graceful shutdown that saves all completed work — orphaned files only occur from force-quit, crashes, or disconnection. See [iPod Health Checks](/user-guide/devices/doctor#repairing-orphan-files) for details.
 
 ## Database Issues
 

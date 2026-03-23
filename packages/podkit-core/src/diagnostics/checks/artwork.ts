@@ -26,8 +26,8 @@ import type {
 
 const DOCS_URL = 'https://jvgomg.github.io/podkit/troubleshooting/artwork-repair';
 
-export const artworkIntegrityCheck: DiagnosticCheck = {
-  id: 'artwork-integrity',
+export const artworkRebuildCheck: DiagnosticCheck = {
+  id: 'artwork-rebuild',
   name: 'Artwork Integrity',
 
   async check(ctx: DiagnosticContext): Promise<CheckResult> {

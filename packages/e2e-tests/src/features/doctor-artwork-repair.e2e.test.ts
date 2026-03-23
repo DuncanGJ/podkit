@@ -1,5 +1,5 @@
 /**
- * E2E tests for podkit doctor --repair artwork-integrity.
+ * E2E tests for podkit doctor --repair artwork-rebuild.
  *
  * Tests the artwork repair workflow: full repair, partial matches,
  * no-artwork sources, dry run, sync tag handling, idempotency,
@@ -167,7 +167,7 @@ async function runDoctorRepair(
     configPath,
     'doctor',
     '--repair',
-    'artwork-integrity',
+    'artwork-rebuild',
     '--device',
     devicePath,
     '-c',
@@ -227,7 +227,7 @@ async function getDirectoryChecksums(dirPath: string): Promise<Map<string, strin
 // Tests
 // =============================================================================
 
-describe('podkit doctor --repair artwork-integrity', () => {
+describe('podkit doctor --repair artwork-rebuild', () => {
   let fixturesAvailable = false;
   let metaflacAvailable = false;
   let ffmpegAvailable = false;
