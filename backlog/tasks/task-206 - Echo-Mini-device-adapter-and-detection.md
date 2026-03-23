@@ -8,7 +8,7 @@ labels:
   - feature
   - device
   - architecture
-milestone: 'Transfer Mode: Echo Mini Support'
+milestone: 'Additional Device Support: Echo Mini'
 dependencies:
   - TASK-205
 references:
