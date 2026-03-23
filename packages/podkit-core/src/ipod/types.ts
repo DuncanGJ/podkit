@@ -320,14 +320,16 @@ export interface IPodTrack {
   update(fields: TrackFields): IPodTrack;
 
   /**
-   * Removes the track from the iPod database.
+   * Removes the track from the iPod database and deletes its file from disk.
    *
    * After calling this method, subsequent operations on this track
    * object will throw an IpodError.
    *
+   * @param options - Optional settings
+   * @param options.keepFile - If true, keep the audio file on disk (default: false)
    * @throws {IpodError} If the track has already been removed (code: TRACK_REMOVED)
    */
-  remove(): void;
+  remove(options?: { keepFile?: boolean }): void;
 
   /**
    * Copies an audio file to the iPod for this track.

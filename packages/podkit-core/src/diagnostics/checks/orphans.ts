@@ -58,6 +58,8 @@ async function scanMusicFiles(musicDir: string): Promise<string[]> {
     try {
       const files = await readdir(dirPath);
       for (const file of files) {
+        // Skip macOS resource fork files (._*)
+        if (file.startsWith('._')) continue;
         allFiles.push(join(dirPath, file));
       }
     } catch {

@@ -30,9 +30,10 @@ export interface IpodDatabaseInternal {
    * Removes a track from the database.
    *
    * @param track - The track to remove
+   * @param options - Optional settings for the removal
    * @returns Result indicating success and any file deletion errors
    */
-  removeTrack(track: IPodTrack): RemoveTrackResult;
+  removeTrack(track: IPodTrack, options?: { deleteFile?: boolean }): RemoveTrackResult;
 
   /**
    * Copies an audio file to the iPod for a track.
@@ -253,16 +254,18 @@ export class IpodTrackImpl implements IPodTrack {
   }
 
   /**
-   * Removes the track from the iPod database.
+   * Removes the track from the iPod database and deletes its file from disk.
    *
    * After calling this method, subsequent operations on this track
    * object will throw an IpodError.
    *
+   * @param options - Optional settings
+   * @param options.keepFile - If true, keep the audio file on disk (default: false)
    * @throws {IpodError} If the track has already been removed (code: TRACK_REMOVED)
    */
-  remove(): void {
+  remove(options?: { keepFile?: boolean }): void {
     this.assertNotRemoved();
-    this._db.removeTrack(this);
+    this._db.removeTrack(this, { deleteFile: !options?.keepFile });
   }
 
   /**

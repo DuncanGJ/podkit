@@ -634,6 +634,7 @@ podkit doctor [options]
 |--------|-------------|
 | `--repair <check-id>` | Repair a specific check by ID, e.g. `artwork-integrity` (requires `-d`; some checks also need `-c`) |
 | `--dry-run` | Preview repair without modifying the iPod |
+| `--format csv` | Export orphan file list as CSV (path and size) |
 
 ### Examples
 
@@ -649,6 +650,12 @@ podkit doctor -d myipod -c main --repair artwork-integrity
 
 # Preview what repair would do
 podkit doctor -d myipod -c main --repair artwork-integrity --dry-run
+
+# Verbose output with orphan breakdown by directory and extension
+podkit doctor --verbose
+
+# Export orphan file list as CSV
+podkit doctor --format csv > orphans.csv
 ```
 
 ### Interruption Behaviour

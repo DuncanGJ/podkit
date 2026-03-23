@@ -258,7 +258,7 @@ describe('IpodTrackImpl', () => {
       track.remove();
 
       expect(db.removeTrackMock).toHaveBeenCalledTimes(1);
-      expect(db.removeTrackMock).toHaveBeenCalledWith(track);
+      expect(db.removeTrackMock).toHaveBeenCalledWith(track, { deleteFile: true });
 
       // Verify the track is marked as removed
       expect(() => track.update({ title: 'New' })).toThrow(IpodError);

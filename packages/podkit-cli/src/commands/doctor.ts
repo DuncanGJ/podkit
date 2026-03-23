@@ -14,6 +14,7 @@
  * ```
  */
 
+import { basename, dirname } from 'node:path';
 import { Command } from 'commander';
 import { getContext } from '../context.js';
 import {
@@ -62,6 +63,7 @@ interface DoctorOptions {
   repair?: string;
   dryRun?: boolean;
   collection?: string;
+  format?: 'csv';
 }
 
 // ── Status symbols ──────────────────────────────────────────────────────────
@@ -137,6 +139,7 @@ export const doctorCommand = new Command('doctor')
   .option('--repair <check-id>', 'repair a specific check by ID (e.g. artwork-integrity)')
   .option('-c, --collection <name>', 'music collection to use as artwork source')
   .option('--dry-run', 'preview repair without modifying the iPod')
+  .option('--format <fmt>', 'output format for file lists (csv)')
   .action(async (options: DoctorOptions) => {
     const { config, globalOpts } = getContext();
     const out = OutputContext.fromGlobalOpts(globalOpts);
@@ -215,12 +218,16 @@ export const doctorCommand = new Command('doctor')
       return;
     }
 
-    await runDiagnostics(resolved.path, out);
+    await runDiagnostics(resolved.path, out, options);
   });
 
 // ── Diagnostics ─────────────────────────────────────────────────────────────
 
-async function runDiagnostics(devicePath: string, out: OutputContext): Promise<void> {
+async function runDiagnostics(
+  devicePath: string,
+  out: OutputContext,
+  options: DoctorOptions
+): Promise<void> {
   let runDiagnostics: typeof import('@podkit/core').runDiagnostics;
   let getDiagnosticCheck: typeof import('@podkit/core').getDiagnosticCheck;
   try {
@@ -250,6 +257,21 @@ async function runDiagnostics(devicePath: string, out: OutputContext): Promise<v
     })),
   };
 
+  // CSV format: dump orphan file list and exit
+  if (options.format === 'csv') {
+    const orphanCheck = report.checks.find((c) => c.id === 'orphan-files');
+    const orphans = (orphanCheck?.details as Record<string, unknown>)?.orphans as
+      | Array<{ path: string; size: number }>
+      | undefined;
+    if (orphans && orphans.length > 0) {
+      out.stdout('path,size');
+      for (const o of orphans) {
+        out.stdout(`${escapeCsvField(o.path)},${o.size}`);
+      }
+    }
+    return;
+  }
+
   out.result<DoctorOutput>(output, () => {
     out.print(`podkit doctor \u2014 checking iPod at ${devicePath}`);
     out.newline();
@@ -278,6 +300,11 @@ async function runDiagnostics(devicePath: string, out: OutputContext): Promise<v
         out.newline();
         out.print('    The artwork database is out of sync with the thumbnail files.');
         out.print('    Affected tracks display wrong or missing artwork on the iPod.');
+      }
+
+      // Orphan files: verbose summary
+      if (check.id === 'orphan-files' && check.status === 'warn' && check.details) {
+        printOrphanSummary(check.details as Record<string, unknown>, out);
       }
 
       // Show repair instructions if the check is repairable
@@ -467,4 +494,79 @@ async function runRepair(
     }
     db.close();
   }
+}
+
+// ── Orphan file helpers ────────────────────────────────────────────────────
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+/**
+ * Print a verbose summary of orphan files: breakdown by directory and extension,
+ * plus the 10 largest files.
+ */
+function printOrphanSummary(details: Record<string, unknown>, out: OutputContext): void {
+  const orphans = details.orphans as Array<{ path: string; size: number }> | undefined;
+  if (!orphans || orphans.length === 0) return;
+
+  // Breakdown by F* directory
+  const byDir = new Map<string, { count: number; size: number }>();
+  for (const o of orphans) {
+    const dir = basename(dirname(o.path));
+    const entry = byDir.get(dir) ?? { count: 0, size: 0 };
+    entry.count++;
+    entry.size += o.size;
+    byDir.set(dir, entry);
+  }
+
+  out.newline();
+  out.verbose1('    By directory:');
+  const sortedDirs = [...byDir.entries()].sort((a, b) => b[1].size - a[1].size);
+  for (const [dir, { count, size }] of sortedDirs) {
+    out.verbose1(
+      `      ${dir.padEnd(5)} ${String(count).padStart(5)} files  ${formatBytes(size).padStart(10)}`
+    );
+  }
+
+  // Breakdown by extension
+  const byExt = new Map<string, { count: number; size: number }>();
+  for (const o of orphans) {
+    const name = basename(o.path);
+    const dotIdx = name.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? name.slice(dotIdx).toLowerCase() : '(none)';
+    const entry = byExt.get(ext) ?? { count: 0, size: 0 };
+    entry.count++;
+    entry.size += o.size;
+    byExt.set(ext, entry);
+  }
+
+  out.verbose1('    By extension:');
+  const sortedExts = [...byExt.entries()].sort((a, b) => b[1].size - a[1].size);
+  for (const [ext, { count, size }] of sortedExts) {
+    out.verbose1(
+      `      ${ext.padEnd(8)} ${String(count).padStart(5)} files  ${formatBytes(size).padStart(10)}`
+    );
+  }
+
+  // Top 10 largest files
+  const sorted = [...orphans].sort((a, b) => b.size - a.size);
+  const top = sorted.slice(0, 10);
+  out.verbose1('    Largest orphans:');
+  for (const o of top) {
+    const rel = o.path.replace(/.*iPod_Control\/Music\//, '');
+    out.verbose1(`      ${formatBytes(o.size).padStart(10)}  ${rel}`);
+  }
+
+  out.verbose1(`    Use --format csv to export the full list.`);
+}
+
+function escapeCsvField(value: string): string {
+  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
 }
