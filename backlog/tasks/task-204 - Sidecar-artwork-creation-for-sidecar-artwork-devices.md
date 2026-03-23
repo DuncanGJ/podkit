@@ -4,12 +4,14 @@ title: Sidecar artwork creation for sidecar-artwork devices
 status: To Do
 assignee: []
 created_date: '2026-03-23 14:10'
+updated_date: '2026-03-23 20:31'
 labels:
   - feature
   - core
   - sync
-milestone: 'Additional Device Support: Echo Mini'
-dependencies: []
+milestone: 'm-14'
+dependencies:
+  - TASK-221
 references:
   - packages/podkit-core/src/sync/music-executor.ts
   - packages/podkit-core/src/transcode/ffmpeg.ts
