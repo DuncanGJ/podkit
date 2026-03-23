@@ -7,7 +7,7 @@ updated_date: '2026-03-23 20:32'
 ---
 ## Overview
 
-Architectural decisions made during design discussion for adding non-iPod device support to podkit, starting with the FiiO Echo Mini. These decisions guide the existing Echo Mini milestone (m-14) and future device work.
+Architectural decisions made during design discussion for adding non-iPod device support to podkit, starting with the FiiO Echo Mini. These decisions guide the existing Echo Mini milestone ("Additional Device Support: Echo Mini") and future device work.
 
 ## Task Dependency Chain
 

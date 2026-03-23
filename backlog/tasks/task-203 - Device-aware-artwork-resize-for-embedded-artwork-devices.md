@@ -8,7 +8,7 @@ labels:
   - feature
   - core
   - transcoding
-milestone: 'm-14'
+milestone: '"Additional Device Support: Echo Mini"'
 dependencies: []
 references:
   - packages/podkit-core/src/transcode/ffmpeg.ts

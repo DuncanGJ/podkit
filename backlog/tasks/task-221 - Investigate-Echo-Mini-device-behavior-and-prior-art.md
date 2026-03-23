@@ -7,7 +7,7 @@ created_date: '2026-03-23 20:24'
 labels:
   - research
   - device
-milestone: m-14
+milestone: "Additional Device Support: Echo Mini"
 dependencies: []
 references:
   - devices/echo-mini.md

@@ -6,7 +6,7 @@ assignee: []
 created_date: '2026-03-23 20:35'
 labels:
   - docs
-milestone: m-14
+milestone: "Additional Device Support: Echo Mini"
 dependencies:
   - TASK-226
 documentation:

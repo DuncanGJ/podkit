@@ -8,7 +8,7 @@ labels:
   - feature
   - cli
   - config
-milestone: m-14
+milestone: "Additional Device Support: Echo Mini"
 dependencies:
   - TASK-221
   - TASK-222

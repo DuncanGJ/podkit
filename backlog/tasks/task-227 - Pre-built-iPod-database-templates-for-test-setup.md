@@ -7,7 +7,7 @@ created_date: '2026-03-23 20:33'
 labels:
   - testing
   - performance
-milestone: m-15
+milestone: "Test Suite Performance"
 dependencies: []
 documentation:
   - backlog/documents/doc-021 - Test Suite Performance Plan.md

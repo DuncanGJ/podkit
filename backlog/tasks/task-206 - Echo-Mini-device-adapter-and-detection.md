@@ -7,7 +7,7 @@ created_date: '2026-03-23 14:10'
 updated_date: '2026-03-23 20:31'
 labels:
   - superseded
-milestone: 'm-14'
+milestone: '"Additional Device Support: Echo Mini"'
 dependencies:
   - TASK-205
   - TASK-221

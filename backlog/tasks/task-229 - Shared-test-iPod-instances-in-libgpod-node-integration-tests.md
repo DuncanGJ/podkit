@@ -9,7 +9,7 @@ labels:
   - testing
   - performance
   - refactor
-milestone: m-15
+milestone: "Test Suite Performance"
 dependencies:
   - TASK-227
   - TASK-228
