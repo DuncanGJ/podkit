@@ -51,6 +51,41 @@ function escapeRegExp(str: string): string {
 }
 
 /**
+ * Test whether a TOML section header exists in content, ignoring commented-out lines.
+ *
+ * A line is considered a comment if, after trimming leading whitespace, it starts with `#`.
+ * The sectionPath should be the escaped dot-path, e.g. `devices\\.myipod` or `music\\.main`.
+ */
+function sectionExists(content: string, sectionPath: string): boolean {
+  const regex = new RegExp(`^\\s*\\[${sectionPath}\\]`, 'm');
+  for (const line of content.split('\n')) {
+    if (line.trimStart().startsWith('#')) continue;
+    if (regex.test(line)) return true;
+  }
+  return false;
+}
+
+/**
+ * Find the index of a TOML section header in content, ignoring commented-out lines.
+ * Returns the match object with index, or null if not found.
+ */
+function findSectionHeader(
+  content: string,
+  sectionPath: string
+): { index: number; match: string } | null {
+  const regex = new RegExp(`^\\s*\\[${sectionPath}\\]`, 'gm');
+  let m;
+  while ((m = regex.exec(content)) !== null) {
+    // Check this line isn't a comment by looking backwards for the start of line
+    const lineStart = content.lastIndexOf('\n', m.index) + 1;
+    const linePrefix = content.slice(lineStart, m.index + m[0].length);
+    if (linePrefix.trimStart().startsWith('#')) continue;
+    return { index: m.index, match: m[0] };
+  }
+  return null;
+}
+
+/**
  * Add a device to the config file
  *
  * Creates a [devices.<name>] section with the device configuration.
@@ -86,9 +121,8 @@ export function addDevice(
     };
   }
 
-  // Check if device already exists
-  const deviceSectionRegex = new RegExp(`\\[devices\\.${escapeRegExp(name)}\\]`);
-  if (deviceSectionRegex.test(content)) {
+  // Check if device already exists (skip commented-out lines)
+  if (sectionExists(content, `devices\\.${escapeRegExp(name)}`)) {
     return {
       success: false,
       configPath,
@@ -207,9 +241,9 @@ export function updateDevice(
 
   let content = fs.readFileSync(configPath, 'utf-8');
 
-  // Check if device exists
-  const deviceSectionRegex = new RegExp(`\\[devices\\.${escapeRegExp(name)}\\]`);
-  if (!deviceSectionRegex.test(content)) {
+  // Check if device exists (skip commented-out lines)
+  const deviceHeader = findSectionHeader(content, `devices\\.${escapeRegExp(name)}`);
+  if (!deviceHeader) {
     return {
       success: false,
       configPath,
@@ -220,18 +254,7 @@ export function updateDevice(
 
   // Find the device section boundaries
   // The section runs from [devices.<name>] to the next top-level section (not [devices.<name>.*])
-  const sectionStartRegex = new RegExp(`(\\[devices\\.${escapeRegExp(name)}\\])`);
-  const sectionMatch = content.match(sectionStartRegex);
-  if (!sectionMatch || sectionMatch.index === undefined) {
-    return {
-      success: false,
-      configPath,
-      created: false,
-      error: `Could not locate device section for "${name}"`,
-    };
-  }
-
-  const sectionStart = sectionMatch.index + sectionMatch[0].length;
+  const sectionStart = deviceHeader.index + deviceHeader.match.length;
 
   // Find where this device section ends (next section that isn't a nested device section)
   const afterSection = content.slice(sectionStart);
@@ -307,9 +330,8 @@ export function removeDevice(name: string, options?: UpdateConfigOptions): Updat
 
   let content = fs.readFileSync(configPath, 'utf-8');
 
-  // Check if device exists
-  const deviceSectionRegex = new RegExp(`\\[devices\\.${escapeRegExp(name)}\\]`);
-  if (!deviceSectionRegex.test(content)) {
+  // Check if device exists (skip commented-out lines)
+  if (!sectionExists(content, `devices\\.${escapeRegExp(name)}`)) {
     return {
       success: false,
       configPath,
@@ -321,9 +343,10 @@ export function removeDevice(name: string, options?: UpdateConfigOptions): Updat
   // Remove the [devices.<name>] section and any nested [devices.<name>.*] sections
   // This regex matches from [devices.name] up to the next top-level section or end of file
   // It also handles nested sections like [devices.name.cleanArtists]
+  // Only match lines that aren't comments (don't start with #)
   const removeRegex = new RegExp(
-    `\\n?\\[devices\\.${escapeRegExp(name)}\\][\\s\\S]*?(?=\\n\\[(?!devices\\.${escapeRegExp(name)}\\.))|\\n?\\[devices\\.${escapeRegExp(name)}\\][\\s\\S]*$`,
-    'g'
+    `\\n?^\\s*\\[devices\\.${escapeRegExp(name)}\\][\\s\\S]*?(?=\\n\\s*\\[(?!devices\\.${escapeRegExp(name)}\\.))|\\n?^\\s*\\[devices\\.${escapeRegExp(name)}\\][\\s\\S]*$`,
+    'gm'
   );
   content = content.replace(removeRegex, '');
 
@@ -383,11 +406,10 @@ export function setDefaultDevice(name: string, options?: UpdateConfigOptions): U
     };
   }
 
-  // Check if [defaults] section exists
-  const defaultsSectionRegex = /\[defaults\]/;
+  // Check if [defaults] section exists (skip commented-out lines)
   const deviceLineRegex = /^device\s*=\s*["']?[^"'\n]*["']?\s*$/m;
 
-  if (defaultsSectionRegex.test(content)) {
+  if (sectionExists(content, 'defaults')) {
     // [defaults] section exists
     if (name === '') {
       // Clear the default device - remove the device line from [defaults]
@@ -537,9 +559,8 @@ export function addMusicCollection(
     section += `password = "${escapeTomlString(collection.password)}"\n`;
   }
 
-  // Check if section already exists
-  const sectionRegex = new RegExp(`\\[music\\.${escapeRegExp(name)}\\]`);
-  if (sectionRegex.test(content)) {
+  // Check if section already exists (skip commented-out lines)
+  if (sectionExists(content, `music\\.${escapeRegExp(name)}`)) {
     return {
       success: false,
       configPath,
@@ -608,9 +629,8 @@ export function addVideoCollection(
   // Generate the [video.<name>] section
   const section = `\n[video.${name}]\npath = "${escapeTomlString(collection.path)}"\n`;
 
-  // Check if section already exists
-  const sectionRegex = new RegExp(`\\[video\\.${escapeRegExp(name)}\\]`);
-  if (sectionRegex.test(content)) {
+  // Check if section already exists (skip commented-out lines)
+  if (sectionExists(content, `video\\.${escapeRegExp(name)}`)) {
     return {
       success: false,
       configPath,
@@ -666,17 +686,8 @@ export function removeCollection(
 
   let content = fs.readFileSync(configPath, 'utf-8');
 
-  // Build regex to match the section
-  // Matches [type.name] and everything until the next [section] or end of file
-  const sectionRegex = new RegExp(
-    `\\n?\\[${type}\\.${escapeRegExp(name)}\\][\\s\\S]*?(?=\\n\\[|\\s*$)`,
-    'g'
-  );
-
-  const originalContent = content;
-  content = content.replace(sectionRegex, '');
-
-  if (content === originalContent) {
+  // Check if section exists first (skip commented-out lines)
+  if (!sectionExists(content, `${type}\\.${escapeRegExp(name)}`)) {
     return {
       success: false,
       configPath,
@@ -684,6 +695,13 @@ export function removeCollection(
       error: `${type.charAt(0).toUpperCase() + type.slice(1)} collection '${name}' not found in config`,
     };
   }
+
+  // Remove the [type.name] section and everything until the next non-commented [section] or end of file
+  const sectionRegex = new RegExp(
+    `\\n?^\\s*\\[${type}\\.${escapeRegExp(name)}\\][\\s\\S]*?(?=\\n\\s*\\[|\\s*$)`,
+    'gm'
+  );
+  content = content.replace(sectionRegex, '');
 
   // Also clear the default if this was set as default
   // Match: music = "name" or video = "name" within [defaults] section
@@ -753,9 +771,8 @@ export function setDefaultCollection(
   let { content } = fileResult;
   const { created } = fileResult;
 
-  // Check if [defaults] section exists
-  const defaultsSectionRegex = /\[defaults\]/;
-  const hasDefaultsSection = defaultsSectionRegex.test(content);
+  // Check if [defaults] section exists (skip commented-out lines)
+  const hasDefaultsSection = sectionExists(content, 'defaults');
 
   // Check if the specific default key already exists
   const defaultKeyRegex = new RegExp(`^\\s*${type}\\s*=\\s*["'][^"']*["']`, 'gm');
